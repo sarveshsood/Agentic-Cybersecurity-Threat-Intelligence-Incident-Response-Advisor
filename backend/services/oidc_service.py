@@ -18,7 +18,7 @@ import logging
 import os
 import secrets
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 from urllib.parse import urlencode
 
 import requests
@@ -26,7 +26,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from backend.core import services as svc
-from backend.models import User, UserInDB
+from backend.models import UserInDB
 from backend.repositories.users import users_repo
 from backend.security import create_access_token, hash_password
 from backend.services.auth_service import _token_response

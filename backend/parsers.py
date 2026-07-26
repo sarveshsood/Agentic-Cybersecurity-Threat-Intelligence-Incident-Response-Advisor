@@ -381,7 +381,6 @@ class EvtxParser(BaseParser):
         events: List[Dict[str, Any]] = []
         try:
             from Evtx.Evtx import Evtx  # type: ignore
-            from Evtx.Views import evtx_file_xml_view  # type: ignore
         except Exception:
             return [
                 _ces(

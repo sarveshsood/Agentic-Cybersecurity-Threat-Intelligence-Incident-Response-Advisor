@@ -36,7 +36,7 @@ def otel_status() -> Dict[str, Any]:
 
 def setup_otel(service_name: str = "actira") -> bool:
     """Configure TracerProvider + OTLP HTTP exporter once. Never raises."""
-    global _configured, _status
+    global _configured
     if _configured:
         return bool(_status.get("configured"))
 
