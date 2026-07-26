@@ -890,7 +890,10 @@ export default function Dashboard() {
                                                 <div
                                                     className="h-full rounded-full bg-blue-500"
                                                     style={{
-                                                        width: `${Math.min((t.count / 60) * 100, 100)}%`,
+                                                        width: `${Math.min(
+                                                            (t.count / Math.max(topTechMini[0]?.count || 1, 1)) * 100,
+                                                            100,
+                                                        )}%`,
                                                     }}
                                                 />
                                             </div>
