@@ -37,8 +37,8 @@ async def me(user=Depends(get_current_user)):
 
 @router.get("/oidc/config")
 async def oidc_config():
-    """Public: whether SSO is enabled (no secrets)."""
-    return oidc_service.oidc_config_public()
+    """Public: SSO flag + public_register policy (no secrets)."""
+    return auth_service.auth_public_config()
 
 
 @router.get("/oidc/login")

@@ -1594,7 +1594,7 @@
     },
     "/api/auth/oidc/config": {
       "get": {
-        "description": "Public: whether SSO is enabled (no secrets).",
+        "description": "Public: SSO flag + public_register policy (no secrets).",
         "operationId": "oidc_config_api_auth_oidc_config_get",
         "responses": {
           "200": {
@@ -4878,7 +4878,7 @@
     },
     "/api/v1/auth/oidc/config": {
       "get": {
-        "description": "Public: whether SSO is enabled (no secrets).",
+        "description": "Public: SSO flag + public_register policy (no secrets).",
         "operationId": "oidc_config_api_v1_auth_oidc_config_get",
         "responses": {
           "200": {

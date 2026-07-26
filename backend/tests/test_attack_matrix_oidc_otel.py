@@ -48,6 +48,64 @@ def test_oidc_routes_registered():
     assert "/auth/oidc/callback" in paths
 
 
+def test_public_register_allowed_in_lab(monkeypatch):
+    from backend.services import auth_service as auth
+
+    monkeypatch.delenv("ALLOW_PUBLIC_REGISTER", raising=False)
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    monkeypatch.delenv("OIDC_CLIENT_ID", raising=False)
+    monkeypatch.setenv("ENV", "dev")
+    assert auth.public_register_allowed() is True
+
+
+def test_public_register_disabled_when_oidc(monkeypatch):
+    from backend.services import auth_service as auth
+
+    monkeypatch.delenv("ALLOW_PUBLIC_REGISTER", raising=False)
+    monkeypatch.setenv("OIDC_ISSUER", "https://login.example.com")
+    monkeypatch.setenv("OIDC_CLIENT_ID", "actira-app")
+    monkeypatch.setenv("ENV", "dev")
+    assert auth.public_register_allowed() is False
+
+
+def test_public_register_disabled_in_production(monkeypatch):
+    from backend.services import auth_service as auth
+
+    monkeypatch.delenv("ALLOW_PUBLIC_REGISTER", raising=False)
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    monkeypatch.delenv("OIDC_CLIENT_ID", raising=False)
+    monkeypatch.setenv("ENV", "production")
+    assert auth.public_register_allowed() is False
+
+
+def test_public_register_explicit_override(monkeypatch):
+    from backend.services import auth_service as auth
+
+    monkeypatch.setenv("ALLOW_PUBLIC_REGISTER", "true")
+    monkeypatch.setenv("OIDC_ISSUER", "https://login.example.com")
+    monkeypatch.setenv("OIDC_CLIENT_ID", "actira-app")
+    monkeypatch.setenv("ENV", "production")
+    assert auth.public_register_allowed() is True
+
+    monkeypatch.setenv("ALLOW_PUBLIC_REGISTER", "false")
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    monkeypatch.delenv("OIDC_CLIENT_ID", raising=False)
+    monkeypatch.setenv("ENV", "dev")
+    assert auth.public_register_allowed() is False
+
+
+def test_auth_public_config_includes_register_flag(monkeypatch):
+    from backend.services import auth_service as auth
+
+    monkeypatch.delenv("ALLOW_PUBLIC_REGISTER", raising=False)
+    monkeypatch.delenv("OIDC_ISSUER", raising=False)
+    monkeypatch.delenv("OIDC_CLIENT_ID", raising=False)
+    monkeypatch.setenv("ENV", "dev")
+    cfg = auth.auth_public_config()
+    assert cfg["enabled"] is False
+    assert cfg["public_register"] is True
+
+
 def test_otel_setup_noop_without_env(monkeypatch):
     from backend import otel_setup
 

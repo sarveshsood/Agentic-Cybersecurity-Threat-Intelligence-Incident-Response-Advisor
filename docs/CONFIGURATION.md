@@ -32,6 +32,63 @@
 | `SEED_DEMO_USERS`                   | `true` lab only | Dual-gate with lab `ENV`  |
 | `AUTH_RETURN_TOKEN_IN_BODY`         | `1`             | Cookie is primary for SPA |
 | `COOKIE_SAMESITE` / `COOKIE_SECURE` | auto            | Cross-origin SPA care     |
+| `ALLOW_PUBLIC_REGISTER`             | auto            | See [Public registration](#public-registration) |
+
+### Public registration
+
+`POST /auth/register` and the Login “Register” UI are controlled by:
+
+1. **`ALLOW_PUBLIC_REGISTER=true|false`** — explicit override (wins over everything below)
+2. Else if **OIDC is enabled** (`OIDC_ISSUER` + `OIDC_CLIENT_ID`) → **disabled**
+3. Else if **`ENV`** is `production` / `prod` / `staging` → **disabled**
+4. Else → **allowed** (lab / local demos)
+
+Public bootstrap: `GET /api/auth/oidc/config` returns `{ enabled, public_register, ... }` (no secrets).
+
+### OIDC / SSO (optional)
+
+When both issuer and client id are set, password login remains available but SSO appears on Login.
+MFA is expected at the IdP (Entra / Okta / Keycloak).
+
+| Variable               | Required | Notes |
+|------------------------|----------|-------|
+| `OIDC_ISSUER`          | yes*     | Issuer URL (discovery: `/.well-known/openid-configuration`) |
+| `OIDC_CLIENT_ID`       | yes*     | SPA/public or confidential client id |
+| `OIDC_CLIENT_SECRET`   | no       | Confidential clients only |
+| `OIDC_REDIRECT_URI`    | yes*     | Must match IdP app registration (e.g. `http://localhost:8001/api/auth/oidc/callback`) |
+| `OIDC_SCOPES`          | no       | Default `openid email profile` |
+| `OIDC_ROLE_CLAIM`      | no       | Claim name mapping to `admin` / `senior_reviewer` / `analyst` |
+| `OIDC_GROUP_ROLE_MAP`  | no       | JSON e.g. `{"soc-admins":"admin","soc-reviewers":"senior_reviewer"}` |
+
+\* Required only when enabling SSO.
+
+Routes: `GET /api/auth/oidc/login` (redirect), `GET /api/auth/oidc/callback` (sets `actira_access_token` cookie).
+
+### OpenTelemetry (optional)
+
+Soft dependency — install exporters only if you enable export:
+
+```text
+pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+```
+
+| Variable                       | Notes |
+|--------------------------------|-------|
+| `ACTIRA_OTEL_ENABLED`          | `1` / `true` to enable setup |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`  | e.g. `http://localhost:4318` (HTTP OTLP) |
+| `OTEL_SERVICE_NAME`            | Default `actira` |
+
+If packages or env are missing, startup is a no-op. Pipeline stage timings remain available without a collector.
+
+### EVTX ingest (optional)
+
+`.evtx` files are detected by magic (`ElfFile`) / extension. Full record parse requires optional:
+
+```text
+pip install python-evtx
+```
+
+Without it, upload still yields a single informational CES event rather than failing hard.
 
 ## LLM
 
