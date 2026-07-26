@@ -1946,8 +1946,84 @@
         ]
       }
     },
+    "/api/compliance/evidence-pack": {
+      "get": {
+        "description": "JSON evidence pack for auditors / GRC export.",
+        "operationId": "get_evidence_pack_api_compliance_evidence_pack_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence Pack",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/compliance/gaps": {
+      "get": {
+        "description": "Failed controls with remediation priority.",
+        "operationId": "get_compliance_gaps_api_compliance_gaps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Gaps",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/compliance/score": {
+      "get": {
+        "description": "Compact scorecard (overall + domain + framework maps).",
+        "operationId": "get_compliance_score_api_compliance_score_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Score",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
     "/api/compliance/status": {
       "get": {
+        "description": "Overall score, frameworks, domains, gap preview.",
         "operationId": "get_compliance_status_api_compliance_status_get",
         "responses": {
           "200": {
@@ -5984,8 +6060,84 @@
         ]
       }
     },
+    "/api/v1/compliance/evidence-pack": {
+      "get": {
+        "description": "JSON evidence pack for auditors / GRC export.",
+        "operationId": "get_evidence_pack_api_v1_compliance_evidence_pack_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence Pack",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/v1/compliance/gaps": {
+      "get": {
+        "description": "Failed controls with remediation priority.",
+        "operationId": "get_compliance_gaps_api_v1_compliance_gaps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Gaps",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/v1/compliance/score": {
+      "get": {
+        "description": "Compact scorecard (overall + domain + framework maps).",
+        "operationId": "get_compliance_score_api_v1_compliance_score_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Score",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
     "/api/v1/compliance/status": {
       "get": {
+        "description": "Overall score, frameworks, domains, gap preview.",
         "operationId": "get_compliance_status_api_v1_compliance_status_get",
         "responses": {
           "200": {
