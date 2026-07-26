@@ -71,6 +71,87 @@ class IncidentRepository:
     async def get_status(self, incident_id: str) -> Optional[Dict[str, Any]]:
         return await self.col.find_one({"id": incident_id}, {"_id": 0, "status": 1})
 
+    async def push_workspace_note(
+        self,
+        incident_id: str,
+        note_doc: Dict[str, Any],
+        *,
+        notes_limit: int = 200,
+    ) -> Optional[Dict[str, Any]]:
+        """Atomically $push a note if under notes_limit. Returns updated note list slice or None."""
+        # Cap via $expr size of workspace.notes
+        result = await self.col.find_one_and_update(
+            {
+                "id": incident_id,
+                "$expr": {
+                    "$lt": [
+                        {"$size": {"$ifNull": ["$workspace.notes", []]}},
+                        notes_limit,
+                    ]
+                },
+            },
+            {
+                "$set": {"workspace.version": 1},
+                "$push": {"workspace.notes": note_doc},
+            },
+            projection={"_id": 0, "id": 1, "workspace": 1},
+            return_document=True,
+        )
+        return result
+
+    async def update_workspace_note(
+        self,
+        incident_id: str,
+        note_id: str,
+        fields: Dict[str, Any],
+        *,
+        author_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """arrayFilters update. If author_id set, only that author's note."""
+        elem: Dict[str, Any] = {"id": note_id}
+        if author_id is not None:
+            elem["author_id"] = author_id
+        set_doc = {f"workspace.notes.$[n].{k}": v for k, v in fields.items()}
+        if not set_doc:
+            return await self.find_by_id(incident_id)
+        result = await self.col.find_one_and_update(
+            {"id": incident_id, "workspace.notes": {"$elemMatch": elem}},
+            {"$set": set_doc},
+            array_filters=[{"n.id": note_id}],
+            projection={"_id": 0, "id": 1, "workspace": 1},
+            return_document=True,
+        )
+        return result
+
+    async def pull_workspace_note(
+        self,
+        incident_id: str,
+        note_id: str,
+        *,
+        author_id: Optional[str] = None,
+    ) -> int:
+        """$pull note; returns modified_count."""
+        pull_filter: Dict[str, Any] = {"id": note_id}
+        if author_id is not None:
+            pull_filter["author_id"] = author_id
+        res = await self.col.update_one(
+            {"id": incident_id},
+            {"$pull": {"workspace.notes": pull_filter}},
+        )
+        return int(res.modified_count or 0)
+
+    async def set_workspace_rca(
+        self,
+        incident_id: str,
+        rca_doc: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        return await self.col.find_one_and_update(
+            {"id": incident_id},
+            {"$set": {"workspace.rca": rca_doc, "workspace.version": 1}},
+            projection={"_id": 0, "id": 1, "workspace": 1},
+            return_document=True,
+        )
+
 
 # Process-wide default (Motor db is already a singleton handle)
 incidents_repo = IncidentRepository()

@@ -1182,17 +1182,19 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             "RCA with budget fallback; reuse investigator SSE with prompt-injection controls. "
             "Implement via PR-1…PR-10 in design doc."
         ),
-        "status": "planned",
+        "status": "in_progress",
         "priority": "p0",
         "owner": "",
         "effort": "l",
         "target_release": "v1.4",
-        "week": "Next",
+        "week": "Current",
         "category": "Product / Investigation",
         "modules": [
             "backend/investigation_views.py",
             "backend/services/workspace_service.py",
             "backend/routers/workspace.py",
+            "backend/rca.py",
+            "backend/ai_investigator.py",
             "frontend/src/pages/IncidentDetail.jsx",
             "frontend/src/components/workspace/",
         ],
@@ -1202,10 +1204,11 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             "ROADMAP.md#m-vision-waves-agentic-soc-command-center",
         ],
         "architecture_notes": "No pipeline rewrite; dual /api + /api/v1; optional workspace on incident docs.",
-        "progress": 10,
+        "progress": 90,
         "implementation_notes": (
-            "2026-07-26: Vision + design consensus (0 open review issues). "
-            "Start PR-1 (timeline/graph builders) ∥ PR-2 (notes API) ∥ PR-5a (UI shell)."
+            "2026-07-26: PR-1…PR-9 on feature branch — builders, notes API, timeline/graph HTTP, RCA, "
+            "tabbed UI, visual timeline, entity graph, notebook, assistant starters + untrusted-note framing. "
+            "Remaining: PR-10 e2e polish / merge DoD."
         ),
         "tasks": [
             {
@@ -1217,20 +1220,20 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             {
                 "id": "t2",
                 "title": "PR-1…PR-3 pure views + notes + timeline/graph APIs",
-                "status": "todo",
-                "done": False,
+                "status": "done",
+                "done": True,
             },
             {
                 "id": "t3",
                 "title": "PR-4…PR-5 workspace RCA + UI shell",
-                "status": "todo",
-                "done": False,
+                "status": "done",
+                "done": True,
             },
             {
                 "id": "t4",
-                "title": "PR-6…PR-10 timeline/graph/notes/assistant polish + DoD",
-                "status": "todo",
-                "done": False,
+                "title": "PR-6…PR-9 timeline/graph/notes/assistant + prompt safety",
+                "status": "done",
+                "done": True,
             },
         ],
     },
