@@ -412,6 +412,21 @@ export default function Upload() {
                                             >
                         {j.status}
                       </span>
+                                            {(j.pipeline_total_ms != null || j.stage_timings?.total_ms != null) && (
+                                                <span
+                                                    data-testid={`job-timing-${j.id}`}
+                                                    className="text-[10px] font-mono text-muted-foreground"
+                                                    title={
+                                                        j.stage_timings?.by_stage_ms
+                                                            ? Object.entries(j.stage_timings.by_stage_ms)
+                                                                .map(([k, v]) => `${k}: ${v}ms`)
+                                                                .join(" · ")
+                                                            : "Pipeline wall-clock time"
+                                                    }
+                                                >
+                                                    {Number(j.pipeline_total_ms ?? j.stage_timings?.total_ms).toFixed(0)}ms
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
