@@ -15,6 +15,7 @@ import {
     Flask,
     Gauge,
     GearSix,
+    Heartbeat,
     ListChecks,
     MapTrifold,
     Moon,
@@ -104,6 +105,14 @@ const NAV = [
         roles: ["admin"],
         tip: "Offline golden IR quality gates (admin)",
         colorClass: "text-slate-600 bg-slate-100 dark:bg-slate-800"
+    },
+    {
+        to: "/ops",
+        label: "Ops & Health",
+        icon: Heartbeat,
+        roles: ["admin"],
+        tip: "Multi-replica flags, queue, pipeline timings, LLM budget",
+        colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30"
     },
     {
         to: "/roadmap",

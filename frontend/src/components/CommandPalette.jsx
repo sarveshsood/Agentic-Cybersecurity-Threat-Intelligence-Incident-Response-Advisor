@@ -22,6 +22,7 @@ import {
     Flask,
     Gauge,
     GearSix,
+    Heartbeat,
     ListChecks,
     MapTrifold,
     ShieldWarning,
@@ -73,6 +74,13 @@ const NAV_COMMANDS = [
         keywords: "product"
     },
     {to: "/benchmark", label: "Golden Eval", icon: Flask, roles: ["admin"], keywords: "benchmark quality"},
+    {
+        to: "/ops",
+        label: "Ops & Health",
+        icon: Heartbeat,
+        roles: ["admin"],
+        keywords: "ops health ha multi-replica queue timings"
+    },
     {to: "/settings", label: "Settings", icon: GearSix, roles: ["admin"], keywords: "llm keys config"},
 ];
 

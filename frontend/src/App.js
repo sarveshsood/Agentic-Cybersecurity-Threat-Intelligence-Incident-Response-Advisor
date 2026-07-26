@@ -77,6 +77,7 @@ const Knowledge = lazyRetry(() => import("./pages/Knowledge"));
 const Analytics = lazyRetry(() => import("./pages/Analytics"));
 const Roadmap = lazyRetry(() => import("./pages/Roadmap"));
 const GoldenBenchmark = lazyRetry(() => import("./pages/GoldenBenchmark"));
+const OpsHealth = lazyRetry(() => import("./pages/OpsHealth"));
 
 const REVIEWER_ROLES = ["senior_reviewer", "admin"];
 const ADMIN_ROLES = ["admin"];
@@ -148,6 +149,10 @@ export default function App() {
                             <Route
                                 path="/benchmark"
                                 element={<Protected roles={ADMIN_ROLES}><GoldenBenchmark/></Protected>}
+                            />
+                            <Route
+                                path="/ops"
+                                element={<Protected roles={ADMIN_ROLES}><OpsHealth/></Protected>}
                             />
                             <Route
                                 path="/settings"
