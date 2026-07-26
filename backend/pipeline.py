@@ -67,6 +67,9 @@ def flatten_uploads(files: List[Tuple[str, bytes]]) -> List[Tuple[str, bytes]]:
 
 async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], user_id: str, settings: dict):
     """Multi-file / ZIP pipeline: parse each file → CES → correlate → single incident."""
+    from backend.pipeline_trace import PipelineTrace
+
+    trace = PipelineTrace(job_id, kind="batch")
 
     async def update_job(status: str, progress: int, **extra):
         await db.log_jobs.update_one({"id": job_id}, {"$set": {"status": status, "progress": progress, **extra}})
@@ -74,7 +77,8 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
     try:
         # 1. Expand ZIPs
         await update_job("parsing", 10)
-        expanded = flatten_uploads(files)
+        with trace.stage("expand", file_count=len(files or [])):
+            expanded = flatten_uploads(files)
         await db.log_jobs.update_one(
             {"id": job_id},
             {"$set": {"expanded_files": [n for n, _ in expanded]}},
@@ -84,25 +88,26 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
         await update_job("extracting", 25)
         all_events = []
         per_file_meta = []
-        for name, data in expanded:
-            try:
-                fmt, evts = detect_and_parse(data, name)
-                per_file_meta.append({
-                    "file": name, "format": fmt, "events": len(evts), "size": len(data),
-                })
-                all_events.extend(evts)
-            except Exception as parse_err:
-                logger.warning(
-                    "[job %s] parse failed for %s: %s",
-                    job_id, name, parse_err,
-                )
-                per_file_meta.append({
-                    "file": name,
-                    "format": "error",
-                    "events": 0,
-                    "size": len(data) if data is not None else 0,
-                    "error": str(parse_err)[:500],
-                })
+        with trace.stage("parse", files=len(expanded)):
+            for name, data in expanded:
+                try:
+                    fmt, evts = detect_and_parse(data, name)
+                    per_file_meta.append({
+                        "file": name, "format": fmt, "events": len(evts), "size": len(data),
+                    })
+                    all_events.extend(evts)
+                except Exception as parse_err:
+                    logger.warning(
+                        "[job %s] parse failed for %s: %s",
+                        job_id, name, parse_err,
+                    )
+                    per_file_meta.append({
+                        "file": name,
+                        "format": "error",
+                        "events": 0,
+                        "size": len(data) if data is not None else 0,
+                        "error": str(parse_err)[:500],
+                    })
         logger.info(f"[job {job_id}] parsed {len(all_events)} CES events across {len(expanded)} files")
 
         # 3. Correlate across files (A-P1: honour correlation_window_minutes)
@@ -111,11 +116,13 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
             window_m = int(settings.get("correlation_window_minutes") or 0) or None
         except (TypeError, ValueError):
             window_m = None
-        correlation = correlate_events(all_events, window_minutes=window_m)
+        with trace.stage("correlate", events=len(all_events)):
+            correlation = correlate_events(all_events, window_minutes=window_m)
 
         # 4. IoC extraction over combined raw text
-        raw_blob = "\n".join(ev.get("raw", "") for ev in all_events)
-        iocs = extract_iocs(raw_blob)
+        with trace.stage("ioc_extract"):
+            raw_blob = "\n".join(ev.get("raw", "") for ev in all_events)
+            iocs = extract_iocs(raw_blob)
         # A-P2: cap enrichment volume (settings override; default 50)
         try:
             max_iocs = int(settings.get("max_enrich_iocs") or 50)
@@ -133,40 +140,42 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
             logger.info("[job %s] capped IoCs for enrichment to %s", job_id, max_iocs)
         # 5. Enrich in parallel — isolate failures + cache (A-E2)
         await update_job("enriching", 60)
-        enriched = await _enrich_all(iocs, settings, db=db)
+        with trace.stage("enrich", ioc_count=len(iocs)):
+            enriched = await _enrich_all(iocs, settings, db=db)
 
         # 6. Infer ATT&CK techniques (sub-techniques + CES evidence + optional LLM refine)
-        techniques_data = infer_techniques(raw_blob, list(enriched), events=all_events)
-        if settings.get("llm_technique_refine"):
-            try:
-                from backend.attack_mapping import refine_techniques_with_llm
-                techniques_data = await refine_techniques_with_llm(
-                    raw_blob,
-                    techniques_data,
-                    settings=settings,
-                    provider=str(settings.get("llm_provider") or "anthropic"),
-                    model=str(settings.get("llm_model") or "claude-sonnet-4-6"),
-                )
-            except Exception as refine_err:
-                logger.warning("[job %s] LLM technique refine skipped: %s", job_id, refine_err)
-        techniques = []
-        for t in techniques_data:
-            try:
-                techniques.append(ATTACKTechnique.model_validate(t))
-            except Exception as tech_err:
-                logger.warning(
-                    "[job %s] skip technique row %s: %s",
-                    job_id, (t or {}).get("technique_id"), tech_err,
-                )
+        with trace.stage("attack_map"):
+            techniques_data = infer_techniques(raw_blob, list(enriched), events=all_events)
+            if settings.get("llm_technique_refine"):
                 try:
-                    techniques.append(ATTACKTechnique(
-                        technique_id=str((t or {}).get("technique_id") or "unknown"),
-                        name=str((t or {}).get("name") or (t or {}).get("technique_id") or "unknown"),
-                        tactic=str((t or {}).get("tactic") or ""),
-                        confidence=float((t or {}).get("confidence") or 0.5),
-                    ))
-                except Exception:
-                    pass
+                    from backend.attack_mapping import refine_techniques_with_llm
+                    techniques_data = await refine_techniques_with_llm(
+                        raw_blob,
+                        techniques_data,
+                        settings=settings,
+                        provider=str(settings.get("llm_provider") or "anthropic"),
+                        model=str(settings.get("llm_model") or "claude-sonnet-4-6"),
+                    )
+                except Exception as refine_err:
+                    logger.warning("[job %s] LLM technique refine skipped: %s", job_id, refine_err)
+            techniques = []
+            for t in techniques_data:
+                try:
+                    techniques.append(ATTACKTechnique.model_validate(t))
+                except Exception as tech_err:
+                    logger.warning(
+                        "[job %s] skip technique row %s: %s",
+                        job_id, (t or {}).get("technique_id"), tech_err,
+                    )
+                    try:
+                        techniques.append(ATTACKTechnique(
+                            technique_id=str((t or {}).get("technique_id") or "unknown"),
+                            name=str((t or {}).get("name") or (t or {}).get("technique_id") or "unknown"),
+                            tactic=str((t or {}).get("tactic") or ""),
+                            confidence=float((t or {}).get("confidence") or 0.5),
+                        ))
+                    except Exception:
+                        pass
 
         # 7. Compute scores + severity
         top_scores = sorted([i.threat_score for i in enriched], reverse=True)[:5]
@@ -183,29 +192,31 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
         await update_job("generating", 85)
         provider = settings.get("llm_provider", "anthropic")
         model = settings.get("llm_model", "claude-sonnet-4-6")
-        playbook = await generate_playbook(
-            summary, list(enriched), techniques_data, provider, model, settings=settings,
-        )
+        with trace.stage("playbook", provider=str(provider or ""), model=str(model or "")):
+            playbook = await generate_playbook(
+                summary, list(enriched), techniques_data, provider, model, settings=settings,
+            )
 
         # 10. HiTL gate + auto-approve (honours hitl_severity_min; never auto-bypasses severity gate)
         # A-L3: pure template fallback playbooks always require HiTL
-        grounding_for_gate = float(playbook.grounding_score or 0)
-        if (playbook.llm_provider or "") in ("template", "fallback"):
-            grounding_for_gate = min(grounding_for_gate, 0.49)
-        status, hitl_required, auto_approved = decide_incident_status(
-            severity,
-            grounding_for_gate,
-            grounding_threshold=float(settings.get("grounding_threshold", 0.7)),
-            hitl_severity_min=str(settings.get("hitl_severity_min") or "critical"),
-            auto_approve_grounding_min=float(settings.get("auto_approve_grounding_min", 0.9)),
-        )
-        if (playbook.llm_provider or "") in ("template", "fallback"):
-            hitl_required = True
-            if status != "pending_review" and status != "approved":
-                status = "pending_review"
-            if auto_approved:
-                auto_approved = False
-                status = "pending_review"
+        with trace.stage("hitl_gate"):
+            grounding_for_gate = float(playbook.grounding_score or 0)
+            if (playbook.llm_provider or "") in ("template", "fallback"):
+                grounding_for_gate = min(grounding_for_gate, 0.49)
+            status, hitl_required, auto_approved = decide_incident_status(
+                severity,
+                grounding_for_gate,
+                grounding_threshold=float(settings.get("grounding_threshold", 0.7)),
+                hitl_severity_min=str(settings.get("hitl_severity_min") or "critical"),
+                auto_approve_grounding_min=float(settings.get("auto_approve_grounding_min", 0.9)),
+            )
+            if (playbook.llm_provider or "") in ("template", "fallback"):
+                hitl_required = True
+                if status != "pending_review" and status != "approved":
+                    status = "pending_review"
+                if auto_approved:
+                    auto_approved = False
+                    status = "pending_review"
         if auto_approved:
             logger.info(
                 "[job %s] auto-approved (severity=%s grounding=%.2f)",
@@ -275,7 +286,15 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
         except Exception as vec_err:
             logger.warning("[job %s] incident vector upsert skipped: %s", job_id, vec_err)
 
-        await update_job("done", 100, incident_ids=[incident.id], files_meta=per_file_meta)
+        timing = trace.summary()
+        await update_job(
+            "done",
+            100,
+            incident_ids=[incident.id],
+            files_meta=per_file_meta,
+            stage_timings=timing,
+            pipeline_total_ms=timing.get("total_ms"),
+        )
 
         await db.audit_log.insert_one({
             "id": new_id(),
@@ -292,6 +311,7 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
                 "status": status,
                 "hitl_severity_min": settings.get("hitl_severity_min", "critical"),
                 "files": len(expanded),
+                "pipeline_total_ms": timing.get("total_ms"),
             },
         })
 
@@ -302,13 +322,28 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
         except Exception as notify_err:
             logger.warning("[job %s] alert notify failed: %s", job_id, notify_err)
 
+        logger.info(
+            "[job %s] pipeline timings total_ms=%s stages=%s",
+            job_id,
+            timing.get("total_ms"),
+            timing.get("by_stage_ms"),
+        )
+
     except Exception as e:
         logger.exception(f"[job {job_id}] batch pipeline failed: {e}")
+        fail_extra: dict = {
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            fail_extra["stage_timings"] = trace.summary()
+            fail_extra["pipeline_total_ms"] = fail_extra["stage_timings"].get("total_ms")
+        except Exception:
+            pass
         await mark_job_failed(
             db,
             job_id,
             str(e),
-            failed_at=datetime.now(timezone.utc).isoformat(),
+            **fail_extra,
         )
 
 
