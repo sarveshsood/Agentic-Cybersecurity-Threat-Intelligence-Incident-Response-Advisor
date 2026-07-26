@@ -146,6 +146,13 @@ async def lifespan(app: FastAPI):
         except Exception as rse:
             logger.warning("roadmap auto-merge skipped: %s", rse)
         try:
+            from backend.otel_setup import setup_otel
+
+            if setup_otel("actira"):
+                logger.info("Startup: OpenTelemetry OTLP exporter ready")
+        except Exception as ote:
+            logger.warning("otel setup skipped: %s", ote)
+        try:
             from backend.job_queue import start_worker
 
             logger.info("Startup: starting job worker…")

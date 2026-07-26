@@ -38,6 +38,12 @@ async def attack_catalog_list(user=Depends(get_current_user)):
     return incident_service.list_attack_catalog()
 
 
+@router.get("/attack/matrix")
+async def attack_matrix(user=Depends(get_current_user)):
+    """Catalog coverage matrix layout for full-grid ATT&CK UI."""
+    return incident_service.attack_matrix()
+
+
 @router.get("/attack/catalog/{technique_id}")
 async def attack_catalog_get(technique_id: str, user=Depends(get_current_user)):
     return incident_service.get_attack_catalog_entry(technique_id)

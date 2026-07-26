@@ -115,6 +115,12 @@ def list_attack_catalog() -> Dict[str, Any]:
     return {"techniques": list_catalog()}
 
 
+def attack_matrix() -> dict:
+    from backend.attack_catalog import matrix_layout
+
+    return matrix_layout()
+
+
 def get_attack_catalog_entry(technique_id: str) -> Dict[str, Any]:
     from backend.attack_catalog import catalog_entry_for_api, children_of
 
