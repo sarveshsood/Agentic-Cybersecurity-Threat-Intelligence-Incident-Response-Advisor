@@ -44,13 +44,30 @@ def test_domain_routers_are_thin():
     from pathlib import Path
 
     routers_dir = Path(__file__).resolve().parents[1] / "routers"
-    for name in ("review.py", "incidents.py", "auth.py", "settings.py"):
+    names = (
+        "review.py",
+        "incidents.py",
+        "auth.py",
+        "settings.py",
+        "logs.py",
+        "analytics.py",
+        "roadmap.py",
+        "investigate.py",
+        "kb.py",
+        "audit.py",
+        "compliance.py",
+        "eval_routes.py",
+        "meta.py",
+    )
+    for name in names:
         text = (routers_dir / name).read_text(encoding="utf-8")
-        assert "db.incidents" not in text
-        assert "db.users" not in text
-        assert "db.settings" not in text
-        assert "find_one_and_update" not in text
-        assert "from backend.services" in text
+        assert "db.incidents" not in text, name
+        assert "db.users" not in text, name
+        assert "db.settings" not in text, name
+        assert "db.roadmap" not in text, name
+        assert "db.log_jobs" not in text, name
+        assert "find_one_and_update" not in text, name
+        assert "from backend.services" in text or "from backend.core" in text, name
 
 
 def test_auth_and_settings_services_import():

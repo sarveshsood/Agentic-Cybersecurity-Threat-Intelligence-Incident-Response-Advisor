@@ -1,25 +1,22 @@
-"""Meta routes — API root and health under /api prefix."""
+"""Meta routes — thin adapters over bootstrap health helpers."""
 from __future__ import annotations
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from backend.core import services as svc
+from backend.services import bootstrap
 
 router = APIRouter(tags=["meta"])
 
 
-# ---------- Health / readiness / version ----------
 @router.get("/health")
 async def health_api():
-    """Health under the API prefix."""
-    return await svc.health_check()
+    return await bootstrap.health_check()
 
 
 @router.get("/ready")
 async def ready_api():
-    """Readiness under the API prefix — 200 only when Mongo is up."""
-    body = await svc.health_check()
+    body = await bootstrap.health_check()
     if body.get("mongo") != "up":
         return JSONResponse(status_code=503, content=body)
     return body
