@@ -88,3 +88,9 @@ async def workspace_entity_graph(
 async def workspace_get_rca(incident_id: str, user=Depends(get_current_user)):
     """Always ``{ "rca": object|null }``."""
     return await workspace_service.get_rca(incident_id)
+
+
+@router.post("/incidents/{incident_id}/workspace/rca")
+async def workspace_generate_rca(incident_id: str, user=Depends(get_current_user)):
+    """Generate (overwrite) RCA. Always ``{ "rca": object }`` including fallback."""
+    return await workspace_service.generate_and_store_rca(incident_id, user)

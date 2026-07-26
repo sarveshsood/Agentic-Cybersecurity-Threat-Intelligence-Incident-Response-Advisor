@@ -2891,6 +2891,50 @@
         "tags": [
           "workspace"
         ]
+      },
+      "post": {
+        "description": "Generate (overwrite) RCA. Always ``{ \"rca\": object }`` including fallback.",
+        "operationId": "workspace_generate_rca_api_incidents__incident_id__workspace_rca_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Workspace Generate Rca",
+        "tags": [
+          "workspace"
+        ]
       }
     },
     "/api/incidents/{incident_id}/workspace/timeline": {
@@ -6669,6 +6713,50 @@
           }
         ],
         "summary": "Workspace Get Rca",
+        "tags": [
+          "workspace"
+        ]
+      },
+      "post": {
+        "description": "Generate (overwrite) RCA. Always ``{ \"rca\": object }`` including fallback.",
+        "operationId": "workspace_generate_rca_api_v1_incidents__incident_id__workspace_rca_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Workspace Generate Rca",
         "tags": [
           "workspace"
         ]

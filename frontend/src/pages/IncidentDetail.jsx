@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from "react";
-import {Link, useNavigate, useParams} from "react-router-dom";
+import {Link, useNavigate, useParams, useSearchParams} from "react-router-dom";
 import {api} from "../lib/api";
 import {SeverityBadge, StatusPill} from "../components/SeverityBadge";
 import {ListState} from "../components/ListState";
@@ -10,6 +10,7 @@ import {CheckCircle, Clock, ShieldCheck, Stack, Warning, X, XCircle} from "@phos
 import CorrelationPanel from "../components/CorrelationPanel";
 import AIInvestigator from "../components/AIInvestigator";
 import TechniquePanel from "../components/TechniquePanel";
+import WorkspaceTabs, {WORKSPACE_TAB_IDS} from "../components/workspace/WorkspaceTabs";
 import {PageHeader} from "../design-system";
 import {pushRecentIncident} from "../lib/recentActivity";
 import {formatDateTime} from "../lib/uiPrefs";
@@ -44,20 +45,40 @@ function CitationChip({id}) {
     );
 }
 
+function PlaceholderTab({title, body}) {
+    return (
+        <div className="soc-card p-6 text-sm text-muted-foreground" data-testid="workspace-tab-placeholder">
+            <div className="soc-label text-foreground mb-2">{title}</div>
+            <p className="leading-relaxed">{body}</p>
+        </div>
+    );
+}
+
 export default function IncidentDetail() {
     const {id} = useParams();
     const nav = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const {user} = useAuth();
     const [inc, setInc] = useState(null);
     const [similar, setSimilar] = useState(null);
     const [similarErr, setSimilarErr] = useState(null);
     const [selectedTech, setSelectedTech] = useState(null);
+    const [rca, setRca] = useState(null);
+    const [rcaBusy, setRcaBusy] = useState(false);
 
     // Compliance Triage Audit Modal State
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [reviewActionType, setReviewActionType] = useState("approve");
     const [reviewComment, setReviewComment] = useState("");
     const [reviewBusy, setReviewBusy] = useState(false);
+
+    const rawTab = searchParams.get("tab") || "case";
+    const activeTab = WORKSPACE_TAB_IDS.includes(rawTab) ? rawTab : "case";
+    const setActiveTab = (tabId) => {
+        const next = new URLSearchParams(searchParams);
+        next.set("tab", tabId);
+        setSearchParams(next, {replace: true});
+    };
 
     const load = useCallback(
         () =>
@@ -74,6 +95,28 @@ export default function IncidentDetail() {
     useEffect(() => {
         load();
     }, [load]);
+
+    useEffect(() => {
+        if (!id) return;
+        api
+            .get(`/incidents/${id}/workspace/rca`)
+            .then((r) => setRca(r.data?.rca ?? null))
+            .catch(() => setRca(null));
+    }, [id]);
+
+    const generateRca = async () => {
+        if (rca && !window.confirm("Regenerate and replace existing RCA?")) return;
+        setRcaBusy(true);
+        try {
+            const r = await api.post(`/incidents/${id}/workspace/rca`);
+            setRca(r.data?.rca ?? null);
+            toast.success(r.data?.rca?.fallback ? "RCA saved (fallback template)" : "RCA generated");
+        } catch (e) {
+            toast.error(e?.response?.data?.detail || "RCA generation failed");
+        } finally {
+            setRcaBusy(false);
+        }
+    };
 
     useEffect(() => {
         if (!id) return;
@@ -254,48 +297,165 @@ export default function IncidentDetail() {
                 </button>
             </PageHeader>
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                {/* Left: Playbook + Timeline */}
-                <div className="xl:col-span-8 space-y-6">
-                    {/* HiTL panel */}
-                    {canReview && (
-                        <div className="soc-card p-4 border border-[var(--warning-border)]" data-testid="hitl-panel">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Warning size={16} className="text-warning"/>
-                                <div className="soc-label text-warning">Human-in-the-Loop Review Required</div>
+            <WorkspaceTabs active={activeTab} onChange={setActiveTab}/>
+
+            <div className="pt-4 space-y-6" data-testid={`workspace-panel-${activeTab}`}>
+                {/* HiTL always available on Case / Playbooks when pending */}
+                {canReview && (activeTab === "case" || activeTab === "playbooks") && (
+                    <div className="soc-card p-4 border border-[var(--warning-border)]" data-testid="hitl-panel">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Warning size={16} className="text-warning"/>
+                            <div className="soc-label text-warning">Human-in-the-Loop Review Required</div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                            Review this playbook and authorize its remediation steps or reject it. Clicking either
+                            action will open the compliance justification modal.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                data-testid="approve-btn"
+                                onClick={() => openReviewModal("approve")}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--success)] text-white text-xs font-semibold rounded-lg transition-colors hover:brightness-95"
+                            >
+                                <CheckCircle size={14} weight="fill"/> Approve Playbook
+                            </button>
+                            <button
+                                type="button"
+                                data-testid="reject-btn"
+                                onClick={() => openReviewModal("reject")}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--error)] text-white text-xs font-semibold rounded-lg transition-colors hover:brightness-95"
+                            >
+                                <XCircle size={14} weight="fill"/> Reject Playbook
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === "case" && (
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                        <div className="xl:col-span-8 space-y-6">
+                            {inc.correlation && <CorrelationPanel correlation={inc.correlation}/>}
+                            <div className="soc-card p-4" data-testid="workspace-rca-card">
+                                <div className="flex items-center justify-between gap-3 mb-3">
+                                    <div>
+                                        <div className="soc-label">Root cause analysis</div>
+                                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                                            Grounded to attack chain, IoCs, and ATT&CK (pipeline fields only)
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        data-testid="rca-generate-btn"
+                                        disabled={rcaBusy}
+                                        onClick={generateRca}
+                                        className="soc-btn-primary !text-xs !py-1.5 disabled:opacity-50"
+                                    >
+                                        {rcaBusy ? "Generating…" : rca ? "Regenerate RCA" : "Generate RCA"}
+                                    </button>
+                                </div>
+                                {!rca && (
+                                    <p className="text-xs text-muted-foreground">No RCA yet — generate to produce a narrative.</p>
+                                )}
+                                {rca && (
+                                    <div className="space-y-2 text-sm">
+                                        {rca.fallback && (
+                                            <div className="text-[11px] text-warning border border-[var(--warning-border)] rounded px-2 py-1 bg-warning-soft">
+                                                Fallback RCA: {rca.fallback_reason || "LLM unavailable"}
+                                            </div>
+                                        )}
+                                        {rca.hypothesis && (
+                                            <div className="text-xs">
+                                                <span className="soc-label">Hypothesis</span>
+                                                <p className="mt-0.5 text-foreground">{rca.hypothesis}</p>
+                                            </div>
+                                        )}
+                                        <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{rca.narrative}</p>
+                                        {rca.mitre_refs?.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 pt-1">
+                                                {rca.mitre_refs.map((t) => (
+                                                    <span key={t} className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-primary/30 text-primary">{t}</span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-                                Review this playbook and authorize its remediation steps or reject it. Clicking either
-                                action will open the compliance justification modal.
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    type="button"
-                                    data-testid="approve-btn"
-                                    onClick={() => openReviewModal("approve")}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--success)] text-white text-xs font-semibold rounded-lg transition-colors hover:brightness-95"
-                                >
-                                    <CheckCircle size={14} weight="fill"/> Approve Playbook
-                                </button>
-                                <button
-                                    type="button"
-                                    data-testid="reject-btn"
-                                    onClick={() => openReviewModal("reject")}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--error)] text-white text-xs font-semibold rounded-lg transition-colors hover:brightness-95"
-                                >
-                                    <XCircle size={14} weight="fill"/> Reject Playbook
-                                </button>
+                            <AIInvestigator incidentId={inc.id} severity={inc.severity}/>
+                        </div>
+                        <div className="xl:col-span-4 space-y-6">
+                            <div className="soc-card p-4" data-testid="similar-incidents">
+                                <div className="soc-label mb-1 flex items-center gap-1.5">
+                                    <Stack size={12} className="text-primary"/> Similar cases
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mb-3">
+                                    LanceDB ANN over incident embeddings
+                                </p>
+                                {similarErr && <div className="text-[11px] text-error">{similarErr}</div>}
+                                {!similarErr && !similar && (
+                                    <div className="text-[11px] text-muted-foreground">Loading similar…</div>
+                                )}
+                                {similar && (
+                                    (similar.items || []).length === 0 ? (
+                                        <div className="text-[11px] text-muted-foreground">
+                                            {similar.reason || "No similar cases found."}
+                                        </div>
+                                    ) : (
+                                        <ul className="space-y-2">
+                                            {similar.items.map((s) => (
+                                                <li key={s.id} className="border border-border rounded p-2">
+                                                    <Link to={`/incidents/${s.id}`} className="text-[12px] text-primary hover:underline font-medium" data-testid={`similar-${s.id}`}>
+                                                        {s.title || s.id}
+                                                    </Link>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )
+                                )}
                             </div>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {/* Correlation (multi-file) */}
-                    {inc.correlation && <CorrelationPanel correlation={inc.correlation}/>}
+                {activeTab === "evidence" && (
+                    <div className="space-y-4">
+                        <div className="soc-card p-4">
+                            <div className="soc-label mb-3">Source files</div>
+                            {(inc.files_meta || []).length === 0 ? (
+                                <p className="text-xs text-muted-foreground">No files_meta on this incident.</p>
+                            ) : (
+                                <ul className="space-y-2 text-xs font-mono">
+                                    {inc.files_meta.map((f, i) => (
+                                        <li key={i} className="border border-border rounded px-2 py-1.5">
+                                            {typeof f === "string" ? f : (f.name || f.filename || JSON.stringify(f))}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                        <div className="soc-card p-4">
+                            <div className="soc-label mb-3">Pipeline timeline</div>
+                            <ol className="space-y-2">
+                                {inc.timeline?.map((t, i) => (
+                                    <li key={i} className="flex gap-3 text-xs" data-testid={`tl-${i}`}>
+                                        <Clock size={12} className="text-primary mt-0.5"/>
+                                        <div>
+                                            <div className="text-foreground">{t.label}</div>
+                                            <div className="text-muted-foreground soc-mono text-[10px]">
+                                                {formatDateTime(t.ts || inc.created_at)} — {t.detail}
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                                {(!inc.timeline || inc.timeline.length === 0) && (
+                                    <li className="text-xs text-muted-foreground">No pipeline events</li>
+                                )}
+                            </ol>
+                        </div>
+                    </div>
+                )}
 
-                    {/* AI Investigator */}
-                    <AIInvestigator incidentId={inc.id} severity={inc.severity}/>
-
-                    {/* Playbook */}
+                {activeTab === "playbooks" && (
                     <div className="soc-card p-4">
                         <div className="flex items-center justify-between mb-4">
                             <div>
@@ -312,23 +472,18 @@ export default function IncidentDetail() {
                                 const meta = PHASE_META[ph];
                                 return (
                                     <div key={ph}>
-                                        <div
-                                            className={`inline-flex px-2 py-0.5 rounded border text-[10px] uppercase tracking-[0.14em] font-semibold mb-2 ${meta.color}`}>
+                                        <div className={`inline-flex px-2 py-0.5 rounded border text-[10px] uppercase tracking-[0.14em] font-semibold mb-2 ${meta.color}`}>
                                             {meta.label}
                                         </div>
                                         <ol className="space-y-2.5">
                                             {steps.map((s) => (
-                                                <li key={s.order} className="flex gap-3 group"
-                                                    data-testid={`step-${s.order}`}>
-                                                    <div
-                                                        className="soc-mono text-muted-foreground text-xs w-6 shrink-0 pt-0.5">{String(s.order).padStart(2, "0")}</div>
+                                                <li key={s.order} className="flex gap-3 group" data-testid={`step-${s.order}`}>
+                                                    <div className="soc-mono text-muted-foreground text-xs w-6 shrink-0 pt-0.5">{String(s.order).padStart(2, "0")}</div>
                                                     <div className="flex-1">
-                                                        <div
-                                                            className="text-sm text-foreground leading-relaxed">{s.action}</div>
+                                                        <div className="text-sm text-foreground leading-relaxed">{s.action}</div>
                                                         {s.citation_ids?.length > 0 && (
                                                             <div className="flex flex-wrap gap-1 mt-2">
-                                                                {s.citation_ids.map(cid => <CitationChip key={cid}
-                                                                                                         id={cid}/>)}
+                                                                {s.citation_ids.map((cid) => <CitationChip key={cid} id={cid}/>)}
                                                             </div>
                                                         )}
                                                     </div>
@@ -338,132 +493,40 @@ export default function IncidentDetail() {
                                     </div>
                                 );
                             })}
+                            {!(pb?.steps || []).length && (
+                                <p className="text-xs text-muted-foreground">No playbook steps on this incident.</p>
+                            )}
                         </div>
                     </div>
+                )}
 
-                    {/* Timeline */}
-                    <div className="soc-card p-4">
-                        <div className="soc-label mb-3">Timeline</div>
-                        <ol className="space-y-2">
-                            {inc.timeline?.map((t, i) => (
-                                <li key={i} className="flex gap-3 text-xs" data-testid={`tl-${i}`}>
-                                    <Clock size={12} className="text-primary mt-0.5"/>
-                                    <div>
-                                        <div className="text-foreground">{t.label}</div>
-                                        <div className="text-muted-foreground soc-mono text-[10px]">
-                                            {formatDateTime(t.ts || inc.created_at)} — {t.detail}
-                                        </div>
-                                    </div>
-                                </li>
-                            ))}
-                        </ol>
-                    </div>
-                </div>
-
-                {/* Right: IoCs + Techniques + Similar cases */}
-                <div className="xl:col-span-4 space-y-6">
-                    {/* Similar incidents (LanceDB embeddings) */}
-                    <div className="soc-card p-4" data-testid="similar-incidents">
-                        <div className="soc-label mb-1 flex items-center gap-1.5">
-                            <Stack size={12} className="text-primary"/> Similar cases
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mb-3">
-                            LanceDB ANN over incident embeddings (title + summary + techniques)
-                        </p>
-                        {similarErr && <div className="text-[11px] text-error">{similarErr}</div>}
-                        {!similarErr && !similar && (
-                            <div className="text-[11px] text-muted-foreground">Loading similar…</div>
-                        )}
-                        {similar && (
-                            <>
-                                {similar.vector_store && (
-                                    <div className="flex flex-wrap gap-1 mb-2">
-                    <span
-                        className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-border text-muted-foreground">
-                      incidents={similar.vector_store.incident_rows ?? "—"}
-                    </span>
-                                        <span
-                                            className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-border text-muted-foreground">
-                      {similar.query_embedder || similar.vector_store.embedder || "embedder"}
-                    </span>
-                                    </div>
-                                )}
-                                {(similar.items || []).length === 0 ? (
-                                    <div className="text-[11px] text-muted-foreground">
-                                        {similar.reason === "no_neighbors"
-                                            ? "No other indexed incidents yet — run more uploads to build neighbors."
-                                            : similar.reason || "No similar cases found."}
-                                    </div>
-                                ) : (
-                                    <ul className="space-y-2">
-                                        {similar.items.map((s) => (
-                                            <li key={s.id}
-                                                className="border border-border rounded p-2 hover:border-primary/40 transition-colors">
-                                                <Link
-                                                    to={`/incidents/${s.id}`}
-                                                    className="text-[12px] text-primary hover:underline font-medium leading-snug block"
-                                                    data-testid={`similar-${s.id}`}
-                                                >
-                                                    {s.title || s.id}
-                                                </Link>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span
-                                                        className="font-mono text-[9px] text-muted-foreground/80 truncate">{s.id}</span>
-                                                    {s.score != null && (
-                                                        <span className="font-mono text-[9px] text-primary ml-auto">
-                              sim {s.score}
-                            </span>
-                                                    )}
-                                                </div>
-                                                {s.text_preview && (
-                                                    <div
-                                                        className="text-[10px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
-                                                        {s.text_preview}
-                                                    </div>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </>
-                        )}
-                    </div>
-
+                {activeTab === "mitre" && (
                     <div className="soc-card p-4">
                         <div className="soc-label mb-1">MITRE ATT&CK ({inc.techniques?.length || 0})</div>
-                        <p className="text-[10px] text-muted-foreground mb-3">Click a technique to drill into evidence,
-                            mitigations, and sub-techniques.</p>
+                        <p className="text-[10px] text-muted-foreground mb-3">Click a technique for drill-down.</p>
                         <div className="flex flex-wrap gap-1.5">
                             {inc.techniques?.map((t) => (
                                 <button
                                     type="button"
                                     key={t.technique_id}
                                     onClick={() => setSelectedTech(t)}
-                                    className="px-2 py-1 rounded bg-primary/10 border border-primary/30 text-primary text-[11px] text-left hover:border-primary/50 hover:bg-primary/10 transition-colors"
+                                    className="px-2 py-1 rounded bg-primary/10 border border-primary/30 text-primary text-[11px] text-left"
                                     data-testid={`tech-${t.technique_id}`}
-                                    title={`${t.technique_id} — conf ${Math.round((t.confidence || 0) * 100)}%`}
                                 >
                                     <span className="font-mono">{t.technique_id}</span>
                                     <span className="mx-1 opacity-40">·</span>
                                     <span>{t.name}</span>
-                                    {typeof t.confidence === "number" && (
-                                        <span className="ml-1.5 font-mono text-[9px] text-primary/80">
-                      {Math.round(t.confidence * 100)}%
-                    </span>
-                                    )}
                                 </button>
                             ))}
-                            {(!inc.techniques || inc.techniques.length === 0) &&
-                                <div className="text-xs text-muted-foreground">None detected</div>}
+                            {(!inc.techniques || inc.techniques.length === 0) && (
+                                <div className="text-xs text-muted-foreground">None detected</div>
+                            )}
                         </div>
+                        <TechniquePanel technique={selectedTech} open={!!selectedTech} onClose={() => setSelectedTech(null)}/>
                     </div>
+                )}
 
-                    <TechniquePanel
-                        technique={selectedTech}
-                        open={!!selectedTech}
-                        onClose={() => setSelectedTech(null)}
-                    />
-
+                {activeTab === "ti" && (
                     <div className="soc-card p-0 overflow-hidden">
                         <div className="px-4 py-3 border-b border-border">
                             <div className="soc-label">Indicators of Compromise ({inc.iocs?.length || 0})</div>
@@ -472,59 +535,42 @@ export default function IncidentDetail() {
                             {inc.iocs?.map((i) => (
                                 <div key={i.id} className="p-3" data-testid={`ioc-${i.id}`}>
                                     <div className="flex items-center justify-between">
-                                        <span
-                                            className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{i.type}</span>
-                                        <span
-                                            className={`font-mono text-[11px] ${i.threat_score >= 70 ? "text-error" : i.threat_score >= 40 ? "text-warning" : "text-success"}`}>
-                      {i.threat_score}
-                    </span>
+                                        <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{i.type}</span>
+                                        <span className={`font-mono text-[11px] ${i.threat_score >= 70 ? "text-error" : i.threat_score >= 40 ? "text-warning" : "text-success"}`}>
+                                            {i.threat_score}
+                                        </span>
                                     </div>
                                     <div className="ioc-chip mt-1.5 max-w-full truncate block">{i.value}</div>
-                                    {i.enrichment?.abuseipdb && (
-                                        <div className="mt-2 space-y-1">
-                                            <div className="grid grid-cols-4 gap-1 text-[10px]">
-                                                {[
-                                                    ["AB", i.enrichment.abuseipdb, i.enrichment.abuseipdb?.score],
-                                                    ["VT", i.enrichment.virustotal, i.enrichment.virustotal?.score],
-                                                    ["GN", i.enrichment.greynoise, i.enrichment.greynoise?.classification?.slice(0, 3)],
-                                                    ["TF", i.enrichment.threatfox, i.enrichment.threatfox?.score],
-                                                ].map(([k, src, v]) => {
-                                                    const isMock = src?.mock !== false;
-                                                    const failed = !!src?.fallback_mock;
-                                                    return (
-                                                        <div key={k} className="text-center py-0.5 bg-muted rounded"
-                                                             title={failed ? "Live call failed → mock" : isMock ? "Mock (no key)" : "Live API"}>
-                                                            <div
-                                                                className="text-muted-foreground flex items-center justify-center gap-0.5">
-                                                                {k}
-                                                                <span
-                                                                    className={isMock ? "text-white0/90" : "text-success"}>
-                                  {failed ? "⚠" : isMock ? "m" : "●"}
-                                </span>
-                                                            </div>
-                                                            <div className="text-primary font-mono">{v ?? "—"}</div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                            {i.enrichment?.mode && (
-                                                <div className="text-[9px] text-muted-foreground/80 font-mono truncate">
-                                                    {Object.entries(i.enrichment.mode)
-                                                        .filter(([, m]) => m === "live")
-                                                        .map(([s]) => s)
-                                                        .join(", ") || "all mock"}{" "}
-                                                    live
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             ))}
-                            {(!inc.iocs || inc.iocs.length === 0) &&
-                                <div className="p-4 text-xs text-muted-foreground">No IoCs extracted</div>}
+                            {(!inc.iocs || inc.iocs.length === 0) && (
+                                <div className="p-4 text-xs text-muted-foreground">No IoCs extracted</div>
+                            )}
                         </div>
                     </div>
-                </div>
+                )}
+
+                {activeTab === "timeline" && (
+                    <PlaceholderTab
+                        title="Investigation timeline"
+                        body="API ready at GET /incidents/{id}/workspace/timeline. Visual attack-chain timeline UI lands in PR-6."
+                    />
+                )}
+                {activeTab === "assets" && (
+                    <PlaceholderTab title="Assets" body="Host/entity views will use entity-graph (PR-7)."/>
+                )}
+                {activeTab === "users" && (
+                    <PlaceholderTab title="Users" body="User entities from correlation will appear here (PR-7)."/>
+                )}
+                {activeTab === "notes" && (
+                    <PlaceholderTab title="Investigation notebook" body="Notes CRUD API is live; full notebook UI is PR-8."/>
+                )}
+                {activeTab === "recommendations" && (
+                    <PlaceholderTab
+                        title="Recommendations"
+                        body="Containment playbook steps and human recommendation notes will be listed here (PR-8)."
+                    />
+                )}
             </div>
         </div>
     );

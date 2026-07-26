@@ -135,6 +135,7 @@ export default function App() {
                                 element={<Protected roles={REVIEWER_ROLES}><Compliance/></Protected>}
                             />
                             <Route path="/incidents/:id" element={<Protected><IncidentDetail/></Protected>}/>
+                            <Route path="/investigate/:id" element={<Protected><IncidentDetail/></Protected>}/>
                             <Route
                                 path="/review"
                                 element={<Protected roles={REVIEWER_ROLES}><ReviewQueue/></Protected>}

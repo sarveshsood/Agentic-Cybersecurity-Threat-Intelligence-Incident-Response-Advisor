@@ -205,3 +205,54 @@ async def get_entity_graph(
 async def get_rca(incident_id: str) -> Dict[str, Any]:
     ws = await get_workspace(incident_id)
     return {"rca": ws.get("rca")}
+
+
+async def generate_and_store_rca(incident_id: str, user: dict) -> Dict[str, Any]:
+    """Always overwrite workspace.rca; return ``{ "rca": <object> }`` (may be fallback)."""
+    doc = await incidents_repo.find_by_id(incident_id)
+    if not doc:
+        raise HTTPException(404, "Incident not found")
+
+    prev = None
+    ws = doc.get("workspace") if isinstance(doc.get("workspace"), dict) else {}
+    old = ws.get("rca") if isinstance(ws.get("rca"), dict) else None
+    if old:
+        prev = {
+            "confidence": old.get("confidence"),
+            "provider": old.get("provider"),
+            "model": old.get("model"),
+            "fallback": old.get("fallback"),
+        }
+
+    settings = {}
+    try:
+        settings = await svc.get_settings() or {}
+    except Exception:
+        settings = {}
+
+    from backend.rca import generate_rca
+
+    rca_model = await generate_rca(doc, settings=settings)
+    rca_doc = rca_model.model_dump(mode="json")
+
+    updated = await incidents_repo.set_workspace_rca(incident_id, rca_doc)
+    if not updated:
+        raise HTTPException(404, "Incident not found")
+
+    try:
+        await svc.audit(
+            user,
+            "workspace.rca.generated",
+            "incident",
+            incident_id,
+            {
+                "fallback": bool(rca_doc.get("fallback")),
+                "provider": rca_doc.get("provider"),
+                "model": rca_doc.get("model"),
+                "confidence": rca_doc.get("confidence"),
+                "previous": prev,
+            },
+        )
+    except Exception:
+        pass
+    return {"rca": rca_doc}
