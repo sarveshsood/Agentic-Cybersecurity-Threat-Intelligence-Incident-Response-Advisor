@@ -230,8 +230,12 @@ In-app seeds: `rm-arch-p0-p3-layers-analytics`, `rm-enterprise-board-2026-07-26`
 | H-04 | SOAR actions (separate human approval)          | Close-loop IR                            | P2       |
 | H-05 | Multi-incident fan-out (1 upload → N incidents) | Optional product; **not** current design — see **N-05** | P3 · 🔮 |
 | H-06 | Native SIEM stream connectors                   | Ingest breadth                           | P3 · 🔮 |
-| H-07 | In-app notification center / comments / assign  | Collaboration                            | P2 · 🔮 v2 |
-| H-08 | Saved filters / workspaces / pins               | Analyst productivity                     | P2 · 🔮 v2 |
+| H-07 | In-app notification center / comments / assign  | Collaboration — **design done** (v2)     | P2 · 🔮 v2 |
+| H-08 | Saved filters / workspaces / pins               | Productivity — **design done** (v2)    | P2 · 🔮 v2 |
+
+**H-07 + H-08 design (implementation deferred):**  
+[`docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md`](docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md)  
+— assign, comments (beside notes), in-app inbox (`app_notifications`), saved filters, favorites/pins, feature-flagged PR plan.
 
 ---
 
