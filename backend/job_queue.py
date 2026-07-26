@@ -639,12 +639,20 @@ async def worker_loop(db) -> None:
     logger.info("Pipeline job worker stopped")
 
 
+def job_worker_enabled() -> bool:
+    """True unless ACTIRA_JOB_WORKER is explicitly disabled (multi-replica API pods)."""
+    flag = (os.environ.get("ACTIRA_JOB_WORKER") or "1").strip().lower()
+    return flag not in ("0", "false", "off", "no")
+
+
 def start_worker(db) -> None:
     """Start in-process worker unless ACTIRA_JOB_WORKER=0 (A-D3 multi-worker)."""
     global _worker_task
-    flag = (os.environ.get("ACTIRA_JOB_WORKER") or "1").strip().lower()
-    if flag in ("0", "false", "off", "no"):
-        logger.info("Pipeline job worker disabled (ACTIRA_JOB_WORKER=%s)", flag)
+    if not job_worker_enabled():
+        logger.info(
+            "Pipeline job worker disabled (ACTIRA_JOB_WORKER=%s)",
+            (os.environ.get("ACTIRA_JOB_WORKER") or "").strip() or "0",
+        )
         return
     _stop.clear()
     if _worker_task and not _worker_task.done():

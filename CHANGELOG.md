@@ -12,6 +12,10 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
     - P2 analytics: Mongo `$facet` KPIs, TTL cache, concurrent aggregations, startup indexes
     - P3: Dashboard LLM monthly budget KPI; pipeline stage timings (`stage_timings` / `pipeline_total_ms`)
     - CI fixes: golden dataset shape, OpenAPI, flake8, bandit URL scheme, frontend peer deps
+- **v1.3 Observability & HA rest**
+    - Multi-replica HA validation runbook (`docs/operations/HA_VALIDATION.md`)
+    - Load test methodology for 10 / 100 users (`benchmarks/reports/LOAD_TEST_10_100.md`); bench harness measures KPIs + optional Markdown
+    - Helm chart 1.1.0: fixed templates, API + job-worker Deployments, HPA, PDB, PVC, `values-prod.yaml`
 - **Master roadmap tracking** — comprehensive completed + planned work in `ROADMAP.md`; new in-app seed cards in
   `roadmap_data.py` (v1.0 pack, v1.1 modular, UX polish, v1.2/v1.3/v2.0, optional packaging)
 - **Capstone UX polish (non-breaking)**

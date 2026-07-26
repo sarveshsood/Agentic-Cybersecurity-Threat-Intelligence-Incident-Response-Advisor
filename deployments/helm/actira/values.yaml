@@ -1,8 +1,12 @@
+# Default chart values (lab / small staging). Prefer values-prod.yaml for production.
+nameOverride: ""
+fullnameOverride: ""
+
 replicaCount: 2
 
 image:
   repository: actira-backend
-  tag: "1.0.0"
+  tag: "1.1.0"
   pullPolicy: IfNotPresent
 
 service:
@@ -14,15 +18,27 @@ ingress:
   className: ""
   host: actira.example.com
   tls: false
+  annotations: {}
 
+# API pods: disable in-process job worker when jobWorker.enabled is true
 env:
   DB_NAME: soc_console
   ENV: production
   SEED_DEMO_USERS: "false"
   CORS_ORIGINS: "https://actira.example.com"
   ACTIRA_VECTOR_STORE: "1"
+  ACTIRA_JOB_PAYLOAD_BACKEND: "mongo"
+  ACTIRA_JOB_WORKER: "0"
 
-# Prefer existingSecret over inline
+# Dedicated single-replica pipeline consumer (recommended multi-replica layout)
+jobWorker:
+  enabled: true
+  replicaCount: 1
+  # Overrides only for the worker Deployment
+  env:
+    ACTIRA_JOB_WORKER: "1"
+
+# Prefer existingSecret over inline secrets
 existingSecret: actira-secrets
 
 resources:
@@ -33,7 +49,60 @@ resources:
     cpu: "2"
     memory: 2Gi
 
+workerResources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+probes:
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    path: /health
+    failureThreshold: 30
+    periodSeconds: 5
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
 lancedb:
-  # emptyDir for demo; PVC for persistence
+  # emptyDir for demo; PVC for persistence across restarts
   persistence: false
   size: 5Gi
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
