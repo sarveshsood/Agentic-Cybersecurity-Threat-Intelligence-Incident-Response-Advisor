@@ -11,6 +11,9 @@ import CorrelationPanel from "../components/CorrelationPanel";
 import AIInvestigator from "../components/AIInvestigator";
 import TechniquePanel from "../components/TechniquePanel";
 import WorkspaceTabs, {WORKSPACE_TAB_IDS} from "../components/workspace/WorkspaceTabs";
+import InvestigationTimeline from "../components/workspace/InvestigationTimeline";
+import EntityGraph, {EntityTypeTable} from "../components/workspace/EntityGraph";
+import NotesNotebook, {RecommendationsPanel} from "../components/workspace/NotesNotebook";
 import {PageHeader} from "../design-system";
 import {pushRecentIncident} from "../lib/recentActivity";
 import {formatDateTime} from "../lib/uiPrefs";
@@ -65,6 +68,7 @@ export default function IncidentDetail() {
     const [selectedTech, setSelectedTech] = useState(null);
     const [rca, setRca] = useState(null);
     const [rcaBusy, setRcaBusy] = useState(false);
+    const [selectedEntity, setSelectedEntity] = useState(null);
 
     // Compliance Triage Audit Modal State
     const [showReviewModal, setShowReviewModal] = useState(false);
@@ -381,6 +385,14 @@ export default function IncidentDetail() {
                                     </div>
                                 )}
                             </div>
+                            <EntityGraph
+                                incidentId={inc.id}
+                                selectedId={selectedEntity}
+                                onSelectNode={(n) => {
+                                    setSelectedEntity(n.label || n.id);
+                                    setActiveTab("timeline");
+                                }}
+                            />
                             <AIInvestigator incidentId={inc.id} severity={inc.severity}/>
                         </div>
                         <div className="xl:col-span-4 space-y-6">
@@ -551,25 +563,40 @@ export default function IncidentDetail() {
                 )}
 
                 {activeTab === "timeline" && (
-                    <PlaceholderTab
-                        title="Investigation timeline"
-                        body="API ready at GET /incidents/{id}/workspace/timeline. Visual attack-chain timeline UI lands in PR-6."
-                    />
+                    <div className="space-y-3">
+                        {selectedEntity && (
+                            <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Filtering timeline by entity:</span>
+                                <span className="font-mono text-primary">{selectedEntity}</span>
+                                <button
+                                    type="button"
+                                    className="text-muted-foreground hover:text-foreground underline"
+                                    onClick={() => setSelectedEntity(null)}
+                                    data-testid="timeline-clear-entity-filter"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        )}
+                        <InvestigationTimeline
+                            incidentId={inc.id}
+                            filterEntity={selectedEntity}
+                        />
+                    </div>
                 )}
                 {activeTab === "assets" && (
-                    <PlaceholderTab title="Assets" body="Host/entity views will use entity-graph (PR-7)."/>
+                    <div className="space-y-4">
+                        <EntityTypeTable incidentId={inc.id} type="host" title="Hosts"/>
+                        <EntityTypeTable incidentId={inc.id} type="ip" title="IP addresses"/>
+                        <EntityTypeTable incidentId={inc.id} type="domain" title="Domains"/>
+                    </div>
                 )}
                 {activeTab === "users" && (
-                    <PlaceholderTab title="Users" body="User entities from correlation will appear here (PR-7)."/>
+                    <EntityTypeTable incidentId={inc.id} type="user" title="Users"/>
                 )}
-                {activeTab === "notes" && (
-                    <PlaceholderTab title="Investigation notebook" body="Notes CRUD API is live; full notebook UI is PR-8."/>
-                )}
+                {activeTab === "notes" && <NotesNotebook incidentId={inc.id}/>}
                 {activeTab === "recommendations" && (
-                    <PlaceholderTab
-                        title="Recommendations"
-                        body="Containment playbook steps and human recommendation notes will be listed here (PR-8)."
-                    />
+                    <RecommendationsPanel incidentId={inc.id} playbook={pb}/>
                 )}
             </div>
         </div>
