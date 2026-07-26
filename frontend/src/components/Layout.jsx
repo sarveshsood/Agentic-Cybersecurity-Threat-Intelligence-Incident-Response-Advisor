@@ -9,6 +9,7 @@ import {
     CaretRight,
     ChartBar,
     Circle,
+    Crosshair,
     Cpu,
     Desktop,
     FileText,
@@ -57,6 +58,14 @@ const NAV = [
         roles: ["analyst", "senior_reviewer", "admin"],
         tip: "Browse and open IR cases",
         colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30"
+    },
+    {
+        to: "/hunt",
+        label: "Threat Hunt",
+        icon: Crosshair,
+        roles: ["analyst", "senior_reviewer", "admin"],
+        tip: "Natural-language hunt across recent incidents",
+        colorClass: "text-primary bg-primary/10"
     },
     {
         to: "/analytics",

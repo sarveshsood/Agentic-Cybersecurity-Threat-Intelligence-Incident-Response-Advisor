@@ -69,6 +69,7 @@ class RouteErrorBoundary extends Component {
 const Dashboard = lazyRetry(() => import("./pages/Dashboard"));
 const Upload = lazyRetry(() => import("./pages/Upload"));
 const Incidents = lazyRetry(() => import("./pages/Incidents"));
+const Hunt = lazyRetry(() => import("./pages/Hunt"));
 const IncidentDetail = lazyRetry(() => import("./pages/IncidentDetail"));
 const ReviewQueue = lazyRetry(() => import("./pages/ReviewQueue"));
 const AuditLogs = lazyRetry(() => import("./pages/AuditLogs")); // Added Audit Logs import
@@ -130,6 +131,7 @@ export default function App() {
                             <Route path="/upload" element={<Protected><Upload/></Protected>}/>
                             <Route path="/analytics" element={<Protected><Analytics/></Protected>}/>
                             <Route path="/incidents" element={<Protected><Incidents/></Protected>}/>
+                            <Route path="/hunt" element={<Protected><Hunt/></Protected>}/>
                             <Route
                                 path="/compliance"
                                 element={<Protected roles={REVIEWER_ROLES}><Compliance/></Protected>}
