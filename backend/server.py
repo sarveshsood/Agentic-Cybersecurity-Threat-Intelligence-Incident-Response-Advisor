@@ -100,6 +100,13 @@ async def lifespan(app: FastAPI):
         logger.info("Startup: ensuring indexes…")
         await db.incidents.create_index("id", unique=True)
         await db.incidents.create_index([("status", 1), ("created_at", -1)])
+        try:
+            from backend.services.analytics_service import ensure_analytics_indexes
+
+            await ensure_analytics_indexes(db)
+            logger.info("Startup: analytics indexes ready")
+        except Exception as aidx:
+            logger.warning("analytics indexes skipped: %s", aidx)
         await db.log_jobs.create_index("id", unique=True)
         await db.audit_log.create_index([("ts", -1)])
         await db.roadmap.create_index("id", unique=True)
