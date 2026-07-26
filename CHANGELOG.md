@@ -7,6 +7,11 @@ Format inspired by [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **2026-07-26 architecture + analytics close-out (PRs #1–#3 merged to main)**
+    - P0 import stabilization; P1 services/repos layering
+    - P2 analytics: Mongo `$facet` KPIs, TTL cache, concurrent aggregations, startup indexes
+    - P3: Dashboard LLM monthly budget KPI; pipeline stage timings (`stage_timings` / `pipeline_total_ms`)
+    - CI fixes: golden dataset shape, OpenAPI, flake8, bandit URL scheme, frontend peer deps
 - **Master roadmap tracking** — comprehensive completed + planned work in `ROADMAP.md`; new in-app seed cards in
   `roadmap_data.py` (v1.0 pack, v1.1 modular, UX polish, v1.2/v1.3/v2.0, optional packaging)
 - **Capstone UX polish (non-breaking)**

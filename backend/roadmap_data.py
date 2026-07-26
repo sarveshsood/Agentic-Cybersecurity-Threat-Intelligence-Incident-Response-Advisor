@@ -1095,7 +1095,7 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             "Planned: OTEL instrumentation, stateless multi-replica API, load tests 10/100+, "
             "Helm prod values, production dashboards beyond skeletons."
         ),
-        "status": "planned",
+        "status": "in_progress",
         "priority": "p1",
         "owner": "",
         "effort": "l",
@@ -1105,13 +1105,58 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "modules": ["backend/", "deployments/helm/", "monitoring/", "benchmarks/"],
         "docs": ["ROADMAP.md#g-planned--v13-observability--ha", "docs/operations/"],
         "architecture_notes": "Build on existing /metrics and job queue multi-worker docs.",
-        "progress": 0,
-        "implementation_notes": "",
+        "progress": 30,
+        "implementation_notes": (
+            "2026-07-26: Pipeline stage timings shipped (`pipeline_trace.py`) with optional OTEL spans; "
+            "persisted on log_jobs + Upload UI total ms. Full exporter/collector + HA/load still open."
+        ),
         "tasks": [
-            {"id": "t1", "title": "OpenTelemetry tracing for API + pipeline stages", "status": "todo", "done": False},
+            {
+                "id": "t1",
+                "title": "OpenTelemetry tracing for API + pipeline stages",
+                "status": "done",
+                "done": True,
+            },
             {"id": "t2", "title": "Multi-replica / HA validation runbook + test", "status": "todo", "done": False},
             {"id": "t3", "title": "Load test report 10/100 users", "status": "todo", "done": False},
             {"id": "t4", "title": "Helm prod-like values polish", "status": "todo", "done": False},
+        ],
+    },
+    {
+        "id": "rm-arch-p0-p3-layers-analytics",
+        "title": "Architecture layers + analytics performance + cost/stage visibility",
+        "summary": "P0 import stabilization; P1 services/repos; P2 KPI facet/cache; P3 LLM budget KPI + stage timings.",
+        "description": (
+            "Refactor stack merged to main 2026-07-26: package-local backend imports; domain services; "
+            "Mongo $facet KPIs + TTL cache + indexes; Dashboard LLM budget meter; pipeline stage_timings."
+        ),
+        "status": "completed",
+        "priority": "p1",
+        "owner": "",
+        "effort": "l",
+        "target_release": "v1.1",
+        "week": "Done",
+        "category": "Platform / Architecture",
+        "modules": [
+            "backend/services/",
+            "backend/repositories/",
+            "backend/analytics.py",
+            "backend/pipeline_trace.py",
+            "frontend/src/pages/Dashboard.jsx",
+            "frontend/src/pages/Upload.jsx",
+        ],
+        "docs": ["docs/ARCHITECTURE.md", "CHANGELOG.md"],
+        "architecture_notes": "Thin routers; analytics cache is per-process (see MULTI_WORKER.md).",
+        "progress": 100,
+        "implementation_notes": (
+            "Merged PRs #1–#3. CI green (unit, golden, openapi, bandit, frontend). "
+            "Env: ANALYTICS_KPI_CACHE_TTL_SECONDS, ANALYTICS_DASHBOARD_CACHE_TTL_SECONDS."
+        ),
+        "tasks": [
+            {"id": "t1", "title": "P0 import stabilization + ready/version probes", "status": "done", "done": True},
+            {"id": "t2", "title": "P1 services/repos architecture layers", "status": "done", "done": True},
+            {"id": "t3", "title": "P2 analytics facet + cache + indexes", "status": "done", "done": True},
+            {"id": "t4", "title": "P3 LLM KPI + pipeline stage timings", "status": "done", "done": True},
         ],
     },
     {

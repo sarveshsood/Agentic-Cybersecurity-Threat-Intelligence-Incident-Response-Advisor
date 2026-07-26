@@ -134,20 +134,21 @@ Local vector store + hybrid retrieval (BM25 + ANN RRF):
 
 - Real integrations for AbuseIPDB, VirusTotal, GreyNoise, ThreatFox when user provides keys
 - ~~Optional LoRA fine-tune on production-accepted playbooks~~ **DONE** (`lora_train.py`, `/kb/lora/train`)
-- Streaming SSE for playbook generation (currently blocking send_message)
-- Pagination on `/incidents`, `/logs/jobs`, `/audit`
-- File-size cap on `/logs/upload`
-- Optional: JWT role re-bind from DB; register password policy; strict ingest-key-only mode
+- ~~Streaming SSE for Investigator~~ **DONE** (playbook generation remains non-stream by design)
+- ~~Pagination on `/incidents`, `/logs/jobs`, `/audit`~~ **DONE**
+- ~~File-size / ZIP-bomb caps on upload~~ **DONE**
+- ~~JWT role re-bind from DB; register password policy~~ **DONE**
 - Expand golden set toward human-approved production playbooks (beyond synthetic offline labels; base set curated
   2026-07-19)
+- ~~Architecture layers + analytics performance (facet/cache) + LLM budget KPI~~ **DONE** (2026-07-26, PRs #1–#2)
 
 ### P2 — Nice to have
 
 - LangGraph orchestration for the multi-agent pipeline
-- LangSmith observability wiring
+- LangSmith / full OTEL exporter wiring (pipeline stage timings **DONE**; collector export still open)
 - EVTX (Windows Event Log) binary parser
 - ATT&CK matrix full grid (not just tactic-grouped heatmap)
-- Notifications (Slack / email) for HiTL queue
+- ~~Notifications (Slack / email) for critical/high/HiTL incidents~~ **DONE** (`notify_incident_created`)
 
 ### P3 — Future
 
