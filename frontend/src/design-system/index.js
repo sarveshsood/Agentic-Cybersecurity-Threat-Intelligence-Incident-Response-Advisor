@@ -17,6 +17,7 @@ export {
     Panel,
     KpiCard,
     MetricCard,
+    formatMetricValue,
     AlertBanner,
     EmptyState,
     LoadingState,

@@ -221,6 +221,27 @@ export function Panel({
     );
 }
 
+/** Format KPI values consistently (integers grouped; rates with fixed decimals). */
+export function formatMetricValue(value, {decimals} = {}) {
+    if (value == null || value === "") return "—";
+    if (typeof value === "string") return value;
+    if (typeof value !== "number" || Number.isNaN(value)) return String(value);
+    if (decimals != null) {
+        return value.toLocaleString(undefined, {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
+    }
+    if (Number.isInteger(value) || Math.abs(value - Math.round(value)) < 1e-9) {
+        return Math.round(value).toLocaleString();
+    }
+    // Ratios like grounding 0–1
+    if (value >= 0 && value <= 1) {
+        return value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    return value.toLocaleString(undefined, {maximumFractionDigits: 2});
+}
+
 /** KPI / metric card — compact enterprise summary */
 export function KpiCard({
                             label,
@@ -233,6 +254,8 @@ export function KpiCard({
                             testid,
                             className,
                             trend,
+                            decimals,
+                            loading = false,
                         }) {
     const toneClass = {
         default: "text-primary",
@@ -252,12 +275,15 @@ export function KpiCard({
         violet: "text-primary",
     }[tone] || "text-primary";
 
+    const display = loading ? "…" : formatMetricValue(value, {decimals});
+
     const body = (
         <div
             data-testid={testid}
             className={cn(
                 "soc-card p-4 h-full transition-colors hover:border-primary/30 group",
                 to && "cursor-pointer",
+                loading && "opacity-70",
                 className,
             )}
         >
@@ -276,8 +302,11 @@ export function KpiCard({
                 </div>
             </div>
             <div
-                className={cn("mt-2 font-mono text-3xl font-semibold tabular-nums tracking-tight", toneClass)}>{value}</div>
-            <div className="flex items-center justify-between gap-2 mt-1">
+                className={cn("mt-2 font-mono text-3xl font-semibold tabular-nums tracking-tight min-h-[2.25rem]", toneClass)}
+            >
+                {display}
+            </div>
+            <div className="flex items-center justify-between gap-2 mt-1 min-h-[1rem]">
                 {sub ? <div className="text-[11px] text-muted-foreground truncate">{sub}</div> : <span/>}
                 {trend != null ? (
                     <span className="text-[10px] font-mono text-muted-foreground shrink-0">{trend}</span>

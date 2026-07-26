@@ -47,7 +47,7 @@ import {
     UploadSimple,
     Users,
 } from "@phosphor-icons/react";
-import {DataTable, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
+import {DataTable, formatMetricValue, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
 
 /**
  * Demo KPI/incident fallbacks are OFF by default (enterprise trust).
@@ -261,51 +261,58 @@ export default function Dashboard() {
 
     const [rawKpis, setRawKpis] = useState(null);
     const [incidents, setIncidents] = useState([]);
-    const [kpisLoaded, setKpisLoaded] = useState(false);
-    const [incidentsLoaded, setIncidentsLoaded] = useState(false);
+    const [ready, setReady] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [loadError, setLoadError] = useState(null);
     const [showTechLabels, setShowTechLabels] = useState(false);
 
-    const hasApiKpis = kpisLoaded && rawKpis != null;
-    const hasApiIncidents = incidentsLoaded && incidents.length > 0;
+    const hasApiKpis = ready && rawKpis != null;
+    const hasApiIncidents = ready && incidents.length > 0;
     // Showcase demo only when explicitly enabled and we have no real payload
-    const useDemoKpis = DEMO_FALLBACK_ENABLED && !hasApiKpis;
-    const useDemoIncidents = DEMO_FALLBACK_ENABLED && incidentsLoaded && incidents.length === 0;
+    const useDemoKpis = DEMO_FALLBACK_ENABLED && ready && !hasApiKpis;
+    const useDemoIncidents = DEMO_FALLBACK_ENABLED && ready && incidents.length === 0;
+
+    const normalizeKpis = useCallback((payload) => {
+        if (!payload || typeof payload !== "object") return {...EMPTY_KPIS};
+        const merged = {...EMPTY_KPIS, ...payload};
+        if (!merged.unique_src_ips && merged.unique_source_ips) {
+            merged.unique_src_ips = merged.unique_source_ips;
+        }
+        if ((!merged.top_techniques || !merged.top_techniques.length) && merged.attack_heatmap) {
+            const hm = merged.attack_heatmap;
+            if (hm && typeof hm === "object" && !Array.isArray(hm)) {
+                merged.top_techniques = Object.entries(hm)
+                    .map(([id, count]) => ({id, count: Number(count) || 0}))
+                    .filter((t) => t.id)
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 12);
+            }
+        }
+        if (Array.isArray(merged.severity_distribution)) {
+            for (const row of merged.severity_distribution) {
+                const s = (row.severity || "").toLowerCase();
+                const c = Number(row.count) || 0;
+                if (s === "high" && payload.high_incidents == null) merged.high_incidents = c;
+                if (s === "medium" && payload.medium_incidents == null) merged.medium_incidents = c;
+                if (s === "low" && payload.low_incidents == null) merged.low_incidents = c;
+                if (s === "critical" && payload.critical_incidents == null) merged.critical_incidents = c;
+            }
+        }
+        // Coerce numeric KPI fields so charts/cards stay consistent
+        for (const k of Object.keys(EMPTY_KPIS)) {
+            if (typeof EMPTY_KPIS[k] === "number" && merged[k] != null && merged[k] !== "") {
+                const n = Number(merged[k]);
+                if (!Number.isNaN(n)) merged[k] = n;
+            }
+        }
+        return merged;
+    }, []);
 
     const kpis = useMemo(() => {
-        if (hasApiKpis) {
-            const merged = {...EMPTY_KPIS, ...rawKpis};
-            // Normalize aliases from API (unique_source_ips vs unique_src_ips)
-            if (!merged.unique_src_ips && merged.unique_source_ips) {
-                merged.unique_src_ips = merged.unique_source_ips;
-            }
-            // Build top_techniques from attack_heatmap map if list missing
-            if ((!merged.top_techniques || !merged.top_techniques.length) && merged.attack_heatmap) {
-                const hm = merged.attack_heatmap;
-                if (hm && typeof hm === "object" && !Array.isArray(hm)) {
-                    merged.top_techniques = Object.entries(hm)
-                        .map(([id, count]) => ({id, count: Number(count) || 0}))
-                        .filter((t) => t.id)
-                        .sort((a, b) => b.count - a.count)
-                        .slice(0, 12);
-                }
-            }
-            // Flat severity cards from distribution if not present
-            if (Array.isArray(merged.severity_distribution)) {
-                for (const row of merged.severity_distribution) {
-                    const s = (row.severity || "").toLowerCase();
-                    const c = Number(row.count) || 0;
-                    if (s === "high" && !rawKpis.high_incidents) merged.high_incidents = c;
-                    if (s === "medium" && !rawKpis.medium_incidents) merged.medium_incidents = c;
-                    if (s === "low" && !rawKpis.low_incidents) merged.low_incidents = c;
-                    if (s === "critical" && !rawKpis.critical_incidents) merged.critical_incidents = c;
-                }
-            }
-            return merged;
-        }
+        if (hasApiKpis) return normalizeKpis(rawKpis);
         if (useDemoKpis) return DEMO_FALLBACK_KPIS;
         return EMPTY_KPIS;
-    }, [hasApiKpis, rawKpis, useDemoKpis]);
+    }, [hasApiKpis, rawKpis, useDemoKpis, normalizeKpis]);
 
     const activeIncidents = useMemo(() => {
         if (hasApiIncidents) return incidents;
@@ -314,7 +321,8 @@ export default function Dashboard() {
     }, [hasApiIncidents, incidents, useDemoIncidents]);
 
     const showingDemoData = useDemoKpis || useDemoIncidents;
-    const loading = !kpisLoaded || !incidentsLoaded;
+    const loading = !ready;
+    const kpiLoading = loading || refreshing;
 
     const {sorted, sort, toggleSort} = useSortableData(
         activeIncidents,
@@ -322,48 +330,63 @@ export default function Dashboard() {
         ACCESSORS,
     );
 
-    const load = useCallback(() => {
-        setLoadError(null);
-        api.get("/kpis")
-            .then((r) => {
-                setRawKpis(r.data && typeof r.data === "object" ? r.data : {});
-                setKpisLoaded(true);
-            })
-            .catch((e) => {
-                setRawKpis(null);
-                setKpisLoaded(true);
-                setLoadError(e?.userMessage || e?.message || "KPIs unavailable");
-            });
-        api.get("/incidents")
-            .then((r) => {
-                const all = Array.isArray(r.data) ? r.data : [];
+    const load = useCallback(async (opts = {}) => {
+        const silent = Boolean(opts.silent);
+        if (silent) setRefreshing(true);
+        else setLoadError(null);
+
+        try {
+            // Atomic dual fetch — avoid staggered KPI vs table paints
+            const [kpiRes, incRes] = await Promise.all([
+                api.get("/kpis", {params: {_t: Date.now()}}).catch((e) => ({__err: e, data: null})),
+                api.get("/incidents", {params: {limit, skip: 0, _t: Date.now()}}).catch((e) => ({__err: e, data: null})),
+            ]);
+
+            const errs = [];
+            if (kpiRes?.__err) {
+                errs.push(kpiRes.__err?.userMessage || kpiRes.__err?.message || "KPIs unavailable");
+                if (!silent) setRawKpis(null);
+            } else {
+                setRawKpis(kpiRes?.data && typeof kpiRes.data === "object" ? kpiRes.data : {});
+            }
+
+            if (incRes?.__err) {
+                errs.push(incRes.__err?.userMessage || incRes.__err?.message || "Incidents unavailable");
+                if (!silent) setIncidents([]);
+            } else {
+                const all = Array.isArray(incRes?.data) ? incRes.data : [];
+                // API already sorts created_at desc; keep defensive client sort for consistency
                 const recent = [...all]
                     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
                     .slice(0, limit);
                 setIncidents(recent);
-                setIncidentsLoaded(true);
-            })
-            .catch((e) => {
-                setIncidents([]);
-                setIncidentsLoaded(true);
-                setLoadError((prev) => prev || e?.userMessage || e?.message || "Incidents unavailable");
-            });
+            }
+
+            setLoadError(errs.length ? errs.join(" · ") : null);
+            setReady(true);
+        } finally {
+            setRefreshing(false);
+        }
     }, [limit]);
 
     useEffect(() => {
-        load();
-        const ms = Number(prefs.dashboard_refresh_ms) || 0;
+        load({silent: false});
+        // Cap auto-refresh so “recommended” 60s does not thrash under load
+        const rawMs = Number(prefs.dashboard_refresh_ms) || 0;
+        const ms = rawMs > 0 ? Math.max(30_000, rawMs) : 0;
         if (ms <= 0) return undefined;
-        const id = setInterval(load, ms);
+        const id = setInterval(() => load({silent: true}), ms);
         return () => clearInterval(id);
     }, [load, prefs.dashboard_refresh_ms]);
 
     const severityPie = useMemo(() => {
         if (kpis?.severity_distribution?.length) {
-            return kpis.severity_distribution.map((e) => ({
-                severity: e.severity,
-                count: e.count,
-            }));
+            return kpis.severity_distribution
+                .filter((e) => Number(e.count) > 0)
+                .map((e) => ({
+                    severity: e.severity,
+                    count: Number(e.count) || 0,
+                }));
         }
         return [];
     }, [kpis]);
@@ -379,10 +402,11 @@ export default function Dashboard() {
                 closed: "Closed"
             };
             return kpis.status_distribution
-                .filter((e) => e.count > 0)
+                .filter((e) => Number(e.count) > 0)
                 .map((e) => ({
                     ...e,
-                    status: labelMap[e.status] || e.status.replace(/_/g, " ")
+                    count: Number(e.count) || 0,
+                    status: labelMap[e.status] || String(e.status || "").replace(/_/g, " ")
                 }));
         }
         return [];
@@ -443,12 +467,22 @@ export default function Dashboard() {
     }, [kpis]);
 
     const mttrLabel = kpis?.mean_mttr_hours != null && kpis.mean_mttr_hours !== ""
-        ? `${kpis.mean_mttr_hours}h`
+        ? `${formatMetricValue(Number(kpis.mean_mttr_hours), {decimals: 2})}h`
         : "—";
     const pendingCount = kpis?.pending_review ?? 0;
-    const acceptanceLabel = kpis?.acceptance_rate != null
+    const acceptanceLabel = kpis?.acceptance_rate != null && kpis.acceptance_rate !== ""
         ? `${Math.round(Number(kpis.acceptance_rate) * 100)}%`
         : "—";
+    const groundingDisplay = kpis?.mean_grounding_score != null
+        ? formatMetricValue(Number(kpis.mean_grounding_score), {decimals: 2})
+        : "—";
+
+    /** Stable chart shell — avoids Recharts layout thrash on empty data */
+    const ChartEmpty = ({label = "No data yet"}) => (
+        <div className="h-[160px] flex items-center justify-center text-xs text-slate-500 px-3 text-center">
+            {label}
+        </div>
+    );
 
     return (
         <div data-testid="dashboard-page" className="pb-12">
@@ -507,6 +541,11 @@ export default function Dashboard() {
                     message="Loading live KPIs and recent incidents…"
                 />
             )}
+            {refreshing && !loading && (
+                <div className="mb-3 text-[11px] text-muted-foreground font-mono" data-testid="dashboard-refreshing">
+                    Refreshing metrics…
+                </div>
+            )}
 
             <div
                 className="flex flex-wrap items-center gap-2.5 mb-6"
@@ -540,51 +579,51 @@ export default function Dashboard() {
 
             {/* KPI Grid Row — ops metrics only; LLM budget lives under Ops / Settings */}
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
-                <KpiCard testid="kpi-total" tip={kpiTip(DASH_TIPS.total)} label="Incidents" value={kpis.total_incidents}
+                <KpiCard loading={kpiLoading} testid="kpi-total" tip={kpiTip(DASH_TIPS.total)} label="Incidents" value={kpis.total_incidents}
                          sub="all-time" icon={ShieldCheck} tone="primary" to="/incidents"/>
-                <KpiCard testid="kpi-critical" tip={kpiTip(DASH_TIPS.critical)} label="Critical"
+                <KpiCard loading={kpiLoading} testid="kpi-critical" tip={kpiTip(DASH_TIPS.critical)} label="Critical"
                          value={kpis.critical_incidents} sub="severity=critical" icon={Pulse} tone="critical"
                          to="/incidents?severity=critical"/>
-                <KpiCard testid="kpi-pending" tip={kpiTip(DASH_TIPS.pending)} label="HITL Pending"
+                <KpiCard loading={kpiLoading} testid="kpi-pending" tip={kpiTip(DASH_TIPS.pending)} label="HITL Pending"
                          value={kpis.pending_review} sub="awaiting reviewer" icon={HandTap} tone="warning"
                          to="/review"/>
-                <KpiCard testid="kpi-events" tip={kpiTip(DASH_TIPS.events)} label="Events Processed"
+                <KpiCard loading={kpiLoading} testid="kpi-events" tip={kpiTip(DASH_TIPS.events)} label="Events Processed"
                          value={kpis.events_processed} sub="ingested logs" icon={Database} tone="primary"/>
-                <KpiCard testid="kpi-ips" tip={kpiTip(DASH_TIPS.ips)} label="Unique SRC IPs" value={kpis.unique_src_ips}
+                <KpiCard loading={kpiLoading} testid="kpi-ips" tip={kpiTip(DASH_TIPS.ips)} label="Unique SRC IPs" value={kpis.unique_src_ips}
                          sub="source addresses" icon={Globe} tone="primary"/>
-                <KpiCard testid="kpi-iocs" tip={kpiTip(DASH_TIPS.iocs)} label="Unique IOCs" value={kpis.unique_iocs}
+                <KpiCard loading={kpiLoading} testid="kpi-iocs" tip={kpiTip(DASH_TIPS.iocs)} label="Unique IOCs" value={kpis.unique_iocs}
                          sub="extracted indicators" icon={Target} tone="primary"/>
-                <KpiCard testid="kpi-high-threat" tip={kpiTip(DASH_TIPS.high_threat)} label="High Threat IOCs"
+                <KpiCard loading={kpiLoading} testid="kpi-high-threat" tip={kpiTip(DASH_TIPS.high_threat)} label="High Threat IOCs"
                          value={kpis.high_threat_iocs} sub="score > 70" icon={ShieldWarning} tone="critical"/>
 
-                <KpiCard testid="kpi-high" tip={kpiTip(DASH_TIPS.high)}
+                <KpiCard loading={kpiLoading} testid="kpi-high" tip={kpiTip(DASH_TIPS.high)}
                          label="High" value={kpis.high_incidents} sub="severity=high" icon={TrendUp}
                          tone="warning" to="/incidents?severity=high"/>
-                <KpiCard testid="kpi-medium" tip={kpiTip(DASH_TIPS.medium)}
+                <KpiCard loading={kpiLoading} testid="kpi-medium" tip={kpiTip(DASH_TIPS.medium)}
                          label="Medium" value={kpis.medium_incidents} sub="severity=medium"
                          icon={ChartLineUp} tone="default" to="/incidents?severity=medium"/>
-                <KpiCard testid="kpi-low" tip={kpiTip(DASH_TIPS.low)}
+                <KpiCard loading={kpiLoading} testid="kpi-low" tip={kpiTip(DASH_TIPS.low)}
                          label="Low" value={kpis.low_incidents} sub="severity=low" icon={ArrowUpRight}
                          tone="default" to="/incidents?severity=low"/>
-                <KpiCard testid="kpi-multi" tip={kpiTip(DASH_TIPS.multi)} label="Multi-File"
+                <KpiCard loading={kpiLoading} testid="kpi-multi" tip={kpiTip(DASH_TIPS.multi)} label="Multi-File"
                          value={kpis.multi_file_incidents} sub="complex incidents" icon={FolderSimpleLock}
                          tone="default"/>
-                <KpiCard testid="kpi-grounding" tip={kpiTip(DASH_TIPS.grounding)} label="Mean Grounding"
-                         value={kpis.mean_grounding_score} sub="citation rate" icon={Cpu} tone="success"/>
-                <KpiCard testid="kpi-acceptance" tip={kpiTip(DASH_TIPS.acceptance)} label="Acceptance Rate"
-                         value={acceptanceLabel} sub={`${kpis.approved ?? 0} approved`}
+                <KpiCard loading={kpiLoading} testid="kpi-grounding" tip={kpiTip(DASH_TIPS.grounding)} label="Mean Grounding"
+                         value={groundingDisplay} sub="citation rate" icon={Cpu} tone="success"/>
+                <KpiCard loading={kpiLoading} testid="kpi-acceptance" tip={kpiTip(DASH_TIPS.acceptance)} label="Acceptance Rate"
+                         value={acceptanceLabel} sub={`${formatMetricValue(kpis.approved ?? 0)} approved`}
                          icon={CheckCircle} tone="success"/>
-                <KpiCard testid="kpi-mttr" tip={kpiTip(DASH_TIPS.mttr)} label="Mean MTTR" value={mttrLabel}
-                         sub={kpis.mttr_sample_size ? `n=${kpis.mttr_sample_size}` : "no reviews yet"}
+                <KpiCard loading={kpiLoading} testid="kpi-mttr" tip={kpiTip(DASH_TIPS.mttr)} label="Mean MTTR" value={mttrLabel}
+                         sub={kpis.mttr_sample_size ? `n=${formatMetricValue(kpis.mttr_sample_size)}` : "no reviews yet"}
                          icon={Timer} tone="default"/>
             </div>
 
-            {showExtra && (
+            {showExtra && !loading && (
                 <>
                     {/* Top 4 Mix & Health Grid with strict height alignment */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6 items-stretch">
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
+                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-sev-mix">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
@@ -595,11 +634,15 @@ export default function Dashboard() {
                                     <HelpTip title={DASH_TIPS.sev_mix.title} body={DASH_TIPS.sev_mix.body}/>
                                 </div>
                             </div>
-                            <div className="flex-1 flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height={160}>
+                            <div className="flex-1 flex items-center justify-center min-h-[160px]">
+                                {severityPie.length === 0 ? (
+                                    <ChartEmpty label="No severity data yet"/>
+                                ) : (
+                                <ResponsiveContainer width="100%" height={160} debounce={50}>
                                     <PieChart>
                                         <Pie data={severityPie} dataKey="count" nameKey="severity" cx="50%" cy="50%"
-                                             innerRadius={40} outerRadius={65} stroke="#ffffff" strokeWidth={2}>
+                                             innerRadius={40} outerRadius={65} stroke="#ffffff" strokeWidth={2}
+                                             isAnimationActive={false}>
                                             {severityPie.map((e) => (
                                                 <Cell key={e.severity} fill={SEV_COLOR[e.severity] || '#94a3b8'}/>
                                             ))}
@@ -613,11 +656,12 @@ export default function Dashboard() {
                                                 iconType="circle"/>
                                     </PieChart>
                                 </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
 
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
+                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-status-mix">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
@@ -628,8 +672,11 @@ export default function Dashboard() {
                                     <HelpTip title={DASH_TIPS.status_mix.title} body={DASH_TIPS.status_mix.body}/>
                                 </div>
                             </div>
-                            <div className="flex-1 flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height={160}>
+                            <div className="flex-1 flex items-center justify-center min-h-[160px]">
+                                {statusPie.length === 0 ? (
+                                    <ChartEmpty label="No status data yet"/>
+                                ) : (
+                                <ResponsiveContainer width="100%" height={160} debounce={50}>
                                     <BarChart data={statusPie} margin={{left: -25, right: 0, top: 0, bottom: 0}}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
                                         <XAxis dataKey="status" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
@@ -638,7 +685,7 @@ export default function Dashboard() {
                                                allowDecimals={false}/>
                                         <ReTooltip cursor={{fill: '#f8fafc'}}
                                                    contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
-                                        <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={45}>
+                                        <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={45} isAnimationActive={false}>
                                             {statusPie.map((e) => {
                                                 const rawKey = e.status.toLowerCase().replace(/ /g, "_");
                                                 return <Cell key={e.status} fill={STATUS_COLOR[rawKey] || '#94a3b8'}/>;
@@ -646,11 +693,12 @@ export default function Dashboard() {
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
 
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
+                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-ioc-types">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
@@ -661,8 +709,11 @@ export default function Dashboard() {
                                     <HelpTip title={DASH_TIPS.ioc_mix.title} body={DASH_TIPS.ioc_mix.body}/>
                                 </div>
                             </div>
-                            <div className="flex-1 flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height={160}>
+                            <div className="flex-1 flex items-center justify-center min-h-[160px]">
+                                {iocTypeBars.length === 0 ? (
+                                    <ChartEmpty label="No IoC type data yet"/>
+                                ) : (
+                                <ResponsiveContainer width="100%" height={160} debounce={50}>
                                     <BarChart data={iocTypeBars} margin={{left: -25, right: 0, top: 0, bottom: 0}}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
                                         <XAxis dataKey="type" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
@@ -671,9 +722,10 @@ export default function Dashboard() {
                                                allowDecimals={false}/>
                                         <ReTooltip cursor={{fill: '#f8fafc'}}
                                                    contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
-                                        <Bar dataKey="count" fill="#64748b" radius={[4, 4, 0, 0]} maxBarSize={35}/>
+                                        <Bar dataKey="count" fill="#64748b" radius={[4, 4, 0, 0]} maxBarSize={35} isAnimationActive={false}/>
                                     </BarChart>
                                 </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
 
@@ -852,7 +904,7 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6"
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6 min-h-[280px]"
                          data-testid="dash-trend">
                         <div className="flex items-center gap-1.5 mb-4">
                             <div
@@ -861,19 +913,24 @@ export default function Dashboard() {
                             </div>
                             <HelpTip title={DASH_TIPS.trend.title} body={DASH_TIPS.trend.body}/>
                         </div>
-                        <ResponsiveContainer width="100%" height={220}>
+                        {trendSeries.length === 0 ? (
+                            <ChartEmpty label="No recent incidents to plot. Ingest logs to build a timeline."/>
+                        ) : (
+                        <ResponsiveContainer width="100%" height={220} debounce={50}>
                             <AreaChart data={trendSeries} margin={{left: -20, right: 10, top: 10, bottom: 0}}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
                                 <XAxis dataKey="date" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
                                        tickLine={false}/>
-                                <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}/>
+                                <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
+                                       allowDecimals={false}/>
                                 <ReTooltip contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
                                 <Area type="monotone" dataKey="total" stroke="#3b82f6" fill="rgba(59, 130, 246, 0.1)"
-                                      strokeWidth={3} name="Total Volume"/>
+                                      strokeWidth={3} name="Total Volume" isAnimationActive={false}/>
                                 <Area type="monotone" dataKey="critical" stroke="#ef4444" fill="transparent"
-                                      strokeWidth={2} name="Critical"/>
+                                      strokeWidth={2} name="Critical" isAnimationActive={false}/>
                             </AreaChart>
                         </ResponsiveContainer>
+                        )}
                     </div>
                 </>
             )}

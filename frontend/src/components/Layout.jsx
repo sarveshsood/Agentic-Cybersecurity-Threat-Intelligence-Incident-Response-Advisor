@@ -239,10 +239,11 @@ export default function Layout({children}) {
             }
         };
         load();
+        // Floor at 30s so ad-hoc prefs cannot hammer /settings
         const refreshMs = Number(loadUiPrefs().status_refresh_ms);
         let id = null;
         if (refreshMs > 0) {
-            id = setInterval(load, refreshMs);
+            id = setInterval(load, Math.max(30_000, refreshMs));
         }
         return () => {
             cancelled = true;
