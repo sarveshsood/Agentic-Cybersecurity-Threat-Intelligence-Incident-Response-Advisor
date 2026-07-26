@@ -150,6 +150,7 @@ export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const [remember, setRemember] = useState(false);
     const [ssoEnabled, setSsoEnabled] = useState(false);
+    const [publicRegister, setPublicRegister] = useState(true);
     const demos = showDemoOperators();
 
     useEffect(() => {
@@ -164,9 +165,22 @@ export default function Login() {
         }
         api
             .get("/auth/oidc/config")
-            .then((r) => setSsoEnabled(Boolean(r.data?.enabled)))
-            .catch(() => setSsoEnabled(false));
+            .then((r) => {
+                setSsoEnabled(Boolean(r.data?.enabled));
+                // Default allow when field missing (older APIs / offline)
+                setPublicRegister(r.data?.public_register !== false);
+            })
+            .catch(() => {
+                setSsoEnabled(false);
+                setPublicRegister(true);
+            });
     }, []);
+
+    useEffect(() => {
+        if (!publicRegister && mode === "signup") {
+            setMode("login");
+        }
+    }, [publicRegister, mode]);
 
     const redirectTo = (() => {
         const from = location.state?.from;
@@ -606,14 +620,25 @@ export default function Login() {
                         )}
                     </button>
 
-                    <button
-                        type="button"
-                        data-testid="auth-toggle"
-                        className="w-full mt-5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors focus:outline-none focus-visible:underline"
-                        onClick={() => setMode(mode === "login" ? "signup" : "login")}
-                    >
-                        {mode === "login" ? "Need an account? Register" : "Already have one? Sign in"}
-                    </button>
+                    {publicRegister ? (
+                        <button
+                            type="button"
+                            data-testid="auth-toggle"
+                            className="w-full mt-5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors focus:outline-none focus-visible:underline"
+                            onClick={() => setMode(mode === "login" ? "signup" : "login")}
+                        >
+                            {mode === "login" ? "Need an account? Register" : "Already have one? Sign in"}
+                        </button>
+                    ) : (
+                        <p
+                            className="w-full mt-5 text-xs text-center text-slate-500"
+                            data-testid="auth-register-disabled"
+                        >
+                            {ssoEnabled
+                                ? "Accounts are provisioned via SSO. Contact your administrator for access."
+                                : "Public registration is disabled. Contact your SOC administrator."}
+                        </p>
+                    )}
 
                     {demos && (
                         <div className="mt-8 pt-6 border-t border-slate-200" data-testid="demo-operators">

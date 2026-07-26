@@ -1064,8 +1064,10 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "summary": "Entra ID / Okta / Keycloak OIDC; MFA via IdP; map groups to analyst/reviewer/admin.",
         "description": (
             "Scaffold shipped: OIDC authorization-code + PKCE (`oidc_service`), public config + login/callback "
-            "routes, Login SSO CTA when enabled. Remaining: live IdP hardening, MFA (IdP), enterprise "
-            "register disable, full group RBAC validation. Non-breaking for local JWT demos."
+            "routes, Login SSO CTA when enabled. F-05 register policy: auto-disable when OIDC on or "
+            "ENV production/staging; `ALLOW_PUBLIC_REGISTER` override; SPA hides Register. "
+            "Remaining: live IdP hardening, MFA (IdP), logout federation, full group RBAC validation. "
+            "Non-breaking for local JWT demos."
         ),
         "status": "in_progress",
         "priority": "p0",
@@ -1076,17 +1078,19 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "category": "Security / Identity",
         "modules": [
             "backend/services/oidc_service.py",
+            "backend/services/auth_service.py",
             "backend/routers/auth.py",
             "backend/repositories/users.py",
             "frontend/src/pages/Login.jsx",
         ],
-        "docs": ["ROADMAP.md#f-v12-enterprise-identity", "SECURITY.md"],
+        "docs": ["ROADMAP.md#f-v12-enterprise-identity", "docs/CONFIGURATION.md", "SECURITY.md"],
         "architecture_notes": "Keep demo JWT seed for lab ENV; SSO for staging/production profiles.",
-        "progress": 40,
+        "progress": 55,
         "implementation_notes": (
             "2026-07-26: Env-gated OIDC (OIDC_ISSUER + OIDC_CLIENT_ID); PKCE state store; "
             "OIDC_ROLE_CLAIM / OIDC_GROUP_ROLE_MAP; session cookie via existing token response. "
-            "Offline unit tests for disabled-by-default + route registration."
+            "Public register policy + auth/oidc/config.public_register; CONFIGURATION + .env.example. "
+            "Offline unit tests for disabled-by-default + route registration + register policy."
         ),
         "tasks": [
             {
@@ -1104,7 +1108,7 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             {
                 "id": "t3",
                 "title": "MFA via IdP + enterprise register policy",
-                "status": "todo",
+                "status": "in_progress",
                 "done": False,
             },
             {

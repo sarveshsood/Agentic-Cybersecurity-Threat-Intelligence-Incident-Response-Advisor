@@ -133,7 +133,7 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 | F-02 | MFA (IdP-enforced preferred)                  | Auth strength       | P0       | 📋 Planned (via IdP) |
 | F-03 | IdP groups → ACTIRA roles                     | RBAC from directory | P1       | 🔄 Partial (`OIDC_GROUP_ROLE_MAP` / role claim) |
 | F-04 | Cookie/session integration with SSO           | SPA continuity      | P1       | 🔄 Partial (same cookie as password login) |
-| F-05 | Disable public register in enterprise profile | Security default    | P1       | 📋 Planned |
+| F-05 | Disable public register in enterprise profile | Security default    | P1       | ✅ Auto when OIDC on or ENV=prod/staging; override via `ALLOW_PUBLIC_REGISTER` |
 
 ---
 

@@ -45,6 +45,7 @@ def oidc_enabled() -> bool:
 
 
 def oidc_config_public() -> Dict[str, Any]:
+    """OIDC portion of public auth config (no client secret)."""
     if not oidc_enabled():
         return {"enabled": False}
     return {
