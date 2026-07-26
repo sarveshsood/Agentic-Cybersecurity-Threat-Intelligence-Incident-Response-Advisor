@@ -1,13 +1,14 @@
 import {useEffect, useMemo, useState} from "react";
 import {api} from "../../lib/api";
 
+// Design-system tokens only (no cyan/violet/fuchsia/pink brand colors)
 const TYPE_COLOR = {
-    ip: "bg-sky-500/20 border-sky-500/40 text-sky-700 dark:text-sky-300",
-    user: "bg-violet-500/20 border-violet-500/40 text-violet-700 dark:text-violet-300",
-    host: "bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
-    domain: "bg-amber-500/20 border-amber-500/40 text-amber-800 dark:text-amber-300",
-    hash: "bg-rose-500/20 border-rose-500/40 text-rose-700 dark:text-rose-300",
-    process: "bg-slate-500/20 border-slate-500/40 text-slate-700 dark:text-slate-300",
+    ip: "bg-primary/10 border-primary/30 text-primary",
+    user: "bg-muted border-border text-foreground",
+    host: "bg-success-soft border-[var(--success-border)] text-success",
+    domain: "bg-warning-soft border-[var(--warning-border)] text-warning",
+    hash: "bg-error-soft border-[var(--error-border)] text-error",
+    process: "bg-muted border-border text-muted-foreground",
 };
 
 /**
