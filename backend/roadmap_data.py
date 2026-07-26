@@ -634,13 +634,147 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         ],
     },
     {
+        "id": "rm-v2-h07-h08-collab",
+        "title": "v2 H-07/H-08 — Collaboration & saved filters",
+        "summary": "Assign, comments, in-app inbox; saved filters, favorites, prefs. Feature flags PR-1 done.",
+        "description": (
+            "Implementation track for H-07 (assign / comments / notification center) and H-08 "
+            "(saved filters / favorites-pins / light prefs). Design: "
+            "docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md. "
+            "PR-1 shipped: GET /api/meta/features + FEATURE_* env (default off) + SPA loadFeatures. "
+            "Next: PR-2 users search, then assignment, comments, inbox, filters, pins."
+        ),
+        "status": "in_progress",
+        "priority": "p2",
+        "owner": "",
+        "effort": "xl",
+        "target_release": "v2.0",
+        "week": "Current",
+        "category": "Product / Collaboration",
+        "modules": [
+            "backend/feature_flags.py",
+            "backend/routers/meta.py",
+            "frontend/src/lib/features.js",
+            "frontend/src/components/Layout.jsx",
+            "docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md",
+        ],
+        "docs": [
+            "docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md",
+            "docs/CONFIGURATION.md",
+            "ROADMAP.md",
+        ],
+        "architecture_notes": (
+            "Comments beside workspace notes (not NoteKind). Inbox collection app_notifications "
+            "≠ outbound notifications.py. Flags off → API 404 via require_feature. "
+            "N-05 multi-incident fan-out out of scope."
+        ),
+        "progress": 12,
+        "implementation_notes": (
+            "2026-07-27: Design rev 2 approved. PR-1 feature flags (PR #13): feature_flags.py, "
+            "GET /meta/features, require_feature, SPA features.js, tests, OpenAPI."
+        ),
+        "tasks": [
+            {
+                "id": "h07-d",
+                "title": "H-07/H-08 design doc (KD + PR plan)",
+                "status": "done",
+                "done": True,
+            },
+            {
+                "id": "pr1-flags",
+                "title": "PR-1: Feature flags snapshot + SPA load + tests",
+                "status": "done",
+                "done": True,
+            },
+            {
+                "id": "pr1-docs",
+                "title": "PR-1: CONFIGURATION + .env.example FEATURE_* docs",
+                "status": "done",
+                "done": True,
+            },
+            {
+                "id": "pr2-users",
+                "title": "PR-2: Users public search API + UserPicker",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr3-assign-api",
+                "title": "PR-3: Assignment backend (fields, filters $and, audit, flag)",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr3-filter-tests",
+                "title": "PR-3a: Filter matrix tests (me / unassigned / technique)",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr4-assign-ui",
+                "title": "PR-4: Assignment UI (AssignPanel, list column, tips)",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr5-comments",
+                "title": "PR-5: Comments backend + CommentsPanel (beside notes)",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr6-inbox",
+                "title": "PR-6: app_notifications inbox + emitters + Layout bell",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr6-retention",
+                "title": "PR-6c: Retention cascade for comments/inbox/pins",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr7-saved-filters",
+                "title": "PR-7: Saved filters backend + SavedFiltersBar",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr8-pins",
+                "title": "PR-8: Favorites/pins (user_pins + UI)",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr9-prefs",
+                "title": "PR-9: user_prefs server sync",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr10-docs",
+                "title": "PR-10: OpenAPI + inventory honesty close-out",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "pr11-sse",
+                "title": "PR-11 stretch: SSE inbox + email digests",
+                "status": "todo",
+                "done": False,
+            },
+        ],
+    },
+    {
         "id": "rm-v2-multi-tenant",
         "title": "v2.0 Multi-tenant + connectors + commercial pilot",
         "summary": "org_id isolation, per-tenant secrets, SIEM connectors, pen-test pack, optional SOAR.",
         "description": (
             "Future Wave E: multi-customer isolation, tenant settings, scale/pen-test evidence, "
-            "SIEM/XDR connectors, optional SOAR with separate human approval, collab "
-            "(assign/comments/notifications), optional multi-incident fan-out."
+            "SIEM/XDR connectors, optional SOAR with separate human approval. "
+            "Collab (H-07/H-08) tracked on rm-v2-h07-h08-collab — not duplicated here. "
+            "Optional multi-incident fan-out remains N-05 non-goal unless product revisits."
         ),
         "status": "future",
         "priority": "p2",
@@ -653,7 +787,7 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "docs": ["docs/product/VISION.md", "ROADMAP.md"],
         "architecture_notes": "Do not claim multi-tenant until org_id is end-to-end.",
         "progress": 0,
-        "implementation_notes": "",
+        "implementation_notes": "Collab split out to rm-v2-h07-h08-collab (2026-07-27).",
         "tasks": [
             {"id": "t1", "title": "org_id isolation on all docs", "status": "todo", "done": False},
             {"id": "t2", "title": "Per-tenant secrets + settings", "status": "todo", "done": False},

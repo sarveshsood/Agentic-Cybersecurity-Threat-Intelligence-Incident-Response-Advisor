@@ -1,6 +1,6 @@
 # ACTIRA — Master Roadmap (tracking)
 
-**Last updated:** 2026-07-27  
+**Last updated:** 2026-07-27 (H-07/H-08 PR plan tracking)  
 **Demo packaging maturity:** Enterprise Demonstration Ready · **~89–90/100**  
 **Production pilot maturity:** Enterprise Pilot Ready · **~76/100** (see board report)  
 **In-app roadmap:** Admin/analyst UI **Roadmap** page (seeded from `backend/roadmap_data.py` — auto-merges new IDs
@@ -31,7 +31,7 @@ Use this file for **management tracking**. Status legend:
 | **v1.5** | NL hunting + behavioral analytics + broader parsers         | ✅ Done |
 | **v1.6** | Compliance automation + audit intelligence + LLM resilience | ✅ Done |
 | **v1.7** | Multi-agent roster UX + executive dashboard + tech polish   | 🔄 ~90% (Settings mega-split stretch) |
-| **v2.0** | Multi-tenant + connectors + commercial pilot readiness      | 🔮 Future |
+| **v2.0** | Multi-tenant + connectors + collab/productivity (H-07/H-08) | 🔮 Future · H-07/H-08 **~9%** (PR-1 ✅) |
 
 **Product vision:** [docs/product/VISION.md](docs/product/VISION.md) — Agentic AI SOC Command Center.
 
@@ -222,20 +222,74 @@ In-app seeds: `rm-arch-p0-p3-layers-analytics`, `rm-enterprise-board-2026-07-26`
 
 ## H. Future — v2.0 Multi-tenant / commercial
 
-| ID   | Activity                                        | Outcome                                  | Priority |
-|------|-------------------------------------------------|------------------------------------------|----------|
-| H-01 | `org_id` isolation on all docs                  | Multi-customer                           | P0       |
-| H-02 | Per-tenant settings & secrets                   | Safe multi-org                           | P0       |
-| H-03 | Scale + pen-test evidence pack                  | Sales diligence                          | P1       |
-| H-04 | SOAR actions (separate human approval)          | Close-loop IR                            | P2       |
-| H-05 | Multi-incident fan-out (1 upload → N incidents) | Optional product; **not** current design — see **N-05** | P3 · 🔮 |
-| H-06 | Native SIEM stream connectors                   | Ingest breadth                           | P3 · 🔮 |
-| H-07 | In-app notification center / comments / assign  | Collaboration — **design done** (v2)     | P2 · 🔮 v2 |
-| H-08 | Saved filters / workspaces / pins               | Productivity — **design done** (v2)    | P2 · 🔮 v2 |
+| ID   | Activity                                        | Outcome                                  | Priority | Status |
+|------|-------------------------------------------------|------------------------------------------|----------|--------|
+| H-01 | `org_id` isolation on all docs                  | Multi-customer                           | P0       | 📋     |
+| H-02 | Per-tenant settings & secrets                   | Safe multi-org                           | P0       | 📋     |
+| H-03 | Scale + pen-test evidence pack                  | Sales diligence                          | P1       | 📋     |
+| H-04 | SOAR actions (separate human approval)          | Close-loop IR                            | P2       | 📋     |
+| H-05 | Multi-incident fan-out (1 upload → N incidents) | Optional product; **not** current design — see **N-05** | P3 | ❌ Non-goal v1.x / optional v2 |
+| H-06 | Native SIEM stream connectors                   | Ingest breadth                           | P3       | 📋     |
+| H-07 | In-app notification center / comments / assign  | Collaboration                            | P2       | 🔄 **~12%** (design ✅ · PR-1 ✅) |
+| H-08 | Saved filters / workspaces / pins               | Analyst productivity                     | P2       | 🔄 **~5%** (design ✅ · flags via PR-1) |
 
-**H-07 + H-08 design (implementation deferred):**  
-[`docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md`](docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md)  
-— assign, comments (beside notes), in-app inbox (`app_notifications`), saved filters, favorites/pins, feature-flagged PR plan.
+**Design (both):** [`docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md`](docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md)  
+**In-app seed:** `rm-v2-h07-h08-collab`  
+**Flags (default off):** `FEATURE_COLLAB_ASSIGN`, `FEATURE_COLLAB_COMMENTS`, `FEATURE_NOTIFICATION_CENTER`, `FEATURE_SAVED_FILTERS`, `FEATURE_PINS`  
+**Snapshot API:** `GET /api/meta/features` (+ `/api/v1`) · SPA `lib/features.js`
+
+### H-07 Collaboration — detailed sub-tasks
+
+| ID | Sub-task | Depends | Status |
+|----|----------|---------|--------|
+| **H-07-D** | Design doc (KD-1…14, PR plan, security) | — | ✅ |
+| **H-07-PR1** | Feature flags: `feature_flags.py`, `GET /meta/features`, `require_feature` → 404, SPA `loadFeatures`, tests, OpenAPI | — | ✅ (PR #13) |
+| **H-07-PR1a** | Env docs (CONFIGURATION, `.env.example`) for five `FEATURE_*` vars | H-07-PR1 | ✅ |
+| **H-07-PR2** | Users public search: `GET /users?q=`, `UserRepository.search_public`, `UserPicker.jsx` + tooltips | — (// PR-1) | 📋 |
+| **H-07-PR2a** | RBAC: authenticated users only; return `{id,email,name,role}` (no secrets) | H-07-PR2 | 📋 |
+| **H-07-PR3** | Assignment **backend**: incident fields, `$and` filter composition, `assignee=me` / `unassigned`, PATCH assignment, audit, flag gate | H-07-PR1 | 📋 |
+| **H-07-PR3a** | Filter matrix unit tests (technique + unassigned + me do not stomp `$or`) | H-07-PR3 | 📋 |
+| **H-07-PR3b** | Clear-primary cascades secondary; secondary-without-primary → 400 | H-07-PR3 | 📋 |
+| **H-07-PR4** | Assignment **UI**: `AssignPanel`, Incidents assignee column + filters, HelpTips | H-07-PR2, H-07-PR3 | 📋 |
+| **H-07-PR5** | Comments **backend**: `incident_comments`, shallow threads, soft-delete, audit, flag gate | H-07-PR1 | 📋 |
+| **H-07-PR5a** | Mentions parse → notify recipients (needs inbox or deferred emit) | H-07-PR5 | 📋 |
+| **H-07-PR5b** | Comments **UI**: `CommentsPanel` on workspace, Tip/HelpTip, distinct from notebook notes | H-07-PR5 | 📋 |
+| **H-07-PR6** | In-app inbox: collection `app_notifications` (≠ outbound `notifications.py`), service, poll API | H-07-PR3, H-07-PR5 | 📋 |
+| **H-07-PR6a** | Emitters: assignment change, mention, comment reply, `job_queue.mark_queue_done` | H-07-PR6 | 📋 |
+| **H-07-PR6b** | Layout bell + `NotificationCenter` UI + read/mark-read | H-07-PR6 | 📋 |
+| **H-07-PR6c** | Retention cascade: purge comments + inbox with incident delete | H-07-PR5, H-07-PR6 | 📋 |
+| **H-07-PR11** | Stretch: SSE inbox + optional email digests (outbound adapter) | H-07-PR6 | 🔮 |
+
+### H-08 Productivity — detailed sub-tasks
+
+| ID | Sub-task | Depends | Status |
+|----|----------|---------|--------|
+| **H-08-D** | Design (saved filters, favorites, prefs; KD-5/6/12) | — | ✅ |
+| **H-08-PR1** | Feature flags shared with H-07 (`saved_filters`, `pins`) | H-07-PR1 | ✅ |
+| **H-08-PR7** | Saved filters **backend**: validated server fields + `client_only` blob, `is_default` SOT | H-07-PR1 | 📋 |
+| **H-08-PR7a** | Saved filters **UI**: `SavedFiltersBar` on Incidents; pagination warning when `client_only` | H-08-PR7 | 📋 |
+| **H-08-PR8** | Favorites/pins **backend**: `user_pins`, allowlist `WORKSPACE_TAB_IDS`, retention | H-07-PR1, H-08-PR7* | 📋 |
+| **H-08-PR8a** | Favorites **UI**: incident star, Dashboard strip, command palette | H-08-PR8 | 📋 |
+| **H-08-PR9** | `user_prefs` server sync (layout); no default-filter denorm | H-07-PR1 | 📋 |
+| **H-08-PR10** | OpenAPI final + inventory honesty when surfaces ship | H-07-PR6…H-08-PR9 | 📋 |
+
+\* H-08-PR8 can ship filter-target pins after PR-7; incident/tab pins only need PR-1.
+
+### Implementation PR map (status)
+
+| PR | Title | Tracks | Status |
+|----|-------|--------|--------|
+| **PR-1** | Feature flags snapshot | H-07-PR1, H-08-PR1 | ✅ Open/merge — [PR #13](https://github.com/sarveshsood/Agentic-Cybersecurity-Threat-Intelligence-Incident-Response-Advisor/pull/13) |
+| **PR-2** | Users public search + UserPicker | H-07-PR2 | 📋 Next |
+| **PR-3** | Assignment backend | H-07-PR3 | 📋 |
+| **PR-4** | Assignment UI | H-07-PR4 | 📋 |
+| **PR-5** | Comments backend + UI | H-07-PR5 | 📋 |
+| **PR-6** | App notifications inbox | H-07-PR6 | 📋 |
+| **PR-7** | Saved filters | H-08-PR7 | 📋 |
+| **PR-8** | Favorites / pins | H-08-PR8 | 📋 |
+| **PR-9** | User prefs sync | H-08-PR9 | 📋 |
+| **PR-10** | Docs / OpenAPI / inventory close-out | H-08-PR10 | 📋 |
+| **PR-11** | Stretch SSE + email | H-07-PR11 | 🔮 |
 
 ---
 
@@ -287,7 +341,7 @@ In-app seeds: `rm-next-trust-qa`, `rm-next-platform-hardening`, `rm-v1-7-agent-r
 1. **Weekly:** move rows from Planned → Done; note PR/commit; keep **one** owner card per initiative in the in-app seed (no parallel “same work” cards).
 2. **In-app Roadmap:** restart API after updating `roadmap_data.py` so new seed IDs auto-merge and seed-`completed` items promote (or Admin → **Sync seed** with force).
 3. **Capstone / interview:** sections **B–D** (program pack) + **G2–G5** (workspace/hunt/compliance/arch) + **J** (validation) + capstone pack under `docs/capstone/`.
-4. **Next product sprint:** optional Settings mega-page split polish (**§T** / v1.7); OIDC JWKS (**§F**); v2 design (**§H** — H-07/H-08 collab, not multi-incident fan-out).
+4. **Next product sprint:** H-07 **PR-2** (users public search) then assignment backend (**PR-3**); optional OIDC JWKS (**§F**); Settings mega-split stretch (**§T**).
 5. **Parallel tracks:** optional tags/video (**§E**); multi-incident fan-out remains **N-05** non-goal for v1.x.
 
 ---
@@ -303,7 +357,7 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping (canonical �
 | **B** | **v1.5** | NL hunting, behavioral analytics, broader parsers | ✅ Done |
 | **C** | **v1.6** | Compliance automation, audit intelligence, LLM catalog/fallback | ✅ Done |
 | **D** | **v1.7** | Multi-agent roster UX + executive dashboard + tech polish (**§T**) | 🔄 ~90% |
-| **E** | **v2.x** | Connectors, multi-tenant, commercial scale | 🔮 Future |
+| **E** | **v2.x** | Connectors, multi-tenant, collab (H-07/H-08), commercial scale | 🔮 · H-07/H-08 in progress (PR-1 ✅) |
 
 ---
 
@@ -312,6 +366,7 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping (canonical �
 | Artifact                | Path                                          |
 |-------------------------|-----------------------------------------------|
 | In-app seed             | `backend/roadmap_data.py`                     |
+| H-07/H-08 design        | `docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md` |
 | Enterprise board (demo) | `docs/ENTERPRISE_REVIEW.md`                   |
 | Enterprise board (pilot lens) | `docs/ENTERPRISE_REVIEW_BOARD_2026-07-26.md` |
 | Capstone pack           | `docs/capstone/`                              |
