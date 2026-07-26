@@ -48,15 +48,6 @@ function CitationChip({id}) {
     );
 }
 
-function PlaceholderTab({title, body}) {
-    return (
-        <div className="soc-card p-6 text-sm text-muted-foreground" data-testid="workspace-tab-placeholder">
-            <div className="soc-label text-foreground mb-2">{title}</div>
-            <p className="leading-relaxed">{body}</p>
-        </div>
-    );
-}
-
 export default function IncidentDetail() {
     const {id} = useParams();
     const nav = useNavigate();
