@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, Literal
 
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 
 
 def utc_now() -> datetime:
@@ -142,6 +142,104 @@ class Playbook(BaseModel):
     llm_model: str = "claude-sonnet-4-6"
 
 
+# ---------- Investigation Workspace (v1.4) ----------
+NoteKind = Literal["note", "finding", "recommendation"]
+
+
+class LinkedEventRef(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    timeline_event_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    source_file: Optional[str] = None
+    event_type: Optional[str] = None
+    actor: Optional[str] = None
+    target: Optional[str] = None
+    summary_hash: Optional[str] = None
+
+
+class WorkspaceNote(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=new_id)
+    kind: NoteKind = "note"
+    title: Optional[str] = Field(None, max_length=200)
+    body: str = Field(..., min_length=1, max_length=8192)
+    tags: List[str] = Field(default_factory=list, max_length=20)
+    linked_iocs: List[str] = Field(default_factory=list)
+    linked_techniques: List[str] = Field(default_factory=list)
+    linked_event_refs: List[LinkedEventRef] = Field(default_factory=list, max_length=20)
+    author_id: Optional[str] = None
+    author_email: Optional[str] = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+    pinned: bool = False
+
+
+class NoteCreate(BaseModel):
+    """Request body — never trust client author_* / id fields."""
+
+    model_config = ConfigDict(extra="ignore")
+    kind: NoteKind = "note"
+    title: Optional[str] = Field(None, max_length=200)
+    body: str = Field(..., min_length=1, max_length=8192)
+    tags: List[str] = Field(default_factory=list, max_length=20)
+    linked_iocs: List[str] = Field(default_factory=list)
+    linked_techniques: List[str] = Field(default_factory=list)
+    linked_event_refs: List[LinkedEventRef] = Field(default_factory=list, max_length=20)
+    pinned: bool = False
+
+    @field_validator("tags")
+    @classmethod
+    def _tag_item_length(cls, v: List[str]) -> List[str]:
+        for t in v or []:
+            if not t or len(t) > 64:
+                raise ValueError("each tag must be 1–64 characters")
+        return v
+
+
+class NoteUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    kind: Optional[NoteKind] = None
+    title: Optional[str] = Field(None, max_length=200)
+    body: Optional[str] = Field(None, min_length=1, max_length=8192)
+    tags: Optional[List[str]] = Field(None, max_length=20)
+    linked_iocs: Optional[List[str]] = None
+    linked_techniques: Optional[List[str]] = None
+    linked_event_refs: Optional[List[LinkedEventRef]] = Field(None, max_length=20)
+    pinned: Optional[bool] = None
+
+    @field_validator("tags")
+    @classmethod
+    def _tag_item_length(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return v
+        for t in v:
+            if not t or len(t) > 64:
+                raise ValueError("each tag must be 1–64 characters")
+        return v
+
+
+class WorkspaceRca(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    narrative: str = ""
+    hypothesis: Optional[str] = None
+    confidence: float = 0.5
+    evidence: List[str] = Field(default_factory=list)
+    mitre_refs: List[str] = Field(default_factory=list)
+    unknowns: List[str] = Field(default_factory=list)
+    generated_at: Optional[datetime] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    fallback: bool = False
+    fallback_reason: Optional[str] = None
+
+
+class Workspace(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    version: int = 1
+    notes: List[WorkspaceNote] = Field(default_factory=list)
+    rca: Optional[WorkspaceRca] = None
+
+
 class Incident(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=new_id)
@@ -163,6 +261,7 @@ class Incident(BaseModel):
     # A-P5: formalize fields previously attached outside the model
     correlation: Optional[Dict[str, Any]] = None
     files_meta: List[Dict[str, Any]] = []
+    workspace: Optional[Workspace] = None
 
 
 # ---------- Log Jobs ----------

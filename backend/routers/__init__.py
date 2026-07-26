@@ -18,11 +18,13 @@ from . import meta
 from . import review
 from . import roadmap
 from . import settings
+from . import workspace
 
 # Public registry for include_all_routers / tests
 ALL_DOMAIN_ROUTERS = (
     logs,
     incidents,
+    workspace,
     review,
     analytics,
     audit,

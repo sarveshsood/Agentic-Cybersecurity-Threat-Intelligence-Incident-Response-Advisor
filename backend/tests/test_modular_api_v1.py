@@ -39,6 +39,7 @@ def test_router_package_imports():
         review,
         roadmap,
         settings,
+        workspace,
         build_api_router,
     )
 
@@ -57,6 +58,7 @@ def test_router_package_imports():
             review,
             roadmap,
             settings,
+            workspace,
     ):
         assert hasattr(mod, "router"), mod.__name__
 

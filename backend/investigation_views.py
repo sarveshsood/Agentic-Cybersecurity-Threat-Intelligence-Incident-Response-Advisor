@@ -72,7 +72,11 @@ def _ces_fingerprint(
         f"{_str_or_empty(event_type)}|{_str_or_empty(actor)}|"
         f"{_str_or_empty(target)}|{raw_s}"
     )
-    return hashlib.sha1(payload.encode("utf-8", errors="replace")).hexdigest()[:16]
+    # Non-cryptographic stable id for CES rows (not security-sensitive)
+    return hashlib.sha1(  # nosec B324
+        payload.encode("utf-8", errors="replace"),
+        usedforsecurity=False,
+    ).hexdigest()[:16]
 
 
 def _minute_bucket(ts: Any) -> str:
