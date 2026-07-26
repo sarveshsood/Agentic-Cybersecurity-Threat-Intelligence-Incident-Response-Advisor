@@ -251,3 +251,107 @@ def score_only(settings: Optional[dict] = None) -> Dict[str, Any]:
         "frameworks": {f["framework_id"]: f["score"] for f in full["frameworks"]},
         "readiness": full["readiness"],
     }
+
+
+async def executive_export(settings: Optional[dict] = None) -> Dict[str, Any]:
+    """Board-ready snapshot: compliance + audit volume + open risk signals."""
+    full = evaluate(settings)
+    top_gaps = [
+        {
+            "id": g["id"],
+            "title": g["title"],
+            "framework": g["framework"],
+            "remediation": g["remediation"],
+            "weight": g["weight"],
+        }
+        for g in full["gaps"][:5]
+    ]
+
+    audit_block: Dict[str, Any] = {"available": False}
+    try:
+        from backend.services import audit_service
+
+        audit_block = await audit_service.summary(days=30)
+        audit_block["available"] = True
+        integrity = await audit_service.integrity(sample=50)
+        audit_block["integrity_status"] = integrity.get("status")
+    except Exception:
+        audit_block = {
+            "available": False,
+            "event_count": None,
+            "narrative": ["Audit summary unavailable for this export."],
+        }
+
+    open_critical = None
+    pending_review = None
+    try:
+        from backend.database import db
+
+        open_critical = await db.incidents.count_documents(
+            {"severity": "critical", "status": {"$nin": ["closed", "approved", "rejected"]}}
+        )
+        pending_review = await db.incidents.count_documents({"status": "pending_review"})
+    except Exception:
+        pass
+
+    generated = full["generated_at"]
+    fw_lines = [
+        f"- {f['name']}: {f['score']}% ({f['controls']}) — {f['status']}"
+        for f in full["frameworks"]
+    ]
+    gap_lines = [
+        f"- [{g['id']}] {g['title']} — {g['remediation']}" for g in top_gaps
+    ] or ["- No open control gaps in the current alignment score."]
+    audit_lines = audit_block.get("narrative") or []
+    md = "\n".join(
+        [
+            "# ACTIRA Executive Compliance Snapshot",
+            "",
+            f"**Generated:** {generated}",
+            f"**Alignment score:** {full['score']}% · **Readiness:** {full['readiness']}",
+            "",
+            "## Frameworks",
+            *fw_lines,
+            "",
+            "## Top gaps",
+            *gap_lines,
+            "",
+            "## Operations signals",
+            f"- Open critical incidents (non-closed): {open_critical if open_critical is not None else 'n/a'}",
+            f"- Pending review: {pending_review if pending_review is not None else 'n/a'}",
+            f"- Audit events (30d sample): {audit_block.get('event_count', 'n/a')}",
+            f"- Audit integrity: {audit_block.get('integrity_status', 'n/a')}",
+            "",
+            "## Audit narrative",
+            *[f"- {b}" for b in audit_lines],
+            "",
+            f"_{full['disclaimer']}_",
+            "",
+        ]
+    )
+
+    return {
+        "title": "ACTIRA Executive Compliance Snapshot",
+        "generated_at": generated,
+        "period_days": 30,
+        "score": full["score"],
+        "readiness": full["readiness"],
+        "disclaimer": full["disclaimer"],
+        "frameworks": full["frameworks"],
+        "top_gaps": top_gaps,
+        "domains": full["domains"],
+        "operations": {
+            "open_critical": open_critical,
+            "pending_review": pending_review,
+        },
+        "audit": {
+            "event_count": audit_block.get("event_count"),
+            "review_approve": audit_block.get("review_approve"),
+            "review_reject": audit_block.get("review_reject"),
+            "integrity_status": audit_block.get("integrity_status"),
+            "narrative": audit_block.get("narrative"),
+            "available": audit_block.get("available", False),
+        },
+        "markdown": md,
+        "export_hint": "Download JSON for tools or markdown for board packs.",
+    }

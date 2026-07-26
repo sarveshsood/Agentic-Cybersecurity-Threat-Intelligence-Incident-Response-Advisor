@@ -38,6 +38,8 @@ export default function AuditLogs() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(null);
+    const [summary, setSummary] = useState(null);
+    const [integrity, setIntegrity] = useState(null);
 
     // Initialize search query from URL ?q= if present
     const [q, setQ] = useState(searchParams.get("q") || "");
@@ -71,9 +73,23 @@ export default function AuditLogs() {
             .finally(() => setLoading(false));
     }, [q, actionFilter]);
 
+    const fetchIntelligence = useCallback(() => {
+        Promise.all([
+            api.get("/audit/summary", {params: {days: 7}}).catch(() => null),
+            api.get("/audit/integrity", {params: {sample: 100}}).catch(() => null),
+        ]).then(([sumRes, intRes]) => {
+            setSummary(sumRes?.data || null);
+            setIntegrity(intRes?.data || null);
+        });
+    }, []);
+
     useEffect(() => {
         fetchAuditLogs();
     }, [fetchAuditLogs]);
+
+    useEffect(() => {
+        fetchIntelligence();
+    }, [fetchIntelligence]);
 
     // Keep URL search params in sync when user types in search box
     const handleSearchChange = (val) => {
@@ -158,14 +174,14 @@ export default function AuditLogs() {
                 icon={ShieldCheck}
                 tip={
                     <HelpTip
-                        title="Immutable Audit Log"
-                        body="Centralized historical record of all analyst review actions, approvals, rejections, and mandatory justification comments."
+                        title="Audit Trail"
+                        body="Platform audit events: reviews, settings, ingest, and workspace mutations. Integrity uses best-effort SHA-256 chaining — not WORM storage."
                         testid="tip-audit-page"
                     />
                 }
                 subtitle={
                     <>
-                        Showing {filtered.length} compliance record{filtered.length === 1 ? "" : "s"}
+                        Showing {filtered.length} record{filtered.length === 1 ? "" : "s"}
                         {logs.length !== filtered.length ? ` (filtered from ${logs.length} total)` : ""}.
                     </>
                 }
@@ -184,6 +200,42 @@ export default function AuditLogs() {
                     </div>
                 }
             />
+
+            {(summary || integrity) && (
+                <div
+                    className="grid grid-cols-1 lg:grid-cols-3 gap-3 text-xs"
+                    data-testid="audit-intelligence-strip"
+                >
+                    <div className="soc-card p-3 border border-border rounded-lg bg-card space-y-1.5 lg:col-span-2">
+                        <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Audit intelligence (7d)
+                        </div>
+                        <ul className="m-0 pl-4 space-y-1 text-muted-foreground">
+                            {(summary?.narrative || ["Loading summary…"]).map((line, i) => (
+                                <li key={i}>{line}</li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="soc-card p-3 border border-border rounded-lg bg-card space-y-2">
+                        <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Integrity
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {integrity?.status === "ok" || integrity?.status === "partial" || integrity?.status === "legacy_unhashed" ? (
+                                <CheckCircle size={16} className="text-success"/>
+                            ) : (
+                                <XCircle size={16} className="text-error"/>
+                            )}
+                            <span className="font-mono font-semibold" data-testid="audit-integrity-status">
+                                {integrity?.status || "—"}
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground m-0">
+                            ok {integrity?.ok ?? "—"} · mismatch {integrity?.mismatch ?? "—"} · missing hash {integrity?.missing_hash ?? "—"}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Filter and Search Bar */}
             <div
@@ -207,8 +259,12 @@ export default function AuditLogs() {
                     className="bg-background border border-border px-2.5 py-1.5 rounded text-xs"
                 >
                     <option value="">All actions</option>
-                    <option value="approve">Approve</option>
-                    <option value="reject">Reject</option>
+                    <option value="review.approve">review.approve</option>
+                    <option value="review.reject">review.reject</option>
+                    <option value="incident.created">incident.created</option>
+                    <option value="settings.update">settings.update</option>
+                    <option value="approve">approve (legacy)</option>
+                    <option value="reject">reject (legacy)</option>
                 </select>
 
                 {(q || actionFilter) && (

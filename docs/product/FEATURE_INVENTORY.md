@@ -36,6 +36,8 @@
 | Case notebook                | Yes (notes CRUD API + UI) |
 | NL threat hunting            | Yes (rule-based intents + `/hunt`) |
 | Behavioral analytics         | Yes (beaconing, login burst, multi-host, LOLBins, DNS) |
-| Compliance live score        | Planned                        |
+| Compliance live score        | Yes (score/gaps/evidence + executive export) |
+| Audit intelligence           | Yes (summary + integrity chain) |
+| LLM multi-provider fallback  | Yes (catalog + cross-provider) |
 | SIEM/XDR connectors          | Future                         |
 | Multi-tenant                 | Future (v2.0)                  |

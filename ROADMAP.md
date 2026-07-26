@@ -27,7 +27,8 @@ Use this file for **management tracking**. Status legend:
 | **v1.2** | Enterprise identity (OIDC / SSO / MFA)                      | 🔄 Scaffold (OIDC in)     |
 | **v1.3** | Observability, HA evidence, load tests                      | ✅ Mostly done (+ OTLP)   |
 | **v1.4** | Investigation Command Center (Workspace MVP)                | ✅ Done (PR #8)                   |
-| **v1.5** | NL hunting + analytics depth                                | 🔄 Hunt API/UI first              |
+| **v1.5** | NL hunting + analytics depth                                | ✅ Hunt + parsers + behavior      |
+| **v1.6** | Compliance automation + audit intelligence                  | 🔄 Score shipped; intelligence + LLM resilience in progress |
 | **v2.0** | Multi-tenant + commercial pilot readiness                   | 🔮 Future                 |
 
 **Product vision:** [docs/product/VISION.md](docs/product/VISION.md) — Agentic AI SOC Command Center.
@@ -212,8 +213,8 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping:
 |------|---------|--------|--------|
 | **Foundation** | v0–v1.3 | Pipeline, RAG, HiTL, modular API, OIDC/OTEL scaffolds | ✅ / 🔄 |
 | **A** | **v1.4** | Investigation Workspace MVP (case hub, timeline, RCA, graph, notes, assistant) | ✅ Merged (PR #8) |
-| **B** | v1.5 | Advanced analytics & NL hunting; broader evidence formats | 🔄 NL hunt shipped first |
-| **C** | v1.6 | Compliance automation + audit intelligence | 📋 Planned |
+| **B** | v1.5 | Advanced analytics & NL hunting; broader evidence formats | ✅ Hunt + behavior + parsers |
+| **C** | v1.6 | Compliance automation + audit intelligence | 🔄 Score/gaps/evidence + audit intelligence + executive export |
 | **D** | v1.7 | Multi-agent roster UX + executive dashboard | 📋 Planned |
 | **E** | v2.x | Connectors, multi-tenant, commercial scale | 🔮 Future |
 

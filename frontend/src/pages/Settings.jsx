@@ -36,6 +36,7 @@ import {
     FACTORY_OPS,
     FIELD_META,
     getModelMeta,
+    modelLabel,
     PROVIDER_MODELS,
     RECOMMENDED_OPS,
     tipFromMeta,
@@ -52,6 +53,8 @@ const OPS_KEYS = [
     "llm_model",
     "llm_temperature",
     "llm_token_budget_monthly",
+    "llm_fallback_enabled",
+    "llm_fallback_provider",
     "grounding_threshold",
     "hitl_severity_min",
     "auto_approve_grounding_min",
@@ -90,6 +93,8 @@ const FIELD_TO_TAB = {
     llm_model: "llm",
     llm_temperature: "llm",
     llm_token_budget_monthly: "llm",
+    llm_fallback_enabled: "llm",
+    llm_fallback_provider: "llm",
     anthropic_api_key: "llm",
     openai_api_key: "llm",
     gemini_api_key: "llm",
@@ -497,6 +502,8 @@ function formFromSettings(d) {
         llm_model: d?.llm_model || "claude-sonnet-4-6",
         llm_temperature: d?.llm_temperature ?? 0.2,
         llm_token_budget_monthly: d?.llm_token_budget_monthly ?? 0,
+        llm_fallback_enabled: d?.llm_fallback_enabled !== false,
+        llm_fallback_provider: d?.llm_fallback_provider || "anthropic",
         grounding_threshold: d?.grounding_threshold ?? 0.7,
         hitl_severity_min: d?.hitl_severity_min || "high",
         auto_approve_grounding_min: d?.auto_approve_grounding_min ?? 0.85,
@@ -1212,7 +1219,9 @@ export default function Settings() {
                                             onChange={(e) => upd("llm_model", e.target.value)}
                                         >
                                             {PROVIDER_MODELS[form.llm_provider]?.map((m) => (
-                                                <option key={m} value={m}>{m}</option>
+                                                <option key={m} value={m}>
+                                                    {modelLabel(form.llm_provider, m)}
+                                                </option>
                                             ))}
                                             {form.llm_model
                                                 && !(PROVIDER_MODELS[form.llm_provider] || []).includes(form.llm_model) && (
@@ -1254,7 +1263,7 @@ export default function Settings() {
                                         size={12}
                                         className={`transition-transform ${showLlmAdvanced ? "rotate-180" : ""}`}
                                     />
-                                    {showLlmAdvanced ? "Hide advanced" : "Advanced (temperature, budget)"}
+                                    {showLlmAdvanced ? "Hide advanced" : "Advanced (temperature, budget, fallback)"}
                                 </button>
 
                                 {showLlmAdvanced && (
@@ -1292,6 +1301,74 @@ export default function Settings() {
                                                 onChange={(e) => upd("llm_token_budget_monthly", parseInt(e.target.value) || 0)}
                                             />
                                         </Field>
+                                        <Field
+                                            label="Provider fallback"
+                                            fieldKey="llm_fallback_enabled"
+                                            matchesRecommended={isRec(form, "llm_fallback_enabled")}
+                                            hint="On primary failure, try other providers that have keys"
+                                        >
+                                            <label className="inline-flex items-center gap-2 text-xs cursor-pointer">
+                                                <input
+                                                    data-testid="llm-fallback-enabled"
+                                                    type="checkbox"
+                                                    className="rounded border-border"
+                                                    checked={form.llm_fallback_enabled !== false}
+                                                    onChange={(e) => upd("llm_fallback_enabled", e.target.checked)}
+                                                />
+                                                Enable cross-provider fallback
+                                            </label>
+                                        </Field>
+                                        <Field
+                                            label="Preferred fallback provider"
+                                            fieldKey="llm_fallback_provider"
+                                            matchesRecommended={isRec(form, "llm_fallback_provider")}
+                                            hint="Tried first after primary; requires that provider’s key"
+                                        >
+                                            <select
+                                                data-testid="llm-fallback-provider"
+                                                className={`${inputCls(false)} font-mono text-[12px]`}
+                                                value={form.llm_fallback_provider || "anthropic"}
+                                                onChange={(e) => upd("llm_fallback_provider", e.target.value)}
+                                                disabled={form.llm_fallback_enabled === false}
+                                            >
+                                                {Object.keys(PROVIDER_MODELS).map((p) => (
+                                                    <option key={p} value={p}>{p}</option>
+                                                ))}
+                                                <option value="none">none (disable preferred)</option>
+                                            </select>
+                                        </Field>
+                                        <div className="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-2">
+                                            <button
+                                                type="button"
+                                                data-testid="llm-test-connection"
+                                                disabled={busy}
+                                                onClick={async () => {
+                                                    setBusy(true);
+                                                    try {
+                                                        const res = await api.post("/settings/test-llm");
+                                                        const d = res.data || {};
+                                                        toast.success(
+                                                            `LLM ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
+                                                        );
+                                                    } catch (e) {
+                                                        const detail = e?.response?.data?.detail;
+                                                        const msg = typeof detail === "object"
+                                                            ? (detail.message || detail.error || JSON.stringify(detail))
+                                                            : (e?.userMessage || e?.message || "LLM test failed");
+                                                        toast.error(msg);
+                                                    } finally {
+                                                        setBusy(false);
+                                                    }
+                                                }}
+                                                className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
+                                                title="Sends a minimal completion using the saved provider/model"
+                                            >
+                                                Test LLM connection
+                                            </button>
+                                            <span className="text-[10px] text-muted-foreground">
+                                                Uses the last saved settings (save first if you changed provider/model).
+                                            </span>
+                                        </div>
                                         {settings?.llm_usage && (
                                             <div
                                                 className="md:col-span-2 xl:col-span-3 text-[11px] text-muted-foreground font-mono rounded-lg border border-border bg-muted/40 px-3 py-2"

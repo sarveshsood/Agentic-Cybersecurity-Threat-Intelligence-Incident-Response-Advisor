@@ -438,43 +438,8 @@ async def metrics(request: Request):
     }
 
 
-@app.get("/api/audit/logs")
-@app.get("/api/v1/audit/logs")
-async def get_audit_logs(q: str = None, action: str = None, current_user: dict = Depends(get_current_user)):
-    """Fetch immutable compliance audit logs with optional filtering."""
-    try:
-        cursor = db.audit_log.find({}, {"_id": 0}).sort([("ts", -1), ("timestamp", -1)]).limit(500)
-        logs = await cursor.to_list(500)
-
-        formatted_logs = []
-        for l in logs:
-            formatted_logs.append({
-                "id": l.get("id") or str(l.get("_id", "")),
-                "incident_id": l.get("incident_id") or l.get("id"),
-                "action": l.get("action") or l.get("event"),
-                "analyst": l.get("analyst") or l.get("user_id") or "System Analyst",
-                "comment": l.get("comment") or l.get("details") or "",
-                "timestamp": l.get("ts") or l.get("timestamp") or datetime.now(timezone.utc).isoformat()
-            })
-
-        if action:
-            formatted_logs = [l for l in formatted_logs if l["action"] and l["action"].lower() == action.lower()]
-
-        if q:
-            needle = q.lower()
-            formatted_logs = [
-                l for l in formatted_logs
-                if needle in str(l.get("incident_id", "")).lower()
-                   or needle in str(l.get("comment", "")).lower()
-                   or needle in str(l.get("analyst", "")).lower()
-            ]
-
-        return formatted_logs
-    except Exception as e:
-        logger.exception("Failed to fetch audit logs")
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=str(e))
-
+# Audit Trail: modular router (GET /api/audit/logs, /summary, /integrity) —
+# see backend/routers/audit.py (include_all_routers below).
 
 # Domain routers (/api + /api/v1)
 include_all_routers(app)

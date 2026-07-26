@@ -78,6 +78,36 @@ export default function Compliance() {
         }
     };
 
+    const downloadExecutiveSnapshot = async (format = "json") => {
+        setExporting(true);
+        try {
+            const res = await api.get("/compliance/executive-export", {params: {_t: Date.now()}});
+            const stamp = new Date().toISOString().slice(0, 10);
+            if (format === "md") {
+                const md = res.data?.markdown || "";
+                const blob = new Blob([md], {type: "text/markdown"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `actira-executive-snapshot-${stamp}.md`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } else {
+                const blob = new Blob([JSON.stringify(res.data, null, 2)], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `actira-executive-snapshot-${stamp}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (e) {
+            setError(e?.userMessage || e?.message || "Executive snapshot export failed");
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const readiness = report?.readiness || "—";
     const gapCount = report?.gap_count ?? gapsPayload?.gap_count ?? 0;
     const gaps = gapsPayload?.gaps || report?.gaps_preview || [];
@@ -106,6 +136,27 @@ export default function Compliance() {
                         >
                             <DownloadSimple size={14}/>
                             {exporting ? "Exporting…" : "Evidence pack"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => downloadExecutiveSnapshot("json")}
+                            disabled={exporting || loading}
+                            className="soc-btn-ghost !text-xs !h-9 inline-flex items-center gap-1.5"
+                            data-testid="compliance-export-executive"
+                            title="Board-ready score + gaps + audit volume"
+                        >
+                            <FileText size={14}/>
+                            Executive snapshot
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => downloadExecutiveSnapshot("md")}
+                            disabled={exporting || loading}
+                            className="soc-btn-ghost !text-xs !h-9 inline-flex items-center gap-1.5"
+                            data-testid="compliance-export-executive-md"
+                            title="Markdown for board packs"
+                        >
+                            MD
                         </button>
                         <button
                             type="button"

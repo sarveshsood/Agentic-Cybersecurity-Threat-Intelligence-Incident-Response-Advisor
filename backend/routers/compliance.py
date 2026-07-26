@@ -50,3 +50,11 @@ async def get_compliance_score(
 ):
     """Compact scorecard (overall + domain + framework maps)."""
     return compliance_service.score_only(await _settings())
+
+
+@router.get("/executive-export")
+async def get_executive_export(
+    user=Depends(require_roles(*_ROLES)),
+):
+    """Board-ready compliance + audit snapshot (JSON + markdown field)."""
+    return await compliance_service.executive_export(await _settings())

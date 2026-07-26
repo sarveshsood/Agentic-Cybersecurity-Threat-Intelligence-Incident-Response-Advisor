@@ -1238,6 +1238,53 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         ],
     },
     {
+        "id": "rm-v1-6-compliance-audit-llm",
+        "title": "v1.6 Wave C — Compliance, audit intelligence, LLM free/paid catalog + fallback",
+        "summary": "Runtime compliance score/gaps/evidence, audit hash chain + summary, executive export, free+paid LLM catalog, multi-provider fallback.",
+        "description": (
+            "Product-alignment compliance scoring (not certification), GRC evidence pack, board executive snapshot, "
+            "audit trail field fixes with SHA-256 integrity chain, rule-based audit intelligence, expanded free and "
+            "paid LLM model catalog, cross-provider fallback with retriable error classification, Settings validation "
+            "and test-llm probe."
+        ),
+        "status": "in_progress",
+        "priority": "p0",
+        "owner": "",
+        "effort": "l",
+        "target_release": "v1.6",
+        "week": "Current",
+        "category": "Product / Compliance",
+        "modules": [
+            "backend/compliance_catalog.py",
+            "backend/services/compliance_service.py",
+            "backend/services/audit_service.py",
+            "backend/llm_provider.py",
+            "frontend/src/pages/Compliance.jsx",
+            "frontend/src/pages/AuditLogs.jsx",
+            "frontend/src/pages/Settings.jsx",
+            "frontend/src/constants/settingsMeta.js",
+        ],
+        "docs": [
+            "docs/product/VISION.md",
+            "ROADMAP.md#m-vision-waves-agentic-soc-command-center",
+            "docs/product/FEATURE_INVENTORY.md",
+        ],
+        "architecture_notes": (
+            "Deterministic evidence flags; best-effort audit chain (not WORM); free-tier Groq/Gemini + paid frontier; "
+            "template LLM fallbacks remain last resort."
+        ),
+        "progress": 90,
+        "implementation_notes": (
+            "2026-07-26: score/gaps/evidence + executive export; audit summary/integrity; free+paid catalog + fallback."
+        ),
+        "tasks": [
+            {"id": "t1", "title": "Compliance score + gaps + evidence pack", "status": "done", "done": True},
+            {"id": "t2", "title": "Audit intelligence + integrity + UI mapping", "status": "done", "done": True},
+            {"id": "t3", "title": "Executive export + free/paid LLM catalog + fallback", "status": "done", "done": True},
+            {"id": "t4", "title": "Merge + OpenAPI + docs DoD", "status": "in_progress", "done": False},
+        ],
+    },
+    {
         "id": "rm-arch-p0-p3-layers-analytics",
         "title": "Architecture layers + analytics performance + cost/stage visibility",
         "summary": "P0 import stabilization; P1 services/repos; P2 KPI facet/cache; P3 LLM budget KPI + stage timings.",

@@ -16,6 +16,8 @@ export const FACTORY_OPS = {
     llm_model: "claude-sonnet-4-6",
     llm_temperature: 0.2,
     llm_token_budget_monthly: 0,
+    llm_fallback_enabled: true,
+    llm_fallback_provider: "anthropic",
     grounding_threshold: 0.7,
     hitl_severity_min: "critical",
     auto_approve_grounding_min: 0.9,
@@ -34,6 +36,8 @@ export const RECOMMENDED_OPS = {
     llm_model: "claude-sonnet-4-6",
     llm_temperature: 0.15,
     llm_token_budget_monthly: 500000,
+    llm_fallback_enabled: true,
+    llm_fallback_provider: "anthropic",
     grounding_threshold: 0.75,
     hitl_severity_min: "high",
     auto_approve_grounding_min: 0.92,
@@ -67,12 +71,65 @@ export const RECOMMENDED_PROFILE_WHY =
  * Supported providers in the UI (must match backend models.Settings / llm_provider).
  * Ollama / OpenRouter are listed as planned so the help UI can explain gaps.
  */
-export const PROVIDER_MODELS = {
-    anthropic: ["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5"],
-    openai: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.2"],
-    gemini: ["gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-3.5-flash"],
-    groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+/**
+ * Full catalog with free/paid tiers (must match backend llm_provider.MODEL_CATALOG).
+ * @type {Record<string, Array<{id: string, tier: 'free'|'paid', role?: string, label?: string}>>}
+ */
+export const MODEL_CATALOG = {
+    anthropic: [
+        {id: "claude-sonnet-4-6", tier: "paid", role: "default", label: "Sonnet 4.6 (recommended)"},
+        {id: "claude-opus-4-6", tier: "paid", role: "flagship", label: "Opus 4.6"},
+        {id: "claude-opus-4-8", tier: "paid", role: "flagship", label: "Opus 4.8"},
+        {id: "claude-haiku-4-5", tier: "paid", role: "fast", label: "Haiku 4.5 (cheap/fast)"},
+    ],
+    openai: [
+        {id: "gpt-5.4", tier: "paid", role: "default", label: "GPT-5.4 (flagship)"},
+        {id: "gpt-5.4-mini", tier: "paid", role: "fast", label: "GPT-5.4 mini"},
+        {id: "gpt-5.4-pro", tier: "paid", role: "flagship", label: "GPT-5.4 pro"},
+        {id: "gpt-5.2", tier: "paid", role: "prior", label: "GPT-5.2 (pinned gen)"},
+        {id: "gpt-4.1", tier: "paid", role: "prior", label: "GPT-4.1"},
+        {id: "gpt-4.1-mini", tier: "paid", role: "fast", label: "GPT-4.1 mini"},
+        {id: "gpt-4o", tier: "paid", role: "prior", label: "GPT-4o"},
+        {id: "gpt-4o-mini", tier: "paid", role: "fast", label: "GPT-4o mini"},
+    ],
+    gemini: [
+        {id: "gemini-3.1-pro-preview", tier: "paid", role: "default", label: "Gemini 3.1 Pro (preview)"},
+        {id: "gemini-3-flash-preview", tier: "free", role: "fast", label: "Gemini 3 Flash (free tier)"},
+        {id: "gemini-3.5-flash", tier: "free", role: "fast", label: "Gemini 3.5 Flash (free tier)"},
+        {id: "gemini-3.6-flash", tier: "free", role: "fast", label: "Gemini 3.6 Flash (free tier)"},
+        {id: "gemini-2.5-pro", tier: "paid", role: "prior", label: "Gemini 2.5 Pro"},
+        {id: "gemini-2.5-flash", tier: "free", role: "fast", label: "Gemini 2.5 Flash (free tier)"},
+        {id: "gemini-2.0-flash", tier: "free", role: "fast", label: "Gemini 2.0 Flash (free tier)"},
+    ],
+    groq: [
+        {id: "openai/gpt-oss-120b", tier: "free", role: "default", label: "GPT-OSS 120B (free tier)"},
+        {id: "openai/gpt-oss-20b", tier: "free", role: "fast", label: "GPT-OSS 20B (free tier)"},
+        {id: "llama-3.3-70b-versatile", tier: "free", role: "prior", label: "Llama 3.3 70B (free tier)"},
+        {id: "llama-3.1-8b-instant", tier: "free", role: "fast", label: "Llama 3.1 8B Instant (free tier)"},
+        {id: "meta-llama/llama-4-scout-17b-16e-instruct", tier: "free", role: "fast", label: "Llama 4 Scout (free tier)"},
+        {id: "qwen/qwen3.6-27b", tier: "free", role: "mid", label: "Qwen3.6 27B (free tier)"},
+        {id: "moonshotai/kimi-k2-instruct", tier: "free", role: "mid", label: "Kimi K2 Instruct (free tier)"},
+    ],
 };
+
+/** Flat id lists for validation / selects. */
+export const PROVIDER_MODELS = Object.fromEntries(
+    Object.entries(MODEL_CATALOG).map(([p, models]) => [p, models.map((m) => m.id)]),
+);
+
+/** @param {string} provider @param {string} modelId */
+export function modelTier(provider, modelId) {
+    const row = (MODEL_CATALOG[provider] || []).find((m) => m.id === modelId);
+    return row?.tier || "paid";
+}
+
+/** @param {string} provider @param {string} modelId */
+export function modelLabel(provider, modelId) {
+    const row = (MODEL_CATALOG[provider] || []).find((m) => m.id === modelId);
+    if (!row) return modelId;
+    const badge = row.tier === "free" ? " · free" : " · paid";
+    return `${row.label || row.id}${badge}`;
+}
 
 /** Providers selectable today (backend-supported). */
 export const SUPPORTED_PROVIDERS = Object.keys(PROVIDER_MODELS);
@@ -122,13 +179,13 @@ export const SECTION_META = {
         bestPractices:
             "Prefer Anthropic + claude-sonnet-4-6 for multi-step pipelines (prompt caching on the stable system prefix). Keep temperature ≤0.2 for structured JSON. Set a monthly soft budget so runaway loops are visible. Only one provider is active at a time — store keys for others but they are unused until selected.",
         implications:
-            "Cost: flagship models (Opus / Pro / gpt-5.4) raise $ per incident. Latency: Groq is fastest but no Anthropic-style cache. Quality: Haiku / mini / flash trade fidelity for speed. Security: API keys leave your network; never commit them. Missing key for the selected provider → playbook generation fails or falls back (Groq → Anthropic).",
+            "Cost: paid frontier models (Opus / Pro / gpt-5.4) raise $ per incident. Free-tier options (Groq open models, Gemini Flash) are rate-limited. Latency: Groq is fastest but no Anthropic-style cache. Missing key → cross-provider fallback (if enabled) then template playbooks.",
         notes:
-            "API keys stay blank in the form after load — “✓ configured” means a secret is already stored. Changing provider auto-selects that vendor’s default model and refreshes the Model help tip. Ollama and OpenRouter are planned; use Anthropic / OpenAI / Gemini / Groq today.",
-        default: "anthropic · claude-sonnet-4-6 · temp 0.2 · budget unlimited",
-        recommended: "anthropic · claude-sonnet-4-6 · temp 0.15 · budget 500k",
+            "API keys stay blank after load — “✓ configured” means a secret is stored. Dropdown labels show free vs paid. Advanced: provider fallback + Test LLM. Ollama/OpenRouter planned.",
+        default: "anthropic · claude-sonnet-4-6 · temp 0.2 · budget unlimited · fallback on",
+        recommended: "anthropic · claude-sonnet-4-6 · temp 0.15 · budget 500k · fallback on",
         whyRecommended:
-            "Claude Sonnet with a low temperature and soft budget gives stable playbook JSON, multi-step prompt-cache savings, and visible spend without overpaying for Opus-class models.",
+            "Claude Sonnet with a low temperature and soft budget gives stable playbook JSON, multi-step prompt-cache savings, and visible spend; free Groq/Gemini models remain available for demos.",
     },
     pipeline: {
         title: "Pipeline & HiTL",
@@ -269,37 +326,19 @@ export const MODEL_META_BY_PROVIDER = {
             "Best quality-to-cost balance for structured IR JSON, and it benefits most from Anthropic prompt caching on multi-step playbook runs.",
         notes:
             "Claude powers structured IR playbooks with Anthropic prompt caching on the stable system prefix (cheaper multi-step runs).",
-        models: [
-            {
-                id: "claude-sonnet-4-6",
-                role: "Default & recommended",
-                context: "~200k tokens",
-                cost: "$$ mid",
-                speed: "Medium",
-                quality: "High — best balance for playbook JSON",
-            },
-            {
-                id: "claude-opus-4-8",
-                role: "Deep reasoning",
-                context: "~200k tokens",
-                cost: "$$$ high",
-                speed: "Slower",
-                quality: "Highest — hard IR / ambiguous campaigns",
-            },
-            {
-                id: "claude-haiku-4-5",
-                role: "Fast / cheap",
-                context: "~200k tokens",
-                cost: "$ low",
-                speed: "Fast",
-                quality: "Good enough for demos & high volume",
-            },
-        ],
+        models: MODEL_CATALOG.anthropic.map((m) => ({
+            id: m.id,
+            role: m.label || m.role || m.id,
+            context: "~200k tokens",
+            cost: m.tier === "free" ? "free tier" : "$$$ paid",
+            speed: m.role === "fast" ? "Fast" : m.role === "flagship" ? "Slower" : "Medium",
+            quality: m.role === "flagship" ? "Highest" : "High",
+        })),
         contextWindow: "~200k tokens (model-dependent; large enough for multi-file IR context + KB snippets)",
         estimatedCost: "Sonnet: mid-tier $/M tokens; Opus ~2–3× Sonnet; Haiku fraction of Sonnet. Prompt cache hits cut multi-step cost significantly.",
         performance: "Sonnet balances quality vs latency. Opus is slower/costlier. Haiku is snappy for tabletop demos.",
         useCases: "Production IR playbooks (Sonnet), complex multi-stage attacks (Opus), live workshops & bulk reprocessing (Haiku).",
-        limitations: "Requires ANTHROPIC_API_KEY. Model list is fixed to Anthropic IDs. Network egress to Anthropic API.",
+        limitations: "Requires ANTHROPIC_API_KEY (paid). Network egress to Anthropic API.",
     },
     openai: {
         title: "Model (OpenAI)",
@@ -308,119 +347,65 @@ export const MODEL_META_BY_PROVIDER = {
         whyRecommended:
             "Flagship GPT maximizes playbook fidelity when you must stay on OpenAI; use mini only when throughput or budget is the primary constraint.",
         notes:
-            "OpenAI path when your org standardizes on the OpenAI ecosystem. No Anthropic-style cache_control — multi-step pipelines re-send the full system prompt each call.",
-        models: [
-            {
-                id: "gpt-5.4",
-                role: "Flagship",
-                context: "Large (provider default)",
-                cost: "$$$ high",
-                speed: "Medium",
-                quality: "Top-tier complex playbooks",
-            },
-            {
-                id: "gpt-5.4-mini",
-                role: "Cost / throughput",
-                context: "Large",
-                cost: "$$ mid",
-                speed: "Faster",
-                quality: "Strong for most IR drafts",
-            },
-            {
-                id: "gpt-5.2",
-                role: "Alternate gen",
-                context: "Large",
-                cost: "$$–$$$",
-                speed: "Medium",
-                quality: "Use if org pins this generation",
-            },
-        ],
+            "OpenAI path when your org standardizes on the OpenAI ecosystem. No Anthropic-style cache_control — multi-step pipelines re-send the full system prompt each call. All OpenAI models are paid.",
+        models: MODEL_CATALOG.openai.map((m) => ({
+            id: m.id,
+            role: m.label || m.role || m.id,
+            context: "Large",
+            cost: "$$$ paid",
+            speed: m.role === "fast" ? "Faster" : m.role === "flagship" ? "Medium–slow" : "Medium",
+            quality: m.role === "flagship" || m.role === "default" ? "Top-tier" : "Strong",
+        })),
         contextWindow: "Large context (model family defaults; sufficient for IR + citations)",
         estimatedCost: "Flagship models cost more per incident than mini. No Anthropic prompt-cache discount on this path.",
         performance: "Mini favors throughput; flagship favors deeper reasoning and structured fidelity.",
         useCases: "Orgs already on OpenAI billing, Azure OpenAI-adjacent workflows, GPT-only compliance choices.",
-        limitations: "Requires OPENAI_API_KEY. Prefer Anthropic if multi-step prompt-cache savings matter (Week-2 notes).",
+        limitations: "Requires OPENAI_API_KEY (paid). Prefer Anthropic if multi-step prompt-cache savings matter.",
     },
     gemini: {
         title: "Model (Gemini)",
         default: "gemini-3.1-pro-preview",
-        recommended: "gemini-3.1-pro-preview (flash for volume)",
+        recommended: "gemini-3.1-pro-preview (Flash free tier for demos)",
         whyRecommended:
-            "Pro-class Gemini handles long log packs and structured steps more reliably; switch to Flash only when you need volume over depth.",
+            "Pro-class Gemini handles long log packs and structured steps more reliably; switch to Flash free-tier models for demos and volume.",
         notes:
-            "Google Gemini via the official google-genai SDK. Useful if your org already has Gemini quota.",
-        models: [
-            {
-                id: "gemini-3.1-pro-preview",
-                role: "Strong reasoning",
-                context: "Very large",
-                cost: "$$ mid–high",
-                speed: "Medium",
-                quality: "Best Gemini option for playbooks",
-            },
-            {
-                id: "gemini-3-flash-preview",
-                role: "Fast demo",
-                context: "Very large",
-                cost: "$ low",
-                speed: "Fast",
-                quality: "Good for demos; keep temp low",
-            },
-            {
-                id: "gemini-3.5-flash",
-                role: "Fast / cheap",
-                context: "Very large",
-                cost: "$ low",
-                speed: "Fast",
-                quality: "Volume processing",
-            },
-        ],
+            "Google Gemini via the official google-genai SDK. Flash models often run on Google free quota; Pro is paid.",
+        models: MODEL_CATALOG.gemini.map((m) => ({
+            id: m.id,
+            role: m.label || m.role || m.id,
+            context: "Very large",
+            cost: m.tier === "free" ? "free tier" : "$$ paid",
+            speed: m.role === "fast" ? "Fast" : "Medium",
+            quality: m.role === "default" || m.role === "prior" ? "Strong" : "Good for demos",
+        })),
         contextWindow: "Very large context windows (family strength) — helpful for long log batches",
-        estimatedCost: "Flash tiers are cost-efficient; Pro is higher for harder IR.",
+        estimatedCost: "Flash free-tier is cost-efficient (quota limits); Pro is higher for harder IR.",
         performance: "Flash = speed; Pro = quality. Structured JSON quality varies — keep temperature ≤0.2.",
-        useCases: "Google Cloud / Gemini quota already paid; long-context log packs.",
-        limitations: "Requires GEMINI_API_KEY. Preview model IDs may rename; re-check after Google updates.",
+        useCases: "Free-tier demos on Flash; Google Cloud / Gemini Pro for production depth.",
+        limitations: "Requires GEMINI_API_KEY. Preview model IDs may rename; free tier is rate-limited.",
     },
     groq: {
         title: "Model (Groq)",
-        default: "llama-3.3-70b-versatile",
-        recommended: "llama-3.3-70b-versatile (demos only)",
+        default: "openai/gpt-oss-120b",
+        recommended: "openai/gpt-oss-120b (free tier demos)",
         whyRecommended:
-            "70B on Groq is the sweet spot for live demos: very fast with usable IR structure; smaller models often break citation-heavy JSON.",
+            "GPT-OSS 120B on Groq free tier is the best current demo default: fast, open-weight, and not on the Llama deprecation path.",
         notes:
-            "Groq hosts open models with very low latency — excellent for live demos. No Anthropic-style prompt caching; full system prefixes re-bill every call.",
-        models: [
-            {
-                id: "llama-3.3-70b-versatile",
-                role: "Best on Groq for IR JSON",
-                context: "~128k",
-                cost: "$ low–mid",
-                speed: "Very fast",
-                quality: "Good demo quality",
-            },
-            {
-                id: "llama-3.1-8b-instant",
-                role: "Ultra-fast",
-                context: "~128k",
-                cost: "$ lowest",
-                speed: "Fastest",
-                quality: "Lower fidelity structured IR",
-            },
-            {
-                id: "mixtral-8x7b-32768",
-                role: "Long-context alt",
-                context: "32k",
-                cost: "$ low",
-                speed: "Fast",
-                quality: "Alternate open MoE",
-            },
-        ],
+            "Groq free developer tier (rate-limited, no card required) covers all listed open-weight models. Excellent for demos; less reliable for citation-heavy production playbooks.",
+        models: MODEL_CATALOG.groq.map((m) => ({
+            id: m.id,
+            role: m.label || m.role || m.id,
+            context: "~128k",
+            cost: "free tier",
+            speed: "Very fast",
+            quality: m.role === "default" || m.role === "mid" ? "Good demo quality" : "Lower fidelity",
+        })),
         contextWindow: "Typically 32k–128k depending on model (lower than Claude/Gemini flagships)",
-        estimatedCost: "Usually cheap vs frontier closed models; rate limits apply on free/dev tiers.",
+        estimatedCost: "Free developer tier (rate limits); paid Developer plan raises limits.",
         performance: "Best-in-class raw speed. Trade-off: less reliable citation-heavy JSON than Claude Sonnet.",
-        useCases: "Live demos, latency showcases, offline-ish workshops with Groq quota.",
+        useCases: "Live demos, free-tier labs, latency showcases, workshops with Groq quota.",
         limitations:
-            "Requires GROQ_API_KEY. If Groq is selected but no key is set, backend may fall back to Anthropic. Not preferred for production multi-incident pipelines.",
+            "Requires GROQ_API_KEY. Free tier rate limits apply. On failure, backend falls back across providers with keys.",
     },
 };
 
