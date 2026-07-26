@@ -169,17 +169,29 @@ class JSONLinesParser(BaseParser):
     name = "json"
 
     def matches(self, sample: str) -> float:
+        """Generic JSONL — capped so specialized EVE/Zeek/Defender/Sysmon win."""
         lines = [l for l in sample.splitlines() if l.strip()][:10]
         if not lines:
             return 0.0
         hits = 0
+        cloudtrail = 0
         for l in lines:
             try:
-                if isinstance(json.loads(l), dict):
+                d = json.loads(l)
+                if isinstance(d, dict):
                     hits += 1
+                    if "eventName" in d and "awsRegion" in d:
+                        cloudtrail += 1
             except Exception:
                 pass
-        return hits / len(lines)
+        if hits == 0:
+            return 0.0
+        ratio = hits / len(lines)
+        # CloudTrail is handled here; keep high confidence
+        if cloudtrail and cloudtrail >= hits * 0.5:
+            return min(0.93, 0.7 + 0.25 * ratio)
+        # Leave headroom for Suricata/Zeek/Defender/Sysmon (>= ~0.8 when matched)
+        return min(0.72, ratio)
 
     def parse(self, content, filename):
         out = []
@@ -305,6 +317,477 @@ class LEEFParser(BaseParser):
                 username=ext.get("usrName") or ext.get("user"),
                 vendor=g["vendor"], product=g["product"],
             ))
+        return out
+
+
+class SuricataEveParser(BaseParser):
+    """Suricata EVE JSON (one JSON object per line)."""
+
+    name = "suricata_eve"
+
+    def matches(self, sample: str) -> float:
+        fn_hint = 0.0
+        # filename not available in matches() — use content only
+        lines = [ln for ln in sample.splitlines() if ln.strip()][:12]
+        if not lines:
+            return 0.0
+        hits = 0
+        for ln in lines:
+            try:
+                d = json.loads(ln)
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            if d.get("event_type") and (
+                "src_ip" in d or "dest_ip" in d or "alert" in d or "flow_id" in d
+            ):
+                hits += 1
+            elif d.get("event_type") in (
+                "alert",
+                "dns",
+                "http",
+                "tls",
+                "flow",
+                "fileinfo",
+                "ssh",
+                "stats",
+            ):
+                hits += 1
+        if hits == 0:
+            return 0.0
+        return min(0.99, 0.55 + 0.4 * (hits / len(lines)) + fn_hint)
+
+    def parse(self, content, filename):
+        out = []
+        for line in content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            et = d.get("event_type") or "suricata"
+            alert = d.get("alert") if isinstance(d.get("alert"), dict) else {}
+            http = d.get("http") if isinstance(d.get("http"), dict) else {}
+            dns = d.get("dns") if isinstance(d.get("dns"), dict) else {}
+            fileinfo = d.get("fileinfo") if isinstance(d.get("fileinfo"), dict) else {}
+            sev = "info"
+            if alert:
+                # Suricata severity 1=high .. 3=low (inverted vs CEF)
+                try:
+                    s = int(alert.get("severity") or 3)
+                    sev = {1: "high", 2: "medium", 3: "low"}.get(s, "medium")
+                except (TypeError, ValueError):
+                    sev = "medium"
+                if alert.get("action") == "blocked":
+                    sev = "high"
+            out.append(
+                _ces(
+                    filename,
+                    line[:2000],
+                    timestamp=_try_parse_ts(d.get("timestamp")),
+                    source_ip=d.get("src_ip"),
+                    dest_ip=d.get("dest_ip"),
+                    hostname=d.get("host") or http.get("hostname"),
+                    username=None,
+                    event_type=alert.get("signature") or et,
+                    severity=sev,
+                    process=None,
+                    command_line=None,
+                    url=http.get("url") or http.get("hostname"),
+                    domain=dns.get("rrname") or dns.get("query") or http.get("hostname"),
+                    hash=fileinfo.get("md5") or fileinfo.get("sha256"),
+                    event_id=str(alert.get("signature_id") or d.get("flow_id") or ""),
+                    vendor="OISF",
+                    product="Suricata",
+                )
+            )
+        return out
+
+
+class ZeekParser(BaseParser):
+    """Zeek/Bro logs: JSON stream or classic TSV with #fields header."""
+
+    name = "zeek"
+
+    def matches(self, sample: str) -> float:
+        if "#fields" in sample[:2000] and ("\t" in sample or "zeek" in sample.lower()):
+            return 0.95
+        lines = [ln for ln in sample.splitlines() if ln.strip() and not ln.startswith("#")][:10]
+        if not lines:
+            return 0.0
+        hits = 0
+        for ln in lines:
+            try:
+                d = json.loads(ln)
+            except Exception:
+                continue
+            if isinstance(d, dict) and ("_path" in d or "uid" in d and ("id.orig_h" in d or "id_orig_h" in d)):
+                hits += 1
+        if hits == 0:
+            return 0.0
+        return min(0.97, 0.5 + 0.45 * (hits / max(1, len(lines))))
+
+    def parse(self, content, filename):
+        # TSV with #fields
+        if "#fields" in content[:4000]:
+            return self._parse_tsv(content, filename)
+        return self._parse_json(content, filename)
+
+    def _parse_tsv(self, content, filename):
+        fields: List[str] = []
+        out = []
+        for line in content.splitlines():
+            if line.startswith("#fields"):
+                fields = line.split("\t")[1:]
+                continue
+            if not line or line.startswith("#"):
+                continue
+            if not fields:
+                continue
+            cols = line.split("\t")
+            d = {fields[i]: cols[i] if i < len(cols) else "" for i in range(len(fields))}
+            out.append(self._row_to_ces(d, line, filename, tsv=True))
+        return out
+
+    def _parse_json(self, content, filename):
+        out = []
+        for line in content.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            out.append(self._row_to_ces(d, line, filename, tsv=False))
+        return out
+
+    def _row_to_ces(self, d: dict, raw: str, filename: str, *, tsv: bool) -> dict:
+        # normalize dotted Zeek keys
+        def g(*keys):
+            for k in keys:
+                if k in d and d[k] not in (None, "", "-"):
+                    return d[k]
+            return None
+
+        path = g("_path", "path") or "zeek"
+        ts = g("ts", "timestamp", "@timestamp")
+        # Zeek epoch float
+        if isinstance(ts, (int, float)):
+            try:
+                from datetime import datetime, timezone
+
+                ts = datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat()
+            except (OSError, ValueError, OverflowError):
+                ts = str(ts)
+        else:
+            ts = _try_parse_ts(str(ts) if ts is not None else None)
+
+        return _ces(
+            filename,
+            raw[:2000],
+            timestamp=ts,
+            source_ip=g("id.orig_h", "id_orig_h", "orig_h", "src", "source_ip"),
+            dest_ip=g("id.resp_h", "id_resp_h", "resp_h", "dst", "dest_ip"),
+            hostname=g("host", "hostname", "server_name"),
+            username=g("user", "username"),
+            event_type=str(path),
+            severity="info",
+            process=None,
+            url=g("uri", "url"),
+            domain=g("query", "q", "server_name", "host"),
+            hash=g("md5", "sha1", "sha256"),
+            event_id=str(g("uid", "fuid") or ""),
+            vendor="Zeek",
+            product=str(path),
+        )
+
+
+class DefenderParser(BaseParser):
+    """Microsoft Defender for Endpoint / Defender AV JSON alerts or advanced hunting rows."""
+
+    name = "defender"
+
+    def matches(self, sample: str) -> float:
+        keys = (
+            "detectionSource",
+            "threatName",
+            "DeviceName",
+            "deviceName",
+            "FileName",
+            "Sha256",
+            "sha256",
+            "Evidence",
+            "AlertId",
+            "category",
+            "MicrosoftDefender",
+            "Mdatp",
+        )
+        low = sample[:3000]
+        score = 0.0
+        if any(k in low for k in keys):
+            score = 0.7
+        # JSON lines with defender-ish fields
+        lines = [ln for ln in sample.splitlines() if ln.strip()][:8]
+        hits = 0
+        for ln in lines:
+            try:
+                d = json.loads(ln)
+            except Exception:
+                # single JSON blob
+                try:
+                    d = json.loads(sample[:5000])
+                except Exception:
+                    continue
+            if not isinstance(d, dict):
+                continue
+            if any(
+                k in d
+                for k in (
+                    "detectionSource",
+                    "threatName",
+                    "deviceName",
+                    "DeviceName",
+                    "sha256",
+                    "Sha256",
+                    "alertId",
+                    "AlertId",
+                )
+            ):
+                hits += 1
+        if hits:
+            score = max(score, min(0.98, 0.6 + 0.3 * hits / max(1, len(lines))))
+        return score
+
+    def parse(self, content, filename):
+        out = []
+        # multi-line JSON array
+        stripped = content.strip()
+        if stripped.startswith("["):
+            try:
+                arr = json.loads(stripped)
+                if isinstance(arr, list):
+                    for d in arr:
+                        if isinstance(d, dict):
+                            out.append(self._alert_to_ces(d, filename, json.dumps(d)[:2000]))
+                    if out:
+                        return out
+            except Exception:
+                pass
+        if stripped.startswith("{") and "\n" not in stripped[:200]:
+            try:
+                d = json.loads(stripped)
+                if isinstance(d, dict):
+                    # single alert or wrapper
+                    if "value" in d and isinstance(d["value"], list):
+                        for item in d["value"]:
+                            if isinstance(item, dict):
+                                out.append(
+                                    self._alert_to_ces(item, filename, json.dumps(item)[:2000])
+                                )
+                        return out
+                    return [self._alert_to_ces(d, filename, stripped[:2000])]
+            except Exception:
+                pass
+        for line in content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(d, dict):
+                out.append(self._alert_to_ces(d, filename, line[:2000]))
+        return out
+
+    def _alert_to_ces(self, d: dict, filename: str, raw: str) -> dict:
+        def g(*keys):
+            for k in keys:
+                if k in d and d[k] not in (None, ""):
+                    return d[k]
+            return None
+
+        sev_raw = str(g("severity", "Severity") or "informational").lower()
+        sev_map = {
+            "informational": "info",
+            "info": "info",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "critical": "critical",
+        }
+        sev = sev_map.get(sev_raw, "medium")
+        return _ces(
+            filename,
+            raw,
+            timestamp=_try_parse_ts(
+                str(
+                    g(
+                        "firstActivityDateTime",
+                        "lastActivityDateTime",
+                        "Timestamp",
+                        "timestamp",
+                        "time",
+                        "@timestamp",
+                    )
+                    or ""
+                )
+            ),
+            source_ip=g("RemoteIP", "remoteIP", "src_ip", "source_ip"),
+            dest_ip=g("LocalIP", "localIP", "dest_ip"),
+            hostname=g("deviceName", "DeviceName", "deviceDnsName", "ComputerName"),
+            username=g("accountName", "AccountName", "userPrincipalName", "UserName"),
+            event_type=str(
+                g("title", "Title", "threatName", "ThreatName", "category", "Category")
+                or "defender_alert"
+            ),
+            severity=sev,
+            process=g("FileName", "fileName", "processName", "Image"),
+            command_line=g("ProcessCommandLine", "commandLine", "CommandLine"),
+            hash=g("sha256", "Sha256", "sha1", "Sha1", "md5", "Md5"),
+            url=g("RemoteUrl", "url", "Url"),
+            domain=g("RemoteUrl", "domain"),
+            event_id=str(g("id", "AlertId", "alertId") or ""),
+            vendor="Microsoft",
+            product="Defender",
+        )
+
+
+class SysmonJsonParser(BaseParser):
+    """Sysmon-style JSON (Winlogbeat / Elastic common schema or flat Sysmon fields)."""
+
+    name = "sysmon"
+
+    def matches(self, sample: str) -> float:
+        low = sample[:2500].lower()
+        if "sysmon" in low or "microsoft-windows-sysmon" in low:
+            return 0.92
+        lines = [ln for ln in sample.splitlines() if ln.strip()][:10]
+        hits = 0
+        for ln in lines:
+            try:
+                d = json.loads(ln)
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            # Winlogbeat winlog.event_id + process
+            winlog = d.get("winlog") if isinstance(d.get("winlog"), dict) else {}
+            event = d.get("event") if isinstance(d.get("event"), dict) else {}
+            eid = (
+                d.get("EventID")
+                or d.get("event_id")
+                or winlog.get("event_id")
+                or event.get("code")
+            )
+            if eid is not None and (
+                d.get("Image")
+                or d.get("CommandLine")
+                or d.get("process")
+                or (isinstance(d.get("process"), dict))
+            ):
+                hits += 1
+            elif str(winlog.get("channel") or "").lower().find("sysmon") >= 0:
+                hits += 1
+        if hits == 0:
+            return 0.0
+        return min(0.96, 0.55 + 0.4 * hits / max(1, len(lines)))
+
+    def parse(self, content, filename):
+        out = []
+        for line in content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            winlog = d.get("winlog") if isinstance(d.get("winlog"), dict) else {}
+            event = d.get("event") if isinstance(d.get("event"), dict) else {}
+            proc = d.get("process") if isinstance(d.get("process"), dict) else {}
+            event_data = winlog.get("event_data") if isinstance(winlog.get("event_data"), dict) else {}
+            # flatten common locations
+            image = (
+                d.get("Image")
+                or event_data.get("Image")
+                or proc.get("executable")
+                or proc.get("name")
+            )
+            cmd = (
+                d.get("CommandLine")
+                or event_data.get("CommandLine")
+                or proc.get("command_line")
+            )
+            user = (
+                d.get("User")
+                or event_data.get("User")
+                or (d.get("user") or {}).get("name")
+                if isinstance(d.get("user"), dict)
+                else d.get("user")
+            )
+            eid = (
+                d.get("EventID")
+                or d.get("event_id")
+                or winlog.get("event_id")
+                or event.get("code")
+            )
+            parent = (
+                d.get("ParentImage")
+                or event_data.get("ParentImage")
+                or (d.get("process") or {}).get("parent")
+                if isinstance(d.get("process"), dict)
+                else None
+            )
+            if isinstance(parent, dict):
+                parent = parent.get("executable") or parent.get("name")
+            ts = _try_parse_ts(
+                str(
+                    d.get("@timestamp")
+                    or d.get("timestamp")
+                    or d.get("UtcTime")
+                    or event_data.get("UtcTime")
+                    or ""
+                )
+            )
+            host = (
+                d.get("Computer")
+                or d.get("hostname")
+                or winlog.get("computer_name")
+                or (d.get("host") or {}).get("name")
+                if isinstance(d.get("host"), dict)
+                else d.get("host")
+            )
+            out.append(
+                _ces(
+                    filename,
+                    line[:2000],
+                    timestamp=ts,
+                    source_ip=d.get("SourceIp") or event_data.get("SourceIp"),
+                    dest_ip=d.get("DestinationIp") or event_data.get("DestinationIp"),
+                    hostname=host,
+                    username=user if isinstance(user, str) else None,
+                    event_type=f"sysmon_{eid}" if eid is not None else "sysmon",
+                    severity="info",
+                    process=image,
+                    parent_process=parent if isinstance(parent, str) else None,
+                    command_line=cmd,
+                    hash=d.get("Hashes") or event_data.get("Hashes") or proc.get("hash"),
+                    event_id=str(eid) if eid is not None else "",
+                    vendor="Microsoft",
+                    product="Sysmon",
+                )
+            )
         return out
 
 
@@ -479,6 +962,10 @@ PARSERS: List[BaseParser] = [
     ApacheParser(),
     CEFParser(),
     LEEFParser(),
+    SuricataEveParser(),
+    ZeekParser(),
+    DefenderParser(),
+    SysmonJsonParser(),
     JSONLinesParser(),
     CSVParser(),
     SyslogParser(),
