@@ -8,20 +8,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 # -------------------- A-T1 auth_throttle (memory path) --------------------
 class TestAuthThrottleMemory:
     def setup_method(self):
-        import auth_throttle as at
+        import backend.auth_throttle as at
         at._login_failures.clear()
         at._rate_limit.clear()
 
     def test_rate_limit_memory_blocks(self):
-        import auth_throttle as at
+        import backend.auth_throttle as at
 
         async def run():
             # A-A3: Mongo find_one_and_update is the allow/deny source of truth.
@@ -53,7 +51,7 @@ class TestAuthThrottleMemory:
         asyncio.run(run())
 
     def test_login_lockout_memory_and_persist(self):
-        import auth_throttle as at
+        import backend.auth_throttle as at
 
         async def run():
             store: dict = {}
@@ -137,7 +135,7 @@ class TestEnrichmentCache:
 # -------------------- A-T3 notifications --------------------
 class TestNotificationsHelpers:
     def test_formsubmit_parse_activation(self):
-        from notifications import _parse_formsubmit_response
+        from backend.notifications import _parse_formsubmit_response
 
         r = _parse_formsubmit_response(
             200,
@@ -147,21 +145,21 @@ class TestNotificationsHelpers:
         assert r["state"] == "needs_activation"
 
     def test_formsubmit_parse_ok(self):
-        from notifications import _parse_formsubmit_response
+        from backend.notifications import _parse_formsubmit_response
 
         r = _parse_formsubmit_response(200, '{"success":"true","message":"ok"}')
         assert r["delivered"] is True
         assert r["ok"] is True
 
     def test_slack_diagnose_placeholder(self):
-        from secrets_util import diagnose_slack_webhook
+        from backend.secrets_util import diagnose_slack_webhook
 
         d = diagnose_slack_webhook("https://hooks.slack.com/services/SMOKE/TEST/xxx")
         assert d.get("ok") is False
 
     def test_http_gateway_default_prod_off(self, monkeypatch):
         import importlib
-        import notifications as n
+        import backend.notifications as n
 
         monkeypatch.setenv("ENV", "prod")
         monkeypatch.delenv("EMAIL_HTTP_GATEWAY", raising=False)
@@ -175,7 +173,7 @@ class TestNotificationsHelpers:
 # -------------------- A-T2 job SSE payload shape + queue helpers --------------------
 class TestJobQueueAndSseShape:
     def test_save_load_clear_payload(self, tmp_path, monkeypatch):
-        import job_queue as jq
+        import backend.job_queue as jq
 
         monkeypatch.setattr(jq, "PAYLOAD_ROOT", tmp_path)
         monkeypatch.setattr(jq, "PAYLOAD_BACKEND", "disk")
@@ -215,7 +213,7 @@ class TestJobQueueAndSseShape:
         assert payload["incident_ids"] == ["inc-1", "inc-2"]
 
     def test_force_requeue_requires_payload(self, tmp_path, monkeypatch):
-        import job_queue as jq
+        import backend.job_queue as jq
 
         monkeypatch.setattr(jq, "PAYLOAD_ROOT", tmp_path)
         monkeypatch.setattr(jq, "PAYLOAD_BACKEND", "disk")
@@ -241,7 +239,7 @@ class TestJobQueueAndSseShape:
         asyncio.run(run())
 
     def test_payload_scrubs_secrets(self, tmp_path, monkeypatch):
-        import job_queue as jq
+        import backend.job_queue as jq
         import json
 
         monkeypatch.setattr(jq, "PAYLOAD_ROOT", tmp_path)
@@ -271,7 +269,7 @@ class TestJobQueueAndSseShape:
         assert "anthropic_api_key" not in meta["settings"]
 
     def test_merge_settings_with_live_restores_secrets(self):
-        import job_queue as jq
+        import backend.job_queue as jq
 
         merged = jq.merge_settings_with_live(
             {"llm_provider": "groq", "llm_temperature": 0.1},
@@ -288,7 +286,7 @@ class TestJobQueueAndSseShape:
         assert merged["anthropic_api_key"] == "sk-live"
 
     def test_requeue_on_startup_updates_running(self):
-        import job_queue as jq
+        import backend.job_queue as jq
 
         async def run():
             result = MagicMock()
@@ -309,7 +307,7 @@ class TestJobQueueAndSseShape:
 # -------------------- AI investigator fallback messaging --------------------
 class TestInvestigatorFallback:
     def test_fallback_includes_api_key_hint(self):
-        from ai_investigator import _fallback_answer
+        from backend.ai_investigator import _fallback_answer
 
         data = _fallback_answer(
             {"title": "t", "severity": "high", "threat_score": 80, "techniques": []},

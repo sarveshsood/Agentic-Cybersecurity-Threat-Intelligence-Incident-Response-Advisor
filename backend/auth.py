@@ -3,12 +3,17 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
 import bcrypt
 import jwt
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+# Ensure backend/.env is loaded when auth is imported before server.py
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 logger = logging.getLogger(__name__)
 

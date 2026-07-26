@@ -12,14 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 class TestLexicalRerank:
     def test_promotes_overlap(self):
-        from reranker import lexical_rerank
+        from backend.reranker import lexical_rerank
 
         docs = [
             {"id": "a", "title": "Gardening", "text": "plants and soil", "retriever": "hybrid"},
@@ -35,7 +33,7 @@ class TestLexicalRerank:
 
 class TestCohereRerankMock:
     def test_cohere_reorder_from_api(self):
-        from reranker import cohere_rerank
+        from backend.reranker import cohere_rerank
 
         docs = [
             {"id": "a", "title": "A", "text": "first"},
@@ -58,7 +56,7 @@ class TestCohereRerankMock:
             assert "cohere" in out[0]["retriever"]
 
     def test_cohere_failure_keeps_order(self):
-        from reranker import cohere_rerank
+        from backend.reranker import cohere_rerank
 
         docs = [{"id": "a", "title": "A", "text": "x"}, {"id": "b", "title": "B", "text": "y"}]
         mock_resp = MagicMock()
@@ -69,7 +67,7 @@ class TestCohereRerankMock:
             assert [d["id"] for d in out] == ["a", "b"]
 
     def test_maybe_rerank_skips_without_key(self, monkeypatch):
-        from reranker import maybe_rerank
+        from backend.reranker import maybe_rerank
 
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
         monkeypatch.setenv("ACTIRA_RERANK_BACKEND", "cohere")
@@ -79,7 +77,7 @@ class TestCohereRerankMock:
         assert out == docs
 
     def test_maybe_rerank_disabled(self, monkeypatch):
-        from reranker import maybe_rerank
+        from backend.reranker import maybe_rerank
 
         monkeypatch.setenv("ACTIRA_RERANK_BACKEND", "lexical")
         docs = [
@@ -104,7 +102,7 @@ class TestRetrievalEval:
         monkeypatch.setenv("ACTIRA_EMBEDDING_BACKEND", "hash")
         monkeypatch.setenv("ACTIRA_VECTOR_STORE", "0")  # BM25-only still evaluated
         monkeypatch.setenv("ACTIRA_RERANK_BACKEND", "lexical")
-        from retrieval_eval import run_retrieval_eval
+        from backend.retrieval_eval import run_retrieval_eval
 
         out = run_retrieval_eval(top_k=5, modes=("bm25",), use_lexical_rerank=True)
         summary = out["summary"]
@@ -117,7 +115,7 @@ class TestRetrievalEval:
         monkeypatch.setenv("ACTIRA_EMBEDDING_BACKEND", "hash")
         monkeypatch.setenv("ACTIRA_VECTOR_STORE", "0")
         monkeypatch.setenv("ACTIRA_RERANK_BACKEND", "lexical")
-        from retrieval_eval import run_retrieval_compare
+        from backend.retrieval_eval import run_retrieval_compare
 
         out = run_retrieval_compare(top_k=5, use_lexical_rerank=True)
         assert out["pair_count"] >= 8

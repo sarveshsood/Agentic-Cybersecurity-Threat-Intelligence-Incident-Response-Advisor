@@ -6,12 +6,11 @@ from pathlib import Path
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-from attack_catalog import is_known_technique, root_id, get_technique  # noqa: E402
-from attack_mapping import (  # noqa: E402
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+from backend.attack_catalog import is_known_technique, root_id, get_technique  # noqa: E402
+from backend.attack_mapping import (  # noqa: E402
     infer_techniques,
     technique_ids_for_eval,
 )
@@ -101,7 +100,7 @@ class TestInferSubtechniques:
 
 class TestGoldenStillPasses:
     def test_offline_benchmark(self):
-        from golden_eval import run_benchmark
+        from backend.golden_eval import run_benchmark
 
         out = run_benchmark()
         assert out["summary"]["n_cases"] >= 30

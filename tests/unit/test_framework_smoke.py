@@ -69,7 +69,7 @@ def test_mock_ti_enrich(mock_ti_enrich, sample_iocs):
 
 
 def test_parse_llm_json_robust():
-    from llm_provider import parse_llm_json
+    from backend.llm_provider import parse_llm_json
 
     assert parse_llm_json('{"a": 1}') == {"a": 1}
     # fenced

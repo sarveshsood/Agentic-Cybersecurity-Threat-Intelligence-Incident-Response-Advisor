@@ -98,12 +98,20 @@ def fix_imports(text: str) -> str:
             rf"\1from backend.{mod}\2 import ",
             text,
         )
-        # import X
+        # import X  →  import backend.X as X  (preserve local name bindings)
         text = re.sub(
-            rf"(?m)^(\s*)import {re.escape(mod)}(\s|$|,)",
-            rf"\1import backend.{mod}\2",
+            rf"(?m)^(\s*)import {re.escape(mod)}(\s*(?:#.*)?)$",
+            rf"\1import backend.{mod} as {mod}\2",
             text,
         )
+        # import backend.X  (without alias) → import backend.X as X
+        text = re.sub(
+            rf"(?m)^(\s*)import backend\.{re.escape(mod)}(\s*(?:#.*)?)$",
+            rf"\1import backend.{mod} as {mod}\2",
+            text,
+        )
+        # import backend.X as X already fine; avoid backend.X as X as X
+        text = text.replace(f"as {mod} as {mod}", f"as {mod}")
         # avoid double backend.backend
     text = text.replace("backend.backend.", "backend.")
     # core.database already handled as from backend.core.database if mod core matched core.database via core

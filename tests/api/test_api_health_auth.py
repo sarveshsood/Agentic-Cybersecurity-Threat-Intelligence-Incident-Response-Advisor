@@ -23,7 +23,7 @@ def _client():
     """Build TestClient; skip if app cannot be imported (missing optional deps)."""
     try:
         from fastapi.testclient import TestClient
-        import server
+        import backend.server as server
 
         return TestClient(server.app)
     except Exception as e:

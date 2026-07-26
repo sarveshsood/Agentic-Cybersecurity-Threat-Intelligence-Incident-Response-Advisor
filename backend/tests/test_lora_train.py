@@ -10,17 +10,15 @@ from pathlib import Path
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 @pytest.fixture()
 def lora_env(tmp_path, monkeypatch):
     monkeypatch.setenv("ACTIRA_EMBEDDING_BACKEND", "hash")
     monkeypatch.setenv("ACTIRA_EMBEDDING_DIM", "64")
     monkeypatch.setenv("ACTIRA_LORA_PATH", str(tmp_path / "adapter"))
-    import embeddings
+    import backend.embeddings as embeddings
 
     embeddings.reset_embedder_cache()
     yield tmp_path
@@ -29,7 +27,7 @@ def lora_env(tmp_path, monkeypatch):
 
 class TestCorpus:
     def test_build_from_golden_pairs(self):
-        from lora_train import build_corpus_from_pairs
+        from backend.lora_train import build_corpus_from_pairs
 
         ex = build_corpus_from_pairs()
         assert len(ex) >= 10
@@ -37,7 +35,7 @@ class TestCorpus:
         assert any(e.positive_id.startswith("T") or e.positive_id.startswith("PB") for e in ex)
 
     def test_build_from_approved_incidents(self):
-        from lora_train import build_corpus_from_approved_incidents
+        from backend.lora_train import build_corpus_from_approved_incidents
 
         incidents = [
             {
@@ -70,7 +68,7 @@ class TestCorpus:
 
 class TestLinearLora:
     def test_train_save_load_apply(self, lora_env):
-        from lora_train import (
+        from backend.lora_train import (
             build_corpus_from_pairs,
             load_adapter,
             save_adapter,
@@ -101,7 +99,7 @@ class TestLinearLora:
         loaded = load_adapter(out)
         assert loaded.dim == 64
         # residual apply changes vector for non-empty input
-        from embeddings import HashingEmbedder
+        from backend.embeddings import HashingEmbedder
 
         base = HashingEmbedder(dim=64).embed_query("SSH brute force failed password")
         adapted = loaded.apply(base)
@@ -112,7 +110,7 @@ class TestLinearLora:
         assert abs(float(np.linalg.norm(adapted)) - 1.0) < 1e-4
 
     def test_run_train_end_to_end(self, lora_env):
-        from lora_train import run_train
+        from backend.lora_train import run_train
 
         out = lora_env / "adapter"
         result = run_train(
@@ -132,8 +130,8 @@ class TestLinearLora:
         assert result["activate"]["ACTIRA_EMBEDDING_BACKEND"] == "lora"
 
     def test_lora_embedder_backend(self, lora_env, monkeypatch):
-        from lora_train import run_train
-        import embeddings
+        from backend.lora_train import run_train
+        import backend.embeddings as embeddings
 
         out = lora_env / "adapter"
         run_train(method="linear_lora", out_dir=out, dim=64, rank=4, epochs=2, evaluate=False)
@@ -150,7 +148,7 @@ class TestLinearLora:
         embeddings.reset_embedder_cache()
 
     def test_adapter_status_missing(self, tmp_path, monkeypatch):
-        from lora_train import adapter_status
+        from backend.lora_train import adapter_status
 
         monkeypatch.setenv("ACTIRA_LORA_PATH", str(tmp_path / "missing"))
         st = adapter_status(tmp_path / "missing")
@@ -160,7 +158,7 @@ class TestLinearLora:
 
 class TestCli:
     def test_main_linear(self, lora_env):
-        from lora_train import main
+        from backend.lora_train import main
 
         out = lora_env / "cli-adapter"
         rc = main(

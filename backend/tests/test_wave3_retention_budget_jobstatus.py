@@ -15,15 +15,13 @@ from pathlib import Path
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 # -------------------- A-T4 job_status --------------------
 class TestJobStatusSidecar:
     def test_write_read_merge(self, tmp_path, monkeypatch):
-        import job_status as js
+        import backend.job_status as js
 
         monkeypatch.setattr(js, "FAILURE_DIR", tmp_path)
         path = js.write_failure_sidecar("job-1", "boom exploded", stage="enrich")
@@ -46,7 +44,7 @@ class TestJobStatusSidecar:
         assert js.merge_job_with_sidecar(already)["error"] == "mongo"
 
     def test_purge_old_sidecars(self, tmp_path, monkeypatch):
-        import job_status as js
+        import backend.job_status as js
         import time
 
         monkeypatch.setattr(js, "FAILURE_DIR", tmp_path)
@@ -66,13 +64,13 @@ class TestJobStatusSidecar:
 # -------------------- A-M1 retention --------------------
 class TestIncidentRetention:
     def test_cutoff_iso_is_past(self):
-        from retention import retention_cutoff_iso
+        from backend.retention import retention_cutoff_iso
 
         cut = retention_cutoff_iso(30)
         assert cut < datetime.now(timezone.utc).isoformat()
 
     def test_purge_skips_zero_or_negative(self):
-        from retention import purge_old_incidents
+        from backend.retention import purge_old_incidents
 
         class FakeDB:
             def __init__(self):
@@ -85,7 +83,7 @@ class TestIncidentRetention:
         assert n == 0
 
     def test_purge_deletes_older_than_cutoff(self):
-        from retention import purge_old_incidents
+        from backend.retention import purge_old_incidents
 
         class Result:
             deleted_count = 2
@@ -111,7 +109,7 @@ class TestIncidentRetention:
 # -------------------- A-M1 token budget --------------------
 class TestLlmUsageBudget:
     def test_estimate_and_budget_zero_unlimited(self):
-        from llm_usage import estimate_tokens, budget_from_settings
+        from backend.llm_usage import estimate_tokens, budget_from_settings
 
         assert estimate_tokens("abcd") == 1  # 4//4
         assert estimate_tokens("a" * 40) == 10
@@ -119,7 +117,7 @@ class TestLlmUsageBudget:
         assert budget_from_settings({"llm_token_budget_monthly": 5000}) == 5000
 
     def test_assert_within_budget_raises(self):
-        from llm_usage import assert_within_budget, BudgetExceededError, set_usage_db
+        from backend.llm_usage import assert_within_budget, BudgetExceededError, set_usage_db
 
         class Coll:
             async def find_one(self, *a, **k):
