@@ -97,3 +97,56 @@ def setup_otel(service_name: str = "actira") -> bool:
 
     _configured = True
     return bool(_status.get("configured"))
+
+
+def get_tracer(name: str = "actira"):
+    """Return a tracer if OTEL is configured, else a no-op-friendly object."""
+    try:
+        from opentelemetry import trace  # type: ignore
+
+        return trace.get_tracer(name)
+    except Exception:
+        return _NoopTracer()
+
+
+class _NoopSpan:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def set_attribute(self, *args, **kwargs):
+        return None
+
+    def record_exception(self, *args, **kwargs):
+        return None
+
+    def set_status(self, *args, **kwargs):
+        return None
+
+
+class _NoopTracer:
+    def start_as_current_span(self, name: str, **kwargs):
+        return _NoopSpan()
+
+
+def span(name: str, **attributes):
+    """Context manager for a named span with optional attributes."""
+    tracer = get_tracer()
+    cm = tracer.start_as_current_span(name)
+    # Attach attributes after enter when real span
+    class _AttrSpan:
+        def __enter__(self_inner):
+            self_inner._span = cm.__enter__()
+            for k, v in attributes.items():
+                try:
+                    self_inner._span.set_attribute(k, v)
+                except Exception:
+                    pass
+            return self_inner._span
+
+        def __exit__(self_inner, *args):
+            return cm.__exit__(*args)
+
+    return _AttrSpan()

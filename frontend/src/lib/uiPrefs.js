@@ -76,8 +76,10 @@ export const UI_PREF_RECOMMENDED = {
     time_display_timezone: "UTC",
     dashboard_recent_limit: 12,
     analytics_default_days: 30,
-    status_refresh_ms: 60_000,
-    dashboard_refresh_ms: 60_000,
+    // Layout chip poll — keep moderate; avoid sub-30s thrash
+    status_refresh_ms: 90_000,
+    // Dashboard auto-refresh off by default for consistency; enable explicitly if needed
+    dashboard_refresh_ms: 0,
     review_default_view: "table",
     high_threat_score_threshold: 70,
     incidents_page_size: 200,

@@ -20,8 +20,9 @@ import {
     Warning,
     XCircle,
 } from "@phosphor-icons/react";
-import {HoverCard, HoverCardContent, HoverCardTrigger,} from "../components/ui/hover-card";
 import {DataTable, PageHeader} from "../design-system";
+import {HelpTip} from "../components/HelpTip";
+import {ListState} from "../components/ListState";
 import {formatDateTime} from "../lib/uiPrefs";
 
 /** Metric + column help — keep in sync with backend/golden_eval.py */
@@ -96,7 +97,7 @@ const INTERPRET_STEPS = [
     },
     {
         title: "Graphical Distributions",
-        body: "Use the success ratio segment bar and time-based color-coded latency distribution chart to instantly identify outliers and performance bounds.",
+        body: "Use the pass/fail ratio bar and per-case latency chart (slowest first, colors vs CI gate) to spot outliers and bound performance.",
     },
     {
         title: "Dataset Management",
@@ -113,38 +114,6 @@ function Card({children, className = "", testid}) {
         <div data-testid={testid} className={`soc-card p-4 ${className}`}>
             {children}
         </div>
-    );
-}
-
-function HelpTip({title, children, side = "top", testid}) {
-    return (
-        <HoverCard openDelay={120} closeDelay={80}>
-            <HoverCardTrigger asChild>
-                <button
-                    type="button"
-                    className="inline-flex items-center justify-center rounded text-muted-foreground hover:text-primary transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/50"
-                    aria-label={title ? `Help: ${title}` : "Help"}
-                    data-testid={testid}
-                >
-                    <Info size={12} weight="bold"/>
-                </button>
-            </HoverCardTrigger>
-            <HoverCardContent
-                side={side}
-                collisionPadding={16}
-                className="w-80 max-w-[min(20rem,calc(100vw-1.5rem))] bg-background border border-border text-foreground p-3 shadow-xl z-[200] break-words"
-            >
-                {title && (
-                    <div
-                        className="text-[11px] font-semibold text-primary/90 mb-1.5 tracking-wide uppercase break-words">
-                        {title}
-                    </div>
-                )}
-                <div className="text-[11px] text-muted-foreground leading-relaxed space-y-1.5 break-words min-w-0">
-                    {children}
-                </div>
-            </HoverCardContent>
-        </HoverCard>
     );
 }
 
@@ -198,6 +167,14 @@ function pct(v) {
     return Number(v).toFixed(3);
 }
 
+/** Format seconds: ms when sub-second (offline path is often 1–5ms). */
+function formatLatency(seconds) {
+    if (seconds == null || !Number.isFinite(Number(seconds))) return "—";
+    const s = Number(seconds);
+    if (s < 1) return `${(s * 1000).toFixed(1)}ms`;
+    return `${s.toFixed(3)}s`;
+}
+
 function gatePass(summary, thresholds) {
     if (!summary || !thresholds) return {};
     return {
@@ -211,10 +188,27 @@ function gatePass(summary, thresholds) {
     };
 }
 
+/** Solid theme colors (bg-success etc. are not defined as fill utilities). */
+const LAT_COLORS = {
+    fast: "var(--success)",
+    mid: "var(--warning)",
+    slow: "var(--error)",
+    track: "var(--muted)",
+    border: "var(--border)",
+};
+
+function latencyBand(lat, gateS, fastS) {
+    if (lat == null || !Number.isFinite(lat)) return "mid";
+    if (lat > gateS) return "slow";
+    if (lat <= fastS) return "fast";
+    return "mid";
+}
+
 export default function GoldenBenchmark() {
     const [meta, setMeta] = useState(null);
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
     const [running, setRunning] = useState(false);
     const [runElapsed, setRunElapsed] = useState(0);
     const [sortKey, setSortKey] = useState("ioc_f1");
@@ -225,12 +219,16 @@ export default function GoldenBenchmark() {
 
     const loadMeta = useCallback(async () => {
         setLoading(true);
+        setLoadError(null);
         try {
             const r = await api.get("/eval/golden-benchmark");
             setMeta(r.data);
             if (r.data?.last_run) setResult(r.data.last_run);
+            setLoadError(null);
         } catch (e) {
-            toast.error(e?.response?.data?.detail || "Could not load golden benchmark meta");
+            const msg = e?.userMessage || e?.response?.data?.detail || "Could not load golden benchmark meta";
+            setLoadError(msg);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
@@ -268,6 +266,7 @@ export default function GoldenBenchmark() {
                 timeout: liveLlm ? 600000 : 300000,
                 silentError: true,
             });
+            // Prefer response body (includes cases); refresh meta history without wiping cases
             setResult(r.data);
             const secs = r.data?.elapsed_s != null ? ` in ${r.data.elapsed_s}s` : "";
             const modeLabel = liveLlm || r.data?.mode === "live_llm_sample" ? " (live LLM sample)" : "";
@@ -276,7 +275,10 @@ export default function GoldenBenchmark() {
                     ? `Benchmark PASSED all gates${modeLabel}${secs}`
                     : `Benchmark finished — gates failed${modeLabel}${secs}`,
             );
-            loadMeta();
+            // Soft-refresh meta (history strip) without blanking current result
+            api.get("/eval/golden-benchmark").then((mr) => {
+                setMeta(mr.data);
+            }).catch(() => {});
         } catch (e) {
             toast.error(e?.userMessage || apiErrorMessage(e, "Benchmark run failed"));
         } finally {
@@ -286,6 +288,59 @@ export default function GoldenBenchmark() {
         }
     };
 
+    const downloadDataset = async () => {
+        try {
+            const r = await api.get("/eval/golden-dataset/download", {responseType: "blob"});
+            const blob = r.data instanceof Blob ? r.data : new Blob([r.data], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "dataset.json";
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success("Golden dataset downloaded");
+        } catch (e) {
+            toast.error(apiErrorMessage(e, "Dataset download failed"));
+        }
+    };
+
+    const history = meta?.history || [];
+    // Chronological (oldest→newest) + sparkline series for trend strip
+    const historyTrend = useMemo(() => {
+        const chrono = [...history].reverse();
+        const f1Series = chrono
+            .map((h) => Number(h?.summary?.mean_ioc_f1))
+            .filter((n) => Number.isFinite(n));
+        const recallSeries = chrono
+            .map((h) => Number(h?.summary?.mean_technique_recall))
+            .filter((n) => Number.isFinite(n));
+        const sparkPoints = (series, w = 120, h = 28, pad = 2) => {
+            if (series.length < 2) return "";
+            const min = Math.min(...series);
+            const max = Math.max(...series);
+            const span = max - min || 0.01;
+            return series
+                .map((v, i) => {
+                    const x = pad + (i * (w - pad * 2)) / (series.length - 1);
+                    const y = pad + (1 - (v - min) / span) * (h - pad * 2);
+                    return `${x.toFixed(1)},${y.toFixed(1)}`;
+                })
+                .join(" ");
+        };
+        const delta = (series) => {
+            if (series.length < 2) return null;
+            return series[series.length - 1] - series[series.length - 2];
+        };
+        return {
+            chrono,
+            f1Series,
+            recallSeries,
+            f1Pts: sparkPoints(f1Series),
+            recallPts: sparkPoints(recallSeries),
+            f1Delta: delta(f1Series),
+            rDelta: delta(recallSeries),
+        };
+    }, [history]);
     const summary = result?.summary;
     const thresholds = useMemo(
         () =>
@@ -302,8 +357,14 @@ export default function GoldenBenchmark() {
     );
     const gates = useMemo(() => gatePass(summary, thresholds), [summary, thresholds]);
 
+    // Normalize cases from slim payload (cases) or raw benchmark (results)
+    const allCases = useMemo(() => {
+        const raw = result?.cases || result?.results || [];
+        return Array.isArray(raw) ? raw : [];
+    }, [result]);
+
     const cases = useMemo(() => {
-        let list = [...(result?.cases || [])];
+        let list = [...allCases];
         if (filterWeak) {
             list = list.filter(
                 (c) =>
@@ -321,36 +382,122 @@ export default function GoldenBenchmark() {
             return av - bv;
         });
         return list;
-    }, [result, filterWeak, sortKey, thresholds]);
+    }, [allCases, filterWeak, sortKey, thresholds]);
 
     const distributionStats = useMemo(() => {
-        if (!result?.cases || result.cases.length === 0) return {
-            passedCount: 0,
-            failedCount: 0,
-            total: 0,
-            passPct: 100
-        };
-        const total = result.cases.length;
-        const failedCount = result.cases.filter(
+        if (!allCases.length) {
+            return {passedCount: 0, failedCount: 0, total: 0, passPct: 100};
+        }
+        const total = allCases.length;
+        const failedCount = allCases.filter(
             (c) =>
                 c.error ||
                 (c.ioc_f1 ?? 1) < (thresholds.min_ioc_f1 ?? 0.85) ||
-                (c.technique_recall ?? 1) < (thresholds.min_technique_recall ?? 0.8)
+                (c.technique_recall ?? 1) < (thresholds.min_technique_recall ?? 0.8),
         ).length;
         const passedCount = total - failedCount;
         const passPct = Math.round((passedCount / total) * 100);
         return {passedCount, failedCount, total, passPct};
-    }, [result?.cases, thresholds]);
+    }, [allCases, thresholds]);
 
     const latencyDistribution = useMemo(() => {
-        if (!result?.cases || result.cases.length === 0) return {max: 10, items: []};
-        const items = result.cases.map(c => ({id: c.id, latency: c.latency_s || 0}));
-        const max = Math.max(...items.map(i => i.latency), 8);
-        return {max, items};
-    }, [result?.cases]);
+        const gate = Number(thresholds?.max_mean_latency_s);
+        const gateS = Number.isFinite(gate) && gate > 0 ? gate : 7;
+        // Fast band for offline micro-latencies: 50th of gate is useless (3.5s);
+        // use adaptive band from data so colors still differentiate when all << gate.
+        const items = allCases
+            .map((c) => {
+                const n = c.latency_s == null || c.latency_s === "" ? null : Number(c.latency_s);
+                return {
+                    id: c.id,
+                    name: c.name,
+                    latency: Number.isFinite(n) ? Math.max(0, n) : null,
+                };
+            })
+            .sort((a, b) => (b.latency ?? -1) - (a.latency ?? -1));
+
+        const measured = items.map((i) => i.latency).filter((n) => n != null);
+        const dataMax = measured.length ? Math.max(...measured) : 0;
+        const dataMin = measured.length ? Math.min(...measured) : 0;
+        // End-to-end scale = data max only (never force 7s axis — that left bars at ~0%)
+        const scaleMax = Math.max(dataMax, 1e-9);
+
+        let mean = summary?.mean_latency_s != null ? Number(summary.mean_latency_s) : null;
+        let p50 = summary?.p50_latency_s != null ? Number(summary.p50_latency_s) : null;
+        let p95 = summary?.p95_latency_s != null ? Number(summary.p95_latency_s) : null;
+        if (measured.length) {
+            const sorted = [...measured].sort((a, b) => a - b);
+            if (mean == null || !Number.isFinite(mean)) {
+                mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
+            }
+            if (p50 == null) p50 = sorted[Math.floor((sorted.length - 1) * 0.5)];
+            if (p95 == null) p95 = sorted[Math.floor((sorted.length - 1) * 0.95)];
+        }
+
+        // Color bands: relative to this run's distribution when all under gate
+        // (otherwise every offline bar is "fast green" and looks broken)
+        const allUnderGate = measured.length > 0 && dataMax <= gateS;
+        const fastS = allUnderGate
+            ? (p50 != null ? p50 : dataMax * 0.5)
+            : Math.min(3, gateS * 0.5);
+        const midS = allUnderGate ? scaleMax : gateS;
+
+        // Histogram bins (equal-width on data range) for true "distribution"
+        const binCount = Math.min(8, Math.max(4, measured.length > 0 ? 6 : 0));
+        const bins = [];
+        if (measured.length && binCount > 0) {
+            const lo = dataMin;
+            const hi = dataMax <= lo ? lo + 1e-6 : dataMax;
+            const step = (hi - lo) / binCount;
+            for (let i = 0; i < binCount; i++) {
+                const from = lo + i * step;
+                const to = i === binCount - 1 ? hi + 1e-12 : lo + (i + 1) * step;
+                const count = measured.filter((v) => v >= from && v < to).length;
+                bins.push({from, to, count, i});
+            }
+            // fix last bin inclusive
+            if (bins.length) {
+                const last = bins[bins.length - 1];
+                last.count = measured.filter((v) => v >= last.from && v <= dataMax + 1e-12).length;
+            }
+        }
+        const binMax = bins.reduce((m, b) => Math.max(m, b.count), 0) || 1;
+
+        return {
+            scaleMax,
+            gateS,
+            fastS,
+            midS,
+            allUnderGate,
+            items,
+            mean,
+            p50,
+            p95,
+            nMeasured: measured.length,
+            dataMax,
+            dataMin,
+            bins,
+            binMax,
+        };
+    }, [allCases, thresholds?.max_mean_latency_s, summary]);
 
     if (loading && !meta) {
-        return <div className="text-muted-foreground text-sm">Loading golden benchmark…</div>;
+        return (
+            <div data-testid="golden-benchmark-page" className="p-1">
+                <ListState variant="loading" testid="golden-loading" message="Loading golden benchmark…"/>
+            </div>
+        );
+    }
+
+    if (loadError && !meta) {
+        return (
+            <div data-testid="golden-benchmark-page" className="p-1 space-y-3">
+                <ListState variant="error" testid="golden-load-error" message={loadError}/>
+                <button type="button" className="soc-btn-secondary !text-xs" onClick={loadMeta}>
+                    Retry
+                </button>
+            </div>
+        );
     }
 
     return (
@@ -359,6 +506,14 @@ export default function GoldenBenchmark() {
                 testid="golden-header"
                 title="Real-Time Golden Benchmark & Scorecards"
                 icon={Flask}
+                tip={
+                    <HelpTip
+                        title="Golden benchmark"
+                        body="Admin quality gate: run the frozen offline IR suite (parse → mock TI → ATT&CK → metrics). Pass/fail is deterministic CI-style — not a live SOC score."
+                        how="POST /eval/golden-benchmark · fixtures in backend/tests/golden/dataset.json · thresholds from meta."
+                        testid="tip-golden-page"
+                    />
+                }
                 subtitle={
                     <>
                         Execute real-time pipeline validation against frozen golden dataset fixtures
@@ -367,17 +522,16 @@ export default function GoldenBenchmark() {
                 }
                 actions={
                     <div className="flex flex-wrap gap-2 shrink-0 items-center">
-                        {/* Download Golden Dataset */}
-                        <a
-                            href={`${api.defaults.baseURL || "/api"}/eval/golden-dataset/download`}
-                            download="dataset.json"
+                        <button
+                            type="button"
+                            onClick={downloadDataset}
                             className="soc-btn-secondary !text-xs !h-9 inline-flex items-center gap-1.5"
-                            title="Download current golden dataset.json"
+                            title="Download current golden dataset.json (authenticated)"
                             data-testid="golden-download"
                         >
                             <Download size={14}/>
                             Download
-                        </a>
+                        </button>
 
                         {/* Upload & Append Dataset */}
                         <label
@@ -491,6 +645,159 @@ export default function GoldenBenchmark() {
                 </div>
             )}
 
+            {historyTrend.chrono.length > 0 && (
+                <Card className="mb-4" testid="golden-history-strip">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                        <div>
+                            <div className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
+                                <ChartBar size={16} className="text-primary"/>
+                                Recent run history
+                                <HelpTip
+                                    title="Run history & trend"
+                                    body="Slim history of prior golden runs (pass/fail, F1, technique recall). Sparklines need ≥2 stored runs. Capped server-side — not a full MLOps board."
+                                    how="Mongo golden_runs history docs · GET /eval/golden-benchmark returns last 12."
+                                    testid="tip-golden-history"
+                                />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground m-0 mt-0.5">
+                                Newest on the right · last {historyTrend.chrono.length} stored run
+                                {historyTrend.chrono.length === 1 ? "" : "s"} (server-side, capped)
+                            </p>
+                        </div>
+                        {historyTrend.f1Series.length >= 2 && (
+                            <div
+                                className="flex items-center gap-4 text-[11px]"
+                                data-testid="golden-history-trend"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground font-medium">IoC F1</span>
+                                    <svg width="120" height="28" className="overflow-visible" aria-hidden>
+                                        <polyline
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                            className="text-primary"
+                                            points={historyTrend.f1Pts}
+                                        />
+                                    </svg>
+                                    <span
+                                        className={`font-mono font-semibold ${
+                                            historyTrend.f1Delta > 0.001
+                                                ? "text-success"
+                                                : historyTrend.f1Delta < -0.001
+                                                    ? "text-error"
+                                                    : "text-muted-foreground"
+                                        }`}
+                                    >
+                                        {historyTrend.f1Delta == null
+                                            ? "—"
+                                            : `${historyTrend.f1Delta >= 0 ? "+" : ""}${historyTrend.f1Delta.toFixed(3)}`}
+                                    </span>
+                                </div>
+                                {historyTrend.recallSeries.length >= 2 && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-muted-foreground font-medium">Tech R</span>
+                                        <svg width="120" height="28" className="overflow-visible" aria-hidden>
+                                            <polyline
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="1.5"
+                                                className="text-success"
+                                                points={historyTrend.recallPts}
+                                            />
+                                        </svg>
+                                        <span
+                                            className={`font-mono font-semibold ${
+                                                historyTrend.rDelta > 0.001
+                                                    ? "text-success"
+                                                    : historyTrend.rDelta < -0.001
+                                                        ? "text-error"
+                                                        : "text-muted-foreground"
+                                            }`}
+                                        >
+                                            {historyTrend.rDelta == null
+                                                ? "—"
+                                                : `${historyTrend.rDelta >= 0 ? "+" : ""}${historyTrend.rDelta.toFixed(3)}`}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                        {historyTrend.chrono.map((h, idx) => {
+                            const s = h.summary || {};
+                            const ok = h.passed === true;
+                            const prev = idx > 0 ? historyTrend.chrono[idx - 1] : null;
+                            const prevF1 = prev?.summary?.mean_ioc_f1;
+                            const curF1 = s.mean_ioc_f1;
+                            let f1Arrow = null;
+                            if (
+                                prevF1 != null &&
+                                curF1 != null &&
+                                Number.isFinite(Number(prevF1)) &&
+                                Number.isFinite(Number(curF1))
+                            ) {
+                                const d = Number(curF1) - Number(prevF1);
+                                if (d > 0.001) f1Arrow = "↑";
+                                else if (d < -0.001) f1Arrow = "↓";
+                                else f1Arrow = "→";
+                            }
+                            return (
+                                <div
+                                    key={h.id || h.ran_at}
+                                    className={`shrink-0 min-w-[9.5rem] rounded-lg border px-2.5 py-2 text-[11px] ${
+                                        ok
+                                            ? "border-success/40 bg-success/5"
+                                            : "border-error/40 bg-error/5"
+                                    }`}
+                                    data-testid={`golden-hist-${h.id || "row"}`}
+                                    title={(h.failures || []).join("; ") || undefined}
+                                >
+                                    <div className="flex items-center justify-between gap-1">
+                                        <div className={`font-semibold ${ok ? "text-success" : "text-error"}`}>
+                                            {ok ? "PASS" : "FAIL"}
+                                        </div>
+                                        {h.mode && (
+                                            <span className="text-[9px] uppercase tracking-wide text-muted-foreground font-mono">
+                                                {String(h.mode).includes("live") ? "live" : "off"}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="font-mono text-muted-foreground mt-0.5">
+                                        {h.ran_at ? String(h.ran_at).slice(0, 16).replace("T", " ") : "—"}
+                                    </div>
+                                    <div className="mt-1 font-mono text-foreground/80">
+                                        F1 {s.mean_ioc_f1 != null ? Number(s.mean_ioc_f1).toFixed(3) : "—"}
+                                        {f1Arrow && (
+                                            <span
+                                                className={`ml-1 ${
+                                                    f1Arrow === "↑"
+                                                        ? "text-success"
+                                                        : f1Arrow === "↓"
+                                                            ? "text-error"
+                                                            : "text-muted-foreground"
+                                                }`}
+                                                aria-hidden
+                                            >
+                                                {f1Arrow}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="font-mono text-muted-foreground">
+                                        R {s.mean_technique_recall != null ? Number(s.mean_technique_recall).toFixed(3) : "—"}
+                                        {s.n_cases != null ? ` · n=${s.n_cases}` : ""}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-2 m-0">
+                        Sparklines compare IoC F1 and technique recall across stored runs — regression radar, not a full MLOps board.
+                    </p>
+                </Card>
+            )}
+
             {guideOpen && (
                 <Card className="mb-4 border-primary/20 bg-primary/[0.03]" testid="golden-interpret-guide">
                     <div className="flex items-start gap-2 mb-3">
@@ -516,68 +823,87 @@ export default function GoldenBenchmark() {
                 </Card>
             )}
 
-            {/* Independent Reference Scorecards Widget */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-                <Card>
-                    <div className="soc-label flex items-center gap-1.5">
-                        <ChartBar size={11}/> CTI-Bench (CVE)
+            {/* Industry literature context — static, not ACTIRA live scores */}
+            <Card className="mb-4 border-dashed" testid="golden-industry-context">
+                <div className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5 mb-1">
+                    <ChartBar size={16} className="text-muted-foreground"/>
+                    Industry benchmark context
+                    <HelpTip
+                        title="Not product metrics"
+                        body="Published figures from external research suites for viva context only. They are not computed by this ACTIRA deployment. Use the Run validation results below for live product gates."
+                        testid="tip-golden-industry"
+                    />
+                </div>
+                <p className="text-[11px] text-muted-foreground m-0 mb-2">
+                    Static literature references (CTI-Bench / AnnoCTR / AthenaBench / CyberSOCEval) — do not treat as this run’s scorecard.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                    <div className="rounded border border-border bg-muted/30 px-2 py-1.5">
+                        <div className="text-muted-foreground font-medium">CTI-Bench (CVE)</div>
+                        <div className="font-mono">~97.5% Hit@5 <span className="text-muted-foreground">ref</span></div>
                     </div>
-                    <div className="mt-1 font-mono text-xl text-success">97.5% Hit@5</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">1,000 real CVEs tested.</div>
-                </Card>
-                <Card>
-                    <div className="soc-label flex items-center gap-1.5">
-                        <ChartBar size={11}/> AnnoCTR (ATT&CK)
+                    <div className="rounded border border-border bg-muted/30 px-2 py-1.5">
+                        <div className="text-muted-foreground font-medium">AnnoCTR (ATT&CK)</div>
+                        <div className="font-mono">~40.2% Hit@5 <span className="text-muted-foreground">ref</span></div>
                     </div>
-                    <div className="mt-1 font-mono text-xl text-primary">40.2% Hit@5</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">Real analyst-report text.</div>
-                </Card>
-                <Card>
-                    <div className="soc-label flex items-center gap-1.5">
-                        <ChartBar size={11}/> AthenaBench-Mini
+                    <div className="rounded border border-border bg-muted/30 px-2 py-1.5">
+                        <div className="text-muted-foreground font-medium">AthenaBench-Mini</div>
+                        <div className="font-mono">~84.0% Hit@5 <span className="text-muted-foreground">ref</span></div>
                     </div>
-                    <div className="mt-1 font-mono text-xl text-foreground">84.0% Hit@5</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">100 cleaner synthetic scenarios.</div>
-                </Card>
-                <Card>
-                    <div className="soc-label flex items-center gap-1.5">
-                        <ChartBar size={11}/> CyberSOCEval
+                    <div className="rounded border border-border bg-muted/30 px-2 py-1.5">
+                        <div className="text-muted-foreground font-medium">CyberSOCEval</div>
+                        <div className="font-mono">~9.7% vs 4.5% <span className="text-muted-foreground">ref</span></div>
                     </div>
-                    <div className="mt-1 font-mono text-xl text-warning">9.7% vs 4.5%</div>
-                    <div className="text-[11px] text-muted-foreground mt-1">Retrieval doubles accuracy.</div>
-                </Card>
-            </div>
+                </div>
+            </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <Card testid="golden-dataset-meta">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 items-stretch">
+                <Card testid="golden-dataset-meta" className="h-full flex flex-col">
                     <div className="soc-label flex items-center gap-1.5">
                         <ListChecks size={11}/> Dataset
+                        <HelpTip
+                            title="Golden dataset"
+                            body="Frozen fixtures used for offline IR quality gates. Append JSON only when labels are human-approved."
+                            how="Path and n_cases from GET /eval/golden-benchmark meta.dataset."
+                            testid="tip-golden-dataset"
+                        />
                     </div>
                     <div className="mt-1 font-mono text-xl text-foreground">{meta?.dataset?.n_cases ?? "—"} cases</div>
-                    <div
-                        className="text-[11px] text-muted-foreground mt-1 font-mono break-all">{meta?.dataset?.path}</div>
+                    <div className="text-[11px] text-muted-foreground mt-auto pt-2 font-mono break-all line-clamp-2">
+                        {meta?.dataset?.path}
+                    </div>
                 </Card>
-                <Card>
+                <Card className="h-full flex flex-col">
                     <div className="soc-label flex items-center gap-1.5">
                         <ShieldCheck size={11}/> Execution Mode
+                        <HelpTip
+                            title="Execution mode"
+                            body="offline_template = deterministic pipeline with mock TI. live_llm_sample = first N cases call real playbook LLM (costs tokens)."
+                            testid="tip-golden-mode"
+                        />
                     </div>
-                    <div className="mt-1 text-sm text-foreground">
+                    <div className="mt-1 text-sm font-mono text-foreground">
                         {result?.mode === "live_llm_sample" || (liveLlm && running)
                             ? "live_llm_sample"
                             : "offline_template"}
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-1">
+                    <div className="text-[11px] text-muted-foreground mt-auto pt-2">
                         Real-time evaluation on server process
                     </div>
                 </Card>
-                <Card testid="golden-last-run-meta">
+                <Card testid="golden-last-run-meta" className="h-full flex flex-col">
                     <div className="soc-label flex items-center gap-1.5">
                         <Timer size={11}/> Last Run Timestamp
+                        <HelpTip
+                            title="Last run"
+                            body="When this process (or Mongo last store) last finished a golden evaluation. Feeds Compliance AI-02 when a stored pass/fail exists."
+                            testid="tip-golden-last-run"
+                        />
                     </div>
                     <div className="mt-1 text-sm text-foreground font-mono">
                         {result?.ran_at ? formatDateTime(result.ran_at) : "Not run this session"}
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-1">
+                    <div className="text-[11px] text-muted-foreground mt-auto pt-2">
                         {result?.ran_by?.email ? `by ${result.ran_by.email}` : "Click Run validation to execute"}
                     </div>
                 </Card>
@@ -656,9 +982,9 @@ export default function GoldenBenchmark() {
                     <MetricCard
                         testid="metric-latency"
                         metricKey="mean_latency_s"
-                        value={summary.mean_latency_s != null ? Number(summary.mean_latency_s).toFixed(3) : "—"}
+                        value={summary.mean_latency_s != null ? formatLatency(summary.mean_latency_s) : "—"}
                         threshold={thresholds.max_mean_latency_s}
-                        unit="s"
+                        unit=""
                         invert
                         pass={gates.mean_latency_s}
                     />
@@ -673,90 +999,261 @@ export default function GoldenBenchmark() {
                 </div>
             )}
 
-            {/* Graphical Trend Representation: Pass/Fail Ratio & Time-Based Color-Coded Latency Distribution */}
-            {result?.cases && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                    {/* Test Case Success Distribution Bar */}
-                    <Card testid="golden-success-distribution">
-                        <div className="soc-label flex items-center justify-between mb-2">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle size={14} className="text-success"/> Test Case Gate Compliance Ratio
-              </span>
-                            <span className="font-mono text-xs text-foreground font-semibold">
-                {distributionStats.passPct}% Passing ({distributionStats.passedCount}/{distributionStats.total})
-              </span>
+            {/* Unified run-insights board — full width, balanced hierarchy */}
+            {allCases.length > 0 && (
+                <Card
+                    className="mb-6 !p-0 overflow-hidden border border-border"
+                    testid="golden-insights-board"
+                >
+                    {/* Board header */}
+                    <div className="px-4 py-3 border-b border-border bg-muted/25 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <ChartBar size={18} className="text-primary shrink-0"/>
+                            <div>
+                                <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                                    Run insights
+                                    <HelpTip
+                                        title="Run insights"
+                                        body="Single board for this evaluation: gate compliance, latency distribution, and slowest cases. Bars fill left→right relative to the slowest case."
+                                        testid="tip-golden-insights"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-muted-foreground m-0">
+                                    {allCases.length} fixtures · CI mean gate ≤ {latencyDistribution.gateS}s
+                                    {latencyDistribution.allUnderGate ? " · offline (all under gate)" : ""}
+                                </p>
+                            </div>
                         </div>
-                        <div className="w-full bg-muted/60 h-3 rounded-full overflow-hidden flex mb-3">
-                            <div
-                                className="bg-success h-full transition-all duration-300"
-                                style={{width: `${distributionStats.passPct}%`}}
-                                title="Passing cases meeting all thresholds"
-                            />
-                            <div
-                                className="bg-error h-full transition-all duration-300"
-                                style={{width: `${100 - distributionStats.passPct}%`}}
-                                title="Cases failing F1, recall, or error thresholds"
-                            />
+                        <div className="flex flex-wrap gap-3 text-[11px] font-mono">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-card">
+                                <span className="w-2 h-2 rounded-full" style={{backgroundColor: LAT_COLORS.fast}}/>
+                                faster
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-card">
+                                <span className="w-2 h-2 rounded-full" style={{backgroundColor: LAT_COLORS.mid}}/>
+                                mid
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-card">
+                                <span className="w-2 h-2 rounded-full" style={{backgroundColor: LAT_COLORS.slow}}/>
+                                over gate
+                            </span>
                         </div>
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                            <span className="inline-flex items-center gap-1"><span
-                                className="w-2 h-2 rounded-full bg-success"/> Compliant Cases: {distributionStats.passedCount}</span>
-                            <span className="inline-flex items-center gap-1"><span
-                                className="w-2 h-2 rounded-full bg-error"/> Non-compliant / Weak Cases: {distributionStats.failedCount}</span>
-                        </div>
-                    </Card>
+                    </div>
 
-                    {/* Per-Case Latency Distribution Chart */}
-                    <Card testid="golden-latency-chart">
-                        <div className="soc-label flex items-center justify-between mb-3">
-              <span className="flex items-center gap-1.5 text-foreground uppercase tracking-wider font-semibold">
-                <ChartBar size={14} className="text-primary"/> Per-Case Latency Distribution (Time-Based Color-Coded)
-              </span>
-                            <span className="text-[10px] font-mono text-muted-foreground uppercase">
-                Gate: ≤ {thresholds.max_mean_latency_s}s
-              </span>
-                        </div>
+                    <div className="p-4 space-y-5">
+                        {/* Row 1: compliance + latency KPI chips — equal height strip */}
+                        <div
+                            className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch"
+                            data-testid="golden-success-distribution"
+                        >
+                            <div className="md:col-span-5 rounded-xl border border-border bg-muted/20 p-4 flex flex-col justify-center gap-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                        <CheckCircle size={14} className="text-success"/> Gate compliance
+                                    </span>
+                                    <span
+                                        className={`font-mono text-2xl font-bold tabular-nums ${
+                                            distributionStats.passPct >= 100 ? "text-success" : distributionStats.passPct >= 80 ? "text-warning" : "text-error"
+                                        }`}
+                                    >
+                                        {distributionStats.passPct}%
+                                    </span>
+                                </div>
+                                <div
+                                    className="w-full h-3.5 rounded-full overflow-hidden flex"
+                                    style={{background: LAT_COLORS.track, direction: "ltr"}}
+                                >
+                                    <div
+                                        style={{
+                                            width: `${distributionStats.passPct}%`,
+                                            height: "100%",
+                                            backgroundColor: LAT_COLORS.fast,
+                                            flexShrink: 0,
+                                        }}
+                                    />
+                                    <div
+                                        style={{
+                                            width: `${100 - distributionStats.passPct}%`,
+                                            height: "100%",
+                                            backgroundColor: LAT_COLORS.slow,
+                                            flexShrink: 0,
+                                        }}
+                                    />
+                                </div>
+                                <div className="flex justify-between text-[11px] text-muted-foreground font-mono">
+                                    <span className="text-success">{distributionStats.passedCount} pass</span>
+                                    <span className="text-error">{distributionStats.failedCount} weak</span>
+                                    <span>{distributionStats.total} total</span>
+                                </div>
+                            </div>
 
-                        <div className="space-y-2 max-h-40 overflow-y-auto pr-2 mb-3">
-                            {latencyDistribution.items.map((item) => {
-                                const widthPct = Math.min(100, (item.latency / latencyDistribution.max) * 100);
-                                const barColor = item.latency > (thresholds.max_mean_latency_s || 7.0)
-                                    ? "bg-error"
-                                    : item.latency <= 3.0
-                                        ? "bg-success"
-                                        : "bg-warning";
-
-                                return (
-                                    <div key={item.id} className="grid grid-cols-12 items-center gap-2 text-[11px]">
-                                        <span className="col-span-2 font-mono text-muted-foreground truncate uppercase"
-                                              title={item.id}>{item.id}</span>
-                                        <div
-                                            className="col-span-8 bg-muted/60 h-2.5 rounded-full overflow-hidden relative">
-                                            <div
-                                                className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                                                style={{width: `${widthPct}%`}}
-                                                title={`Latency: ${item.latency.toFixed(3)}s`}
-                                            />
+                            <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {[
+                                    {label: "Mean", value: latencyDistribution.mean, testid: "lat-kpi-mean"},
+                                    {label: "P50", value: latencyDistribution.p50, testid: "lat-kpi-p50"},
+                                    {label: "P95", value: latencyDistribution.p95, testid: "lat-kpi-p95"},
+                                    {label: "Max", value: latencyDistribution.dataMax, testid: "lat-kpi-max"},
+                                ].map((k) => (
+                                    <div
+                                        key={k.label}
+                                        data-testid={k.testid}
+                                        className="rounded-xl border border-border bg-card px-3 py-3 flex flex-col justify-center min-h-[5.5rem]"
+                                    >
+                                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                                            {k.label} latency
                                         </div>
-                                        <span
-                                            className={`col-span-2 font-mono text-right font-semibold ${item.latency > 7.0 ? "text-error" : "text-foreground"}`}>
-                      {item.latency.toFixed(3)}s
-                    </span>
+                                        <div className="mt-1 font-mono text-xl font-semibold tabular-nums text-foreground">
+                                            {formatLatency(k.value)}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground mt-0.5">this run</div>
                                     </div>
-                                );
-                            })}
+                                ))}
+                            </div>
                         </div>
 
-                        <div className="pt-2 border-t border-border flex justify-between text-[10px] font-mono">
-                            <span className="text-success inline-flex items-center gap-1">■ 0.0s - 3.0s (Fast)</span>
-                            <span className="text-warning inline-flex items-center gap-1">■ 3.1s - 7.0s (Target)</span>
-                            <span className="text-error inline-flex items-center gap-1">■ 7.1s+ (Exceeds Gate)</span>
+                        {/* Row 2: histogram full width */}
+                        {latencyDistribution.bins?.length > 0 && (
+                            <div
+                                className="rounded-xl border border-border bg-muted/15 px-4 py-3"
+                                data-testid="golden-latency-histogram"
+                            >
+                                <div className="flex items-center justify-between gap-2 mb-3">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                        Latency distribution
+                                    </div>
+                                    <div className="text-[10px] font-mono text-muted-foreground">
+                                        {formatLatency(latencyDistribution.dataMin)} → {formatLatency(latencyDistribution.dataMax)}
+                                    </div>
+                                </div>
+                                <div className="flex items-end gap-1.5 h-24 w-full" style={{direction: "ltr"}}>
+                                    {latencyDistribution.bins.map((b) => {
+                                        const hPct = Math.max(6, (b.count / latencyDistribution.binMax) * 100);
+                                        const mid = (b.from + b.to) / 2;
+                                        const band = latencyBand(mid, latencyDistribution.midS, latencyDistribution.fastS);
+                                        return (
+                                            <div
+                                                key={b.i}
+                                                className="flex-1 flex flex-col justify-end items-stretch min-w-0 group"
+                                                title={`${formatLatency(b.from)}–${formatLatency(b.to)}: ${b.count} case(s)`}
+                                            >
+                                                <div className="text-[9px] font-mono text-center text-muted-foreground mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {b.count}
+                                                </div>
+                                                <div
+                                                    className="w-full rounded-t-md transition-all"
+                                                    style={{
+                                                        height: `${hPct}%`,
+                                                        minHeight: b.count ? 8 : 3,
+                                                        backgroundColor: LAT_COLORS[band] || LAT_COLORS.mid,
+                                                        opacity: b.count ? 0.95 : 0.2,
+                                                    }}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Row 3: per-case bars full width — compact one-line rows */}
+                        <div data-testid="golden-latency-chart">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                    Per-case latency
+                                    <HelpTip
+                                        title="Per-case latency"
+                                        body="Each row is one fixture. The colored bar starts at the left and grows right; slowest case = full width. Offline runs are usually milliseconds — that is expected."
+                                        testid="tip-golden-latency-chart"
+                                    />
+                                </div>
+                                <span className="text-[10px] font-mono text-muted-foreground">
+                                    sorted slowest → fastest · n={latencyDistribution.nMeasured}
+                                </span>
+                            </div>
+
+                            {latencyDistribution.items.length === 0 ? (
+                                <p className="text-xs text-muted-foreground py-4 text-center m-0">No case latencies.</p>
+                            ) : (
+                                <div
+                                    className="rounded-xl border border-border overflow-hidden"
+                                    data-testid="golden-latency-bars"
+                                    style={{direction: "ltr"}}
+                                >
+                                    <div className="max-h-72 overflow-y-auto divide-y divide-border/80">
+                                        {latencyDistribution.items.map((item, idx) => {
+                                            const lat = item.latency;
+                                            const hasLat = lat != null && Number.isFinite(lat);
+                                            const widthPct = hasLat
+                                                ? Math.min(100, Math.max(2, (lat / latencyDistribution.scaleMax) * 100))
+                                                : 0;
+                                            const band = hasLat
+                                                ? latencyBand(lat, latencyDistribution.midS, latencyDistribution.fastS)
+                                                : null;
+                                            const fill = band ? LAT_COLORS[band] : "transparent";
+                                            const rank = idx + 1;
+
+                                            return (
+                                                <div
+                                                    key={item.id}
+                                                    data-testid={`golden-latency-row-${item.id}`}
+                                                    className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors"
+                                                    style={{direction: "ltr"}}
+                                                >
+                                                    <span className="w-6 shrink-0 text-[10px] font-mono text-muted-foreground tabular-nums text-right">
+                                                        {rank}
+                                                    </span>
+                                                    <span
+                                                        className="w-[4.5rem] shrink-0 font-mono text-[11px] text-foreground/90 truncate"
+                                                        title={item.name ? `${item.id} — ${item.name}` : item.id}
+                                                    >
+                                                        {item.id}
+                                                    </span>
+                                                    <div
+                                                        data-testid={`golden-latency-bar-${item.id}`}
+                                                        className="flex-1 min-w-0"
+                                                        style={{
+                                                            display: "flex",
+                                                            flexDirection: "row",
+                                                            justifyContent: "flex-start",
+                                                            height: 12,
+                                                            borderRadius: 6,
+                                                            overflow: "hidden",
+                                                            background: LAT_COLORS.track,
+                                                            border: `1px solid ${LAT_COLORS.border}`,
+                                                            direction: "ltr",
+                                                        }}
+                                                    >
+                                                        {hasLat ? (
+                                                            <div
+                                                                style={{
+                                                                    width: `${widthPct}%`,
+                                                                    height: "100%",
+                                                                    backgroundColor: fill,
+                                                                    flexShrink: 0,
+                                                                    borderRadius: 5,
+                                                                }}
+                                                                title={`${item.id}: ${formatLatency(lat)}`}
+                                                            />
+                                                        ) : null}
+                                                    </div>
+                                                    <span
+                                                        className="w-[4.25rem] shrink-0 text-right font-mono text-[11px] font-semibold tabular-nums"
+                                                        style={{color: fill !== "transparent" ? fill : undefined}}
+                                                    >
+                                                        {hasLat ? formatLatency(lat) : "—"}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    </Card>
-                </div>
+                    </div>
+                </Card>
             )}
 
-            {result?.cases && (
+            {allCases.length > 0 && (
                 <Card testid="golden-cases-table">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                         <div>
@@ -828,7 +1325,7 @@ export default function GoldenBenchmark() {
                                     <td className="py-1.5 px-2 font-mono">{pct(c.technique_recall)}</td>
                                     <td className="py-1.5 px-2 font-mono">{pct(c.grounding_score)}</td>
                                     <td className="py-1.5 px-2 font-mono">{pct(c.phase_coverage)}</td>
-                                    <td className="py-1.5 px-2 font-mono text-muted-foreground">{c.latency_s != null ? Number(c.latency_s).toFixed(3) : "—"}</td>
+                                    <td className="py-1.5 px-2 font-mono text-muted-foreground">{formatLatency(c.latency_s)}</td>
                                     <td className="py-1.5 px-2 text-muted-foreground uppercase text-[10px]">{c.severity || "—"}</td>
                                     <td className="py-1.5 px-2 font-mono text-muted-foreground max-w-[160px] truncate">
                                         {c.error ? <span

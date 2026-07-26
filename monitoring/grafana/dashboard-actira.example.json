@@ -1,27 +1,66 @@
 {
-  "title": "ACTIRA (example)",
+  "title": "ACTIRA production (example)",
   "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "description": "Map scrape job=actira to backend GET /metrics (admin JWT or X-Metrics-Token). Series names are actira_* gauges unless you front Prometheus with a textfile/exporter adapter.",
+  "tags": ["actira", "soc", "pilot"],
+  "refresh": "30s",
   "panels": [
     {
       "type": "stat",
-      "title": "Target up",
+      "title": "API up",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{"expr": "actira_up", "legendFormat": "up"}]
+    },
+    {
+      "type": "stat",
+      "title": "Incidents total",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [{"expr": "actira_incidents_total", "legendFormat": "incidents"}]
+    },
+    {
+      "type": "stat",
+      "title": "Pending HiTL",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [{"expr": "actira_pending_review", "legendFormat": "pending"}]
+    },
+    {
+      "type": "stat",
+      "title": "Log jobs",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [{"expr": "actira_log_jobs_total", "legendFormat": "jobs"}]
+    },
+    {
+      "type": "stat",
+      "title": "Global rate limit",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [{"expr": "actira_global_rate_limit_enabled", "legendFormat": "enabled"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Incidents (scrape series)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "targets": [
-        {
-          "expr": "up{job=\"actira\"}"
-        }
+        {"expr": "actira_incidents_total", "legendFormat": "incidents"},
+        {"expr": "actira_pending_review", "legendFormat": "pending_review"}
       ]
     },
     {
       "type": "timeseries",
-      "title": "Request rate (placeholder)",
+      "title": "Jobs",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
       "targets": [
-        {
-          "expr": "rate(http_requests_total{job=\"actira\"}[5m])"
-        }
+        {"expr": "actira_log_jobs_total", "legendFormat": "log_jobs"}
       ]
+    },
+    {
+      "type": "text",
+      "title": "OTEL / Ops notes",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 12},
+      "options": {
+        "content": "Enable `ACTIRA_OTEL_ENABLED=1` + `OTEL_EXPORTER_OTLP_ENDPOINT` for pipeline.* spans (expand/parse/enrich/playbook/hitl). Use Ops & Health UI for stage timings when Prometheus is not wired. Enable `GLOBAL_RATE_LIMIT_ENABLED=1` for internet-facing pilots."
+      }
     }
-  ],
-  "schemaVersion": 39,
-  "version": 1,
-  "description": "Skeleton — map to actual /metrics series after scrape config."
+  ]
 }

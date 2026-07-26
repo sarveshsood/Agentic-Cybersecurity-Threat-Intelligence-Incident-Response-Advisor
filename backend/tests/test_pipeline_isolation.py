@@ -93,9 +93,11 @@ class TestPerFileParseIsolation:
                 ("broken.dat", b"\x00\x01\xff not really a log"),
             ]
 
+            # Pipeline writes via hashed audit_repo (not raw audit_log.insert_one)
             with patch("backend.pipeline.enrich_ioc", side_effect=lambda ioc, s: ioc), \
                     patch("backend.pipeline.generate_playbook", new_callable=AsyncMock) as gp, \
-                    patch("backend.pipeline.mark_job_failed", new_callable=AsyncMock) as mjf:
+                    patch("backend.pipeline.mark_job_failed", new_callable=AsyncMock) as mjf, \
+                    patch("backend.repositories.audit.audit_repo.insert", new_callable=AsyncMock) as audit_ins:
                 from backend.models import Playbook, PlaybookStep
 
                 gp.return_value = Playbook(
@@ -147,6 +149,11 @@ class TestPerFileParseIsolation:
                 assert db.incidents.insert_one.await_count >= 1
                 # mark_job_failed should not be the happy path
                 assert mjf.await_count == 0
+                # Hashed chain path (unified with reviews/settings)
+                assert audit_ins.await_count >= 1
+                audit_kwargs = audit_ins.await_args.kwargs
+                assert audit_kwargs.get("action") == "incident.created"
+                assert audit_kwargs.get("target_type") == "incident"
 
         import asyncio
 

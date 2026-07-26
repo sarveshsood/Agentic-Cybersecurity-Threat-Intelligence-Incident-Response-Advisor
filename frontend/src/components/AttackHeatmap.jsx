@@ -85,14 +85,20 @@ export function AttackHeatmap({counts = {}, variant = "chips"}) {
 
     const chipLayout = FALLBACK_TACTICS;
 
+    const colCount = matrix?.columns?.length || 0;
+    const maxTechRows = useMemo(() => {
+        if (!matrix?.columns?.length) return 0;
+        return Math.max(...matrix.columns.map((c) => (c.techniques || []).length), 0);
+    }, [matrix]);
+
     return (
-        <div data-testid="attack-heatmap" className="grid gap-3">
+        <div data-testid="attack-heatmap" className="grid gap-3 w-full min-w-0">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-[10px] text-muted-foreground m-0">
+                <p className="text-[10px] text-muted-foreground m-0 min-w-0">
                     Click a technique to filter incidents.
                     {mode === "matrix" && matrix?.note ? ` ${matrix.note}` : ""}
                 </p>
-                <div className="inline-flex rounded-md border border-border overflow-hidden text-[11px] font-semibold">
+                <div className="inline-flex rounded-md border border-border overflow-hidden text-[11px] font-semibold shrink-0">
                     <button
                         type="button"
                         className={`px-2.5 py-1 ${mode === "chips" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground"}`}
@@ -127,7 +133,7 @@ export function AttackHeatmap({counts = {}, variant = "chips"}) {
                                             key={tid + t.id}
                                             title={`${tid} — ${name} — ${c} incidents`}
                                             onClick={() => nav(`/incidents?technique=${encodeURIComponent(tid)}`)}
-                                            className={`px-2 py-1.5 rounded-md border min-w-[100px] text-left ${intensity(c, max)} transition-colors hover:ring-1 hover:ring-primary/30 cursor-pointer`}
+                                            className={`px-2 py-1.5 rounded-md border min-w-[100px] max-w-[160px] text-left ${intensity(c, max)} transition-colors hover:ring-1 hover:ring-primary/30 cursor-pointer`}
                                             data-testid={`heatmap-${tid}`}
                                         >
                                             <div className="font-mono text-[10px] opacity-80">{tid}</div>
@@ -143,45 +149,70 @@ export function AttackHeatmap({counts = {}, variant = "chips"}) {
             )}
 
             {mode === "matrix" && (
-                <div className="overflow-x-auto border border-border rounded-lg" data-testid="attack-matrix-grid">
+                <div
+                    className="w-full min-w-0 border border-border rounded-lg overflow-hidden"
+                    data-testid="attack-matrix-grid"
+                >
                     {!matrix?.columns?.length ? (
                         <div className="p-4 text-xs text-muted-foreground">
                             Loading catalog matrix… (or API unavailable — try Chips view)
                         </div>
                     ) : (
-                        <div className="flex min-w-max">
-                            {matrix.columns.map((col) => (
-                                <div
-                                    key={col.tactic}
-                                    className="w-[120px] shrink-0 border-r border-border last:border-r-0"
-                                >
-                                    <div className="sticky top-0 z-[1] bg-muted/80 backdrop-blur px-1.5 py-2 text-[10px] font-bold uppercase tracking-wide text-center border-b border-border min-h-[44px] flex items-center justify-center">
-                                        {col.tactic}
+                        <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
+                            {/*
+                              Equal-width tactic columns that fill available space when wide,
+                              and scroll horizontally only when the viewport is too narrow.
+                              One shared vertical scroll (not per-column) for a stable matrix.
+                            */}
+                            <div
+                                className="grid gap-px bg-border"
+                                style={{
+                                    gridTemplateColumns: `repeat(${colCount}, minmax(5.5rem, 1fr))`,
+                                    minWidth: `min(100%, ${colCount * 5.5}rem)`,
+                                    width: "100%",
+                                }}
+                            >
+                                {matrix.columns.map((col) => (
+                                    <div
+                                        key={`h-${col.tactic}`}
+                                        className="sticky top-0 z-[1] bg-muted px-1 py-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-center leading-tight min-h-[2.75rem] flex items-center justify-center border-b border-border"
+                                        title={col.tactic}
+                                    >
+                                        <span className="line-clamp-2 px-0.5">{col.tactic}</span>
                                     </div>
-                                    <div className="p-1 space-y-1 max-h-[320px] overflow-y-auto">
-                                        {(col.techniques || []).map((tech) => {
-                                            const tid = tech.id;
-                                            const c = expanded[tid] || counts[tid] || 0;
+                                ))}
+                                {Array.from({length: maxTechRows}).map((_, rowIdx) =>
+                                    matrix.columns.map((col) => {
+                                        const tech = (col.techniques || [])[rowIdx];
+                                        if (!tech) {
                                             return (
-                                                <button
-                                                    type="button"
-                                                    key={tid}
-                                                    title={`${tid} — ${tech.name} — ${c}`}
-                                                    onClick={() =>
-                                                        nav(`/incidents?technique=${encodeURIComponent(tid)}`)
-                                                    }
-                                                    className={`w-full text-left px-1 py-1 rounded border text-[10px] ${intensity(c, max)} hover:ring-1 hover:ring-primary/30`}
-                                                    data-testid={`matrix-cell-${tid}`}
-                                                >
-                                                    <div className="font-mono opacity-80">{tid}</div>
-                                                    <div className="truncate font-medium">{tech.name}</div>
-                                                    <div className="opacity-80">{c}</div>
-                                                </button>
+                                                <div
+                                                    key={`${col.tactic}-empty-${rowIdx}`}
+                                                    className="bg-card min-h-[2.75rem]"
+                                                />
                                             );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
+                                        }
+                                        const tid = tech.id;
+                                        const c = expanded[tid] || counts[tid] || 0;
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={tid}
+                                                title={`${tid} — ${tech.name} — ${c}`}
+                                                onClick={() =>
+                                                    nav(`/incidents?technique=${encodeURIComponent(tid)}`)
+                                                }
+                                                className={`w-full min-w-0 text-left px-1 py-1 border-0 bg-card hover:ring-1 hover:ring-inset hover:ring-primary/40 ${intensity(c, max)} text-[10px]`}
+                                                data-testid={`matrix-cell-${tid}`}
+                                            >
+                                                <div className="font-mono opacity-80 truncate">{tid}</div>
+                                                <div className="truncate font-medium leading-tight">{tech.name}</div>
+                                                <div className="opacity-80 tabular-nums">{c}</div>
+                                            </button>
+                                        );
+                                    }),
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

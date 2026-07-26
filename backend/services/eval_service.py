@@ -52,6 +52,36 @@ async def get_golden_benchmark(*, include_cases: bool = True) -> Dict[str, Any]:
                 body["last_run_source"] = "mongo"
         except Exception as e:
             logger.debug("golden last_run mongo load: %s", e)
+
+    # Recent run history (no per-case detail) for trend strip
+    try:
+        hist = (
+            await db.golden_runs.find(
+                {"id": {"$ne": "last"}, "ran_at": {"$exists": True}},
+                {
+                    "_id": 0,
+                    "id": 1,
+                    "ran_at": 1,
+                    "passed": 1,
+                    "mode": 1,
+                    "summary.n_cases": 1,
+                    "summary.mean_ioc_f1": 1,
+                    "summary.mean_technique_recall": 1,
+                    "summary.mean_grounding": 1,
+                    "summary.mean_latency_s": 1,
+                    "summary.n_errors": 1,
+                    "failures": 1,
+                    "ran_by": 1,
+                },
+            )
+            .sort("ran_at", -1)
+            .limit(12)
+            .to_list(12)
+        )
+        body["history"] = hist
+    except Exception as e:
+        logger.debug("golden history load: %s", e)
+        body["history"] = []
     return body
 
 
@@ -92,8 +122,10 @@ async def run_golden_benchmark(
                 }
 
             out = await asyncio.to_thread(_live)
+            out.setdefault("mode", "live_llm_sample")
         else:
             out = await asyncio.to_thread(run_benchmark)
+            out.setdefault("mode", "offline_template")
     except FileNotFoundError as e:
         raise HTTPException(503, str(e)) from e
     except Exception as e:
@@ -105,10 +137,40 @@ async def run_golden_benchmark(
         "email": (user or {}).get("email") if isinstance(user, dict) else None,
         "role": (user or {}).get("role") if isinstance(user, dict) else None,
     }
+    # Ensure UI can always map results → cases even if slim is skipped
+    if "results" in out and "cases" not in out:
+        pass  # slim_golden_payload maps results → cases
     try:
         store = svc.slim_golden_payload(out, include_cases=True)
         store["id"] = "last"
         await db.golden_runs.update_one({"id": "last"}, {"$set": store}, upsert=True)
+        # Append history entry (slim, no cases) for regression trend
+        hist_id = f"run_{out['ran_at'].replace(':', '').replace('+', 'p')}"
+        hist = {
+            "id": hist_id,
+            "ran_at": out["ran_at"],
+            "passed": bool(out.get("passed")),
+            "mode": out.get("mode") or ("live_llm_sample" if live_llm else "offline_template"),
+            "summary": out.get("summary") or {},
+            "failures": out.get("failures") or [],
+            "ran_by": out.get("ran_by"),
+        }
+        await db.golden_runs.update_one({"id": hist_id}, {"$set": hist}, upsert=True)
+        # Cap history growth (~40 run docs + last)
+        try:
+            old = (
+                await db.golden_runs.find(
+                    {"id": {"$ne": "last"}, "ran_at": {"$exists": True}},
+                    {"_id": 0, "id": 1},
+                )
+                .sort("ran_at", -1)
+                .skip(40)
+                .to_list(100)
+            )
+            if old:
+                await db.golden_runs.delete_many({"id": {"$in": [r["id"] for r in old if r.get("id")]}})
+        except Exception as prune_err:
+            logger.debug("golden history prune: %s", prune_err)
     except Exception as e:
         logger.warning("golden run persist failed: %s", e)
     svc.last_golden_run = out

@@ -22,15 +22,13 @@ class IncidentRepository:
     async def find_by_id(self, incident_id: str) -> Optional[Dict[str, Any]]:
         return await self.col.find_one({"id": incident_id}, {"_id": 0})
 
-    async def list_filtered(
+    def _filter_query(
         self,
         *,
         status: Optional[str] = None,
         severity: Optional[str] = None,
         technique: Optional[str] = None,
-        skip: int = 0,
-        limit: int = 50,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         query: Dict[str, Any] = {}
         if status:
             query["status"] = status
@@ -43,6 +41,28 @@ class IncidentRepository:
                 {"techniques.parent_id": tid},
                 {"techniques.technique_id": {"$regex": f"^{re.escape(tid)}\\."}},
             ]
+        return query
+
+    async def count_filtered(
+        self,
+        *,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        technique: Optional[str] = None,
+    ) -> int:
+        query = self._filter_query(status=status, severity=severity, technique=technique)
+        return int(await self.col.count_documents(query))
+
+    async def list_filtered(
+        self,
+        *,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        technique: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        query = self._filter_query(status=status, severity=severity, technique=technique)
         cursor = self.col.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
         return await cursor.to_list(limit)
 

@@ -1,0 +1,14 @@
+%% ACTIRA — AI Workflow
+flowchart TD
+  S[Incident summary + IoCs + techniques] --> Q[Build retrieval query]
+  Q --> H[Hybrid search BM25 + ANN RRF]
+  H --> RR{Re-rank?}
+  RR -->|yes| C[Cohere / lexical re-rank]
+  RR -->|no| TOP[Top-k sources]
+  C --> TOP
+  TOP --> PROMPT[System + user prompt + sources]
+  PROMPT --> LLM[Provider LLM]
+  LLM --> PARSE[parse_llm_json]
+  PARSE --> FILT[Filter citation_ids to valid set]
+  FILT --> GS[Compute grounding_score]
+  GS --> OUT[Playbook steps + metadata]

@@ -1,1073 +1,343 @@
-"""Seed roadmap items from memory/WEEKLY_DISCUSSIONS.md (ACTIRA product plan).
+"""Canonical product roadmap seed for the in-app Roadmap UI.
 
+One card per theme — no parallel/near-duplicate initiatives.
 Statuses: planned | in_progress | completed | future
 Priorities: p0 (critical) | p1 (high) | p2 (medium) | p3 (low)
+
+RETIRED_ROADMAP_IDS are removed from Mongo on seed ensure/reseed so old
+fragment cards do not reappear after consolidation.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
-# Canonical seed — also mirrored for UI help text. IDs are stable for upsert.
+# ---------------------------------------------------------------------------
+# Retired IDs (pre-consolidation fragments). Deleted on ensure/reseed.
+# ---------------------------------------------------------------------------
+RETIRED_ROADMAP_IDS: List[str] = [
+    # Week-1/2 fragments → foundation cards
+    "rm-w1-embeddings",
+    "rm-w1-lancedb",
+    "rm-w1-cohere-rerank",
+    "rm-w1-spec-tooling",
+    "rm-w1-benchmark-datasets",
+    "rm-w1-code-review",
+    "rm-w2-golden-ci",
+    "rm-w2-prompt-cache",
+    "rm-w2-streaming",
+    "rm-done-favicon",
+    "rm-done-settings-reset",
+    "rm-done-smoke",
+    # Module-review wave fragments → rm-foundation-hardening
+    "rm-review-wave0-prod-safety",
+    "rm-review-wave1-correctness",
+    "rm-review-wave2-quality",
+    "rm-review-wave3-polish",
+    "rm-pipeline-hung-resume",
+    "rm-investigator-llm-fallback",
+    "rm-rbac-golden-roadmap",
+    "rm-review-residual-open",
+    "rm-enh-live-llm-golden-ui",
+    "rm-enh-payload-secret-redact",
+    "rm-review-deferred-close",
+    "rm-ops-stretch-close",
+    "rm-attack-drilldown",  # folded into foundation-attack
+    # Docs pack fragments → rm-v1-docs-pack
+    "rm-v1-enterprise-demo-pack",
+    "rm-capstone-deliverables",
+    "rm-enterprise-board-2026-07-26",
+    # Platform fragments → rm-v1-1-platform
+    "rm-v1-1-modular-api",
+    "rm-v1-1-capstone-ux-polish",
+    "rm-arch-p0-p3-layers-analytics",
+    # Tech fragment cards → fewer next-sprint cards
+    "rm-tech-trust-ux",
+    "rm-tech-api-scale-security",
+    "rm-tech-backend-layering",
+    "rm-tech-e2e-qa-depth",
+    "rm-tech-observability-prod",
+    "rm-tech-ai-catalog-honesty",
+]
+
+# Canonical seed — IDs are stable for upsert.
 ROADMAP_SEED: List[Dict[str, Any]] = [
+    # =========================================================================
+    # Foundation (v0.x) — consolidated historical work
+    # =========================================================================
     {
-        "id": "rm-w1-embeddings",
-        "title": "Security-domain embedding model (Hugging Face)",
-        "summary": "Base model + hybrid + LoRA fine-tune/export pipeline (linear_lora offline + optional PEFT).",
+        "id": "rm-foundation-rag",
+        "title": "Hybrid RAG stack (embeddings, LanceDB, re-rank, LoRA)",
+        "summary": "BM25 + LanceDB ANN + RRF; pluggable embedders; Cohere re-rank; domain LoRA train path.",
         "description": (
-            "Done: ACTIRA_EMBEDDING_BACKEND=hash|lora|sbert|none; recommended sbert model "
-            "BAAI/bge-small-en-v1.5; golden retrieval pairs + hit@k eval; hybrid RRF; "
-            "domain LoRA train from golden Q→doc + approved playbooks (lora_train.py, "
-            "POST /kb/lora/train, ACTIRA_LORA_PATH)."
+            "Single foundation card for retrieval: ACTIRA_EMBEDDING_BACKEND (hash|lora|sbert|none), "
+            "BAAI/bge-small-en-v1.5 recommended, hybrid RRF, optional Cohere rerank-english-v3.0, "
+            "LoRA train/export (lora_train.py + admin UI), retrieval hit@k eval."
         ),
         "status": "completed",
         "priority": "p1",
         "owner": "",
         "effort": "l",
         "target_release": "v0.4",
-        "week": "Week 1",
+        "week": "Foundation",
         "category": "RAG / Retrieval",
         "modules": [
             "backend/embeddings.py",
-            "backend/lora_train.py",
-            "backend/knowledge_base.py",
             "backend/vector_store.py",
-            "backend/retrieval_eval.py",
-            "backend/tests/golden/retrieval_pairs.json",
-            "backend/tests/test_lora_train.py",
-            "backend/playbook_agent.py",
-            "frontend/src/pages/Knowledge.jsx",
-        ],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md#week-1", "memory/PRD.md"],
-        "architecture_notes": (
-            "Hybrid BM25 + ANN; BM25 remains offline fallback. "
-            "linear_lora = frozen hash + low-rank residual (numpy CI-safe); "
-            "optional peft method needs torch/sentence-transformers."
-        ),
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: Model pick + Q→doc pairs + retrieval_eval hit@k; sbert optional. "
-            "2026-07-20: Closed deferred t3 — lora_train corpus/train/export, embeddings "
-            "backend=lora, admin API + Knowledge UI train, offline tests."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "Select base embedding model + eval set", "status": "done", "done": True},
-            {"id": "t2", "title": "Build golden Q→doc pairs from KB IR queries", "status": "done", "done": True},
-            {"id": "t3", "title": "Fine-tune / LoRA pipeline + export", "status": "done", "done": True},
-            {"id": "t4", "title": "Wire hybrid BM25+dense RRF in kb.search()", "status": "done", "done": True},
-            {"id": "t5", "title": "Pluggable hash/sbert/none embedders", "status": "done", "done": True},
-            {"id": "t6", "title": "Offline retrieval hit@k harness", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-w1-lancedb",
-        "title": "LanceDB vector store for KB + incident embeddings",
-        "summary": "Local LanceDB under backend/data/lancedb/ with hybrid ANN+BM25 RRF.",
-        "description": (
-            "lancedb tables kb_chunks + incidents; schema id/source/title/text/vector/metadata/embedder. "
-            "kb.search() hybrid RRF; pipeline upserts incident narratives; GET /kb/vector-status + POST /kb/reindex."
-        ),
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.3",
-        "week": "Week 1",
-        "category": "RAG / Retrieval",
-        "modules": [
-            "backend/vector_store.py",
-            "backend/embeddings.py",
             "backend/knowledge_base.py",
-            "backend/pipeline.py",
-            "backend/server.py",
-            "backend/tests/test_vector_rag.py",
-            "backend/data/lancedb/",
-        ],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md#week-1", "memory/PRD.md"],
-        "architecture_notes": "Local-first; ACTIRA_VECTOR_STORE=0 disables dense path.",
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: LanceDB + hash embedder + RRF hybrid; incident index on create; "
-            "offline tests test_vector_rag.py."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "Add lancedb dependency + data dir", "status": "done", "done": True},
-            {"id": "t2", "title": "Define table schema + ingest KB chunks", "status": "done", "done": True},
-            {"id": "t3", "title": "Implement ANN search + RRF fusion", "status": "done", "done": True},
-            {"id": "t4", "title": "Pipeline incident upsert + reindex API", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-w1-cohere-rerank",
-        "title": "Cohere re-ranking after hybrid retrieve",
-        "summary": "Cohere rerank-english-v3.0 after hybrid pool; skip when no key.",
-        "description": (
-            "kb.search() re-ranks candidate pool via Cohere when cohere_api_key / COHERE_API_KEY "
-            "and cohere_rerank_enabled. Offline: ACTIRA_RERANK_BACKEND=lexical for tests; no-key = identity."
-        ),
-        "status": "completed",
-        "priority": "p2",
-        "owner": "",
-        "effort": "s",
-        "target_release": "v0.3",
-        "week": "Week 1",
-        "category": "RAG / Retrieval",
-        "modules": [
             "backend/reranker.py",
-            "backend/knowledge_base.py",
-            "backend/models.py",
-            "backend/secrets_util.py",
-            "backend/server.py",
-            "frontend/src/pages/Settings.jsx",
-            "backend/tests/test_rerank_and_retrieval.py",
+            "backend/lora_train.py",
+            "backend/retrieval_eval.py",
         ],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md#week-1", "memory/PRD.md"],
-        "architecture_notes": "Optional live path; mock/skip when no key.",
+        "docs": ["memory/WEEKLY_DISCUSSIONS.md", "memory/PRD.md"],
+        "architecture_notes": "Local-first LanceDB; ACTIRA_VECTOR_STORE=0 disables dense path.",
         "progress": 100,
         "implementation_notes": (
-            "2026-07-19: reranker.maybe_rerank; Settings has_cohere + toggle; offline tests with mock HTTP."
+            "Consolidated from: embeddings, LanceDB, Cohere re-rank cards. "
+            "2026-07: hybrid RRF + LoRA + optional sbert shipped."
         ),
         "tasks": [
-            {"id": "t1", "title": "Add COHERE_API_KEY to Settings + secrets_util", "status": "done", "done": True},
-            {"id": "t2", "title": "Implement rerank step + feature flag", "status": "done", "done": True},
-            {"id": "t3", "title": "Offline fallback when key missing", "status": "done", "done": True},
-            {"id": "t4", "title": "Frontend TI key + Detection toggle", "status": "done", "done": True},
+            {"id": "t1", "title": "Pluggable embedders + hybrid BM25/ANN RRF", "status": "done", "done": True},
+            {"id": "t2", "title": "LanceDB tables + reindex API", "status": "done", "done": True},
+            {"id": "t3", "title": "Cohere re-rank + offline fallback", "status": "done", "done": True},
+            {"id": "t4", "title": "LoRA train path + retrieval hit@k", "status": "done", "done": True},
         ],
     },
     {
-        "id": "rm-w1-spec-tooling",
-        "title": "Spec tooling (spec-kit / OpenAPI contracts)",
-        "summary": "Committed OpenAPI snapshot + CI drift check; spec-kit workflow documented.",
+        "id": "rm-foundation-eval",
+        "title": "Golden IR evaluation + CI gates",
+        "summary": "35 synthetic golden cases; offline IoC F1 / technique recall gates; admin live-LLM sample.",
         "description": (
-            "FastAPI is source of truth. docs/openapi.json is regenerated via "
-            "backend/scripts/export_openapi.py; CI fails on drift. docs/SPEC_WORKFLOW.md "
-            "covers review checklist and optional github/spec-kit / openspec usage for "
-            "ingest, HiTL, and RAG feature PRs."
-        ),
-        "status": "completed",
-        "priority": "p3",
-        "owner": "",
-        "effort": "s",
-        "target_release": "v0.4",
-        "week": "Week 1",
-        "category": "Process / Tooling",
-        "modules": [
-            "backend/scripts/export_openapi.py",
-            "docs/openapi.json",
-            "docs/SPEC_WORKFLOW.md",
-            ".github/workflows/openapi-ci.yml",
-            "backend/server.py",
-        ],
-        "docs": [
-            "docs/SPEC_WORKFLOW.md",
-            "https://github.com/github/spec-kit",
-            "https://openspec.dev/",
-        ],
-        "architecture_notes": "Contract-first for /logs/ingest and /settings evolution.",
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: export_openapi.py (--check), docs/openapi.json (45 paths), "
-            "openapi-ci.yml, SPEC_WORKFLOW.md. Optional Spec Kit layout documented only."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "Export OpenAPI snapshot in CI", "status": "done", "done": True},
-            {"id": "t2", "title": "Document spec-kit workflow for pipeline PRs", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-w1-benchmark-datasets",
-        "title": "Curate benchmark / golden IR datasets",
-        "summary": "v2 curated set: 35 synthetic cases, explicit IoC/technique gold, 17 families.",
-        "description": (
-            "Analyst-curated IR fixtures under backend/tests/golden/: log → expected IoCs, "
-            "ATT&CK technique IDs, playbook phases. Labels are explicit in build_dataset.py "
-            "(not auto-copied from extractor); each build validates gold vs live extract/infer. "
-            "Synthetic only — themes from CISA KEV / ATT&CK; no licensed third-party PCAP."
-        ),
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.3",
-        "week": "Week 1",
-        "category": "Evaluation",
-        "modules": [
-            "backend/tests/golden/dataset.json",
-            "backend/tests/golden/build_dataset.py",
-            "backend/ioc_extractor.py",
-            "backend/golden_eval.py",
-        ],
-        "docs": [
-            "backend/tests/golden/README.md",
-            "memory/WEEKLY_DISCUSSIONS.md#week-1",
-            "memory/PRD.md",
-        ],
-        "architecture_notes": (
-            "dataset.json version 2 + family metadata. Domain FP filter excludes file basenames "
-            "but keeps real FQDNs ending in .com. Feeds offline CI (rm-w2-golden-ci)."
-        ),
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: 35 cases / 17 families; curated labels; build --check; domain extractor "
-            "fix (no 'com' as file suffix). IoC F1=1.0 technique recall=1.0 offline."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "Define golden incident JSON schema (v2 + family/notes)", "status": "done",
-             "done": True},
-            {"id": "t2", "title": "Curate N≥30 fixtures with explicit gold (rebalanced families)", "status": "done",
-             "done": True},
-            {"id": "t3", "title": "Document dataset license / synthetic-source notes", "status": "done", "done": True},
-            {"id": "t4", "title": "Build validates gold vs extractor; fix domain FPs", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-w1-code-review",
-        "title": "Hardening code review focus areas",
-        "summary": "Secrets, HiTL races, LLM JSON parse, RBAC, ingest auth — completed 2026-07-19.",
-        "description": (
-            "Completed hardening for: secrets never leak in GET /settings; HiTL + auto-approve "
-            "policy (hitl_severity_min) + atomic review; parse_llm_json robustness; register "
-            "forces analyst; INGEST_API_KEY constant-time compare + JWT fallback. "
-            "See memory/WEEKLY_DISCUSSIONS.md §6."
-        ),
-        "status": "completed",
-        "priority": "p0",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v2-hardening",
-        "week": "Week 1",
-        "category": "Quality / Security",
-        "modules": [
-            "backend/secrets_util.py",
-            "backend/hitl_gate.py",
-            "backend/pipeline.py",
-            "backend/llm_provider.py",
-            "backend/auth.py",
-            "backend/server.py",
-            "backend/tests/test_hardening.py",
-            "backend/tests/test_smoke_all_areas.py",
-        ],
-        "docs": [
-            "memory/WEEKLY_DISCUSSIONS.md",
-            "memory/PRD.md",
-            "README.md",
-        ],
-        "architecture_notes": (
-            "decide_incident_status is pure policy; review uses find_one_and_update on "
-            "status=pending_review (409 on race). GET /settings is an allow-list of non-secrets."
-        ),
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: All five focus areas done. Offline suite tests/test_hardening.py (18 passed). "
-            "Deferred: JWT role re-bind from DB, password min length, INGEST_REQUIRE_KEY-only mode."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "Audit GET /settings for secret leaks + allow-list strip", "status": "done",
-             "done": True},
-            {"id": "t2", "title": "HiTL gate (hitl_severity_min) + atomic review (409 race)", "status": "done",
-             "done": True},
-            {"id": "t3", "title": "Harden parse_llm_json (fences/prose/trailing commas/arrays)", "status": "done",
-             "done": True},
-            {"id": "t4", "title": "Force register role=analyst; JWT_SECRET weak warning", "status": "done",
-             "done": True},
-            {"id": "t5", "title": "Ingest key secrets.compare_digest + JWT fallback", "status": "done", "done": True},
-            {"id": "t6", "title": "Unit tests test_hardening.py + docs update", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-w2-golden-ci",
-        "title": "Benchmark pipeline against golden dataset (CI)",
-        "summary": "35+ golden cases; IoC F1, technique recall, grounding, phases, latency — offline CI.",
-        "description": (
-            "Freeze N≥30 synthetic IR log fixtures with expected IoCs + ATT&CK technique IDs. "
-            "Offline runner (no Mongo/LLM) uses mock enrich + template playbook. Metrics: IoC F1, "
-            "technique recall, grounding_score, phase coverage, latency. Pytest gates + GitHub Actions."
+            "Curated golden dataset (tests/golden/), offline runner (template playbook), pytest + golden-ci "
+            "workflow, admin UI live_llm toggle with cost confirm. Spec/OpenAPI drift CI and smoke suites "
+            "are part of the same quality foundation."
         ),
         "status": "completed",
         "priority": "p1",
         "owner": "",
         "effort": "l",
         "target_release": "v0.4",
-        "week": "Week 2",
+        "week": "Foundation",
         "category": "Evaluation",
         "modules": [
             "backend/golden_eval.py",
             "backend/tests/golden/",
             "backend/tests/test_golden_benchmark.py",
+            "frontend/src/pages/GoldenBenchmark.jsx",
             ".github/workflows/golden-ci.yml",
+            "docs/openapi.json",
         ],
-        "docs": [
-            "backend/tests/golden/README.md",
-            "memory/WEEKLY_DISCUSSIONS.md",
-            "README.md",
-        ],
-        "architecture_notes": (
-            "CI path force_template_playbook=True for determinism. Regenerate dataset.json via "
-            "tests/golden/build_dataset.py after intentional extractor/keyword changes."
-        ),
+        "docs": ["backend/tests/golden/README.md", "docs/TESTING.md"],
+        "architecture_notes": "CI path force_template_playbook=True; live_llm never default in CI.",
         "progress": 100,
         "implementation_notes": (
-            "2026-07-19: golden_eval + pytest thresholds; workflow golden-ci.yml. "
-            "Dataset expanded via rm-w1-benchmark-datasets (35 curated cases). "
-            "Default gates: F1≥0.85, tech recall≥0.80, grounding≥0.50, full phases, latency≤5s."
+            "Consolidated from: benchmark datasets, golden-ci, live LLM UI, smoke, OpenAPI export."
         ),
         "tasks": [
-            {"id": "t1", "title": "Define metric harness (IoC F1, tech recall, grounding, phases, latency)",
-             "status": "done", "done": True},
-            {"id": "t2", "title": "Offline pipeline runner + golden fixtures (N≥30)", "status": "done", "done": True},
-            {"id": "t3", "title": "Wire pytest gates + GitHub Actions golden-ci", "status": "done", "done": True},
+            {"id": "t1", "title": "Curate golden fixtures (N≥30)", "status": "done", "done": True},
+            {"id": "t2", "title": "Offline metrics harness + CI gates", "status": "done", "done": True},
+            {"id": "t3", "title": "Admin Golden UI + optional live_llm", "status": "done", "done": True},
+            {"id": "t4", "title": "OpenAPI export drift CI", "status": "done", "done": True},
         ],
     },
     {
-        "id": "rm-w2-prompt-cache",
-        "title": "Anthropic prompt caching for multi-step playbooks",
-        "summary": "cache_control on stable SYSTEM_PROMPT — done on Anthropic path.",
+        "id": "rm-foundation-llm",
+        "title": "LLM playbooks — multi-provider, cache, streaming investigator",
+        "summary": "Multi-provider playbooks, Anthropic prompt cache, SSE investigator, actionable fallbacks.",
         "description": (
-            "SYSTEM_PROMPT is byte-identical every call. Anthropic path uses cache_control: ephemeral "
-            "when use_prompt_cache=True. Groq has no Anthropic-style cache — prefer Anthropic for "
-            "production multi-step runs."
+            "Playbook generation (non-stream JSON + citations/HiTL), Anthropic cache_control on system prompt, "
+            "AI Investigator SSE token stream, job-phase SSE, Bearer-auth fix and fallback_reason UI when LLM missing."
         ),
         "status": "completed",
         "priority": "p1",
         "owner": "",
-        "effort": "s",
-        "target_release": "v0.2",
-        "week": "Week 2",
-        "category": "LLM / Cost",
-        "modules": ["backend/llm_provider.py", "backend/playbook_agent.py"],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md#week-2"],
-        "architecture_notes": "Settings recommended profile prefers Anthropic for this reason.",
-        "progress": 100,
-        "implementation_notes": "Shipped in llm_provider.call_llm; Settings help documents Groq limitation.",
-        "tasks": [
-            {"id": "t1", "title": "Add cache_control on Anthropic system block", "status": "done", "done": True},
-            {"id": "t2", "title": "Document provider trade-offs in Settings UI", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-w2-streaming",
-        "title": "Streaming LLM responses",
-        "summary": "SSE token stream for AI Investigator; job-phase SSE for upload jobs. Playbooks stay non-stream.",
-        "description": (
-            "Playbook generation remains non-streaming (needs full JSON for citations/HiTL). "
-            "AI Investigator: POST /incidents/{id}/investigate/stream (SSE tokens + final structured answer). "
-            "Jobs: GET /logs/jobs/{id}/events for phase updates. llm_provider.stream_llm supports "
-            "Anthropic/OpenAI/Groq/Gemini with non-stream fallback."
-        ),
-        "status": "completed",
-        "priority": "p3",
-        "owner": "",
         "effort": "m",
-        "target_release": "v0.5+",
-        "week": "Week 2",
+        "target_release": "v0.5",
+        "week": "Foundation",
         "category": "LLM / UX",
         "modules": [
             "backend/llm_provider.py",
+            "backend/playbook_agent.py",
             "backend/ai_investigator.py",
-            "backend/server.py",
             "frontend/src/components/AIInvestigator.jsx",
         ],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md#week-2", "docs/SPEC_WORKFLOW.md"],
-        "architecture_notes": "Do not stream playbook generation; job phases via SSE optional alongside polling.",
+        "docs": ["docs/ai-governance/MODEL_SELECTION.md"],
+        "architecture_notes": "Do not stream playbook generation; investigator may stream.",
         "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: stream_llm + investigate_stream SSE; frontend live token bubble; "
-            "job phase SSE endpoint. Non-stream investigate POST kept as fallback."
-        ),
+        "implementation_notes": "Consolidated from: prompt-cache, streaming, investigator-fallback cards.",
         "tasks": [
-            {"id": "t1", "title": "Spike SSE for Investigator answers", "status": "done", "done": True},
-            {"id": "t2", "title": "Optional job-phase SSE (not token stream)", "status": "done", "done": True},
+            {"id": "t1", "title": "Multi-provider call_llm + parse_llm_json hardening", "status": "done", "done": True},
+            {"id": "t2", "title": "Anthropic prompt cache", "status": "done", "done": True},
+            {"id": "t3", "title": "Investigator SSE + fallback UI", "status": "done", "done": True},
         ],
     },
     {
-        "id": "rm-done-favicon",
-        "title": "Favicon / tab icon",
-        "summary": "Brand favicon for the console.",
-        "description": "Ship favicon.svg for browser tab recognition.",
-        "status": "completed",
-        "priority": "p3",
-        "owner": "",
-        "effort": "xs",
-        "target_release": "v0.1",
-        "week": "Checklist",
-        "category": "UX",
-        "modules": ["frontend/public/favicon.svg"],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md"],
-        "architecture_notes": "",
-        "progress": 100,
-        "implementation_notes": "Done.",
-        "tasks": [{"id": "t1", "title": "Add favicon.svg", "status": "done", "done": True}],
-    },
-    {
-        "id": "rm-done-settings-reset",
-        "title": "Settings factory reset + recommended profiles",
-        "summary": "POST /settings/reset and /settings/apply-profile for ops baselines.",
-        "description": "Factory and recommended ops profiles without wiping secrets by default.",
-        "status": "completed",
-        "priority": "p2",
-        "owner": "",
-        "effort": "s",
-        "target_release": "v0.2",
-        "week": "Checklist",
-        "category": "Ops / Settings",
-        "modules": ["backend/server.py", "frontend/src/pages/Settings.jsx"],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md"],
-        "architecture_notes": "",
-        "progress": 100,
-        "implementation_notes": "Also TI clear-secrets and Settings guidance UI.",
-        "tasks": [
-            {"id": "t1", "title": "POST /settings/reset", "status": "done", "done": True},
-            {"id": "t2", "title": "POST /settings/apply-profile", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-done-smoke",
-        "title": "Smoke tests across all major areas",
-        "summary": "backend/tests/test_smoke_all_areas.py coverage.",
-        "description": "Auth, incidents, settings, KB, analytics, review starters.",
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.2",
-        "week": "Checklist",
-        "category": "Quality / Security",
-        "modules": ["backend/tests/test_smoke_all_areas.py"],
-        "docs": ["memory/WEEKLY_DISCUSSIONS.md"],
-        "architecture_notes": "",
-        "progress": 100,
-        "implementation_notes": "Extend when new settings endpoints land.",
-        "tasks": [{"id": "t1", "title": "Author smoke suite", "status": "done", "done": True}],
-    },
-    # ----- Module review / hardening (memory/MODULE_REVIEW_ACTION_ITEMS.md) -----
-    {
-        "id": "rm-review-wave0-prod-safety",
-        "title": "Module review Wave 0 — production safety gates",
-        "summary": "Demo seed gate, weak JWT fail, no prod .env secret write, FormSubmit off, compose Mongo URL.",
+        "id": "rm-foundation-attack",
+        "title": "ATT&CK mapping — catalog, heatmap, technique drill-down",
+        "summary": "Heuristic technique inference, catalog APIs, TechniquePanel, heatmap → incident filter.",
         "description": (
-            "From MODULE_REVIEW_ACTION_ITEMS Wave 0 (P0): seed demo users only in dev; "
-            "refuse weak JWT_SECRET outside dev/test; skip SYNC of secrets to .env in prod; "
-            "EMAIL_HTTP_GATEWAY default off outside dev; docker-compose MONGO_URL=mongodb://mongodb:27017."
-        ),
-        "status": "completed",
-        "priority": "p0",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.4",
-        "week": "Hardening",
-        "category": "Quality / Security",
-        "modules": [
-            "backend/auth.py",
-            "backend/server.py",
-            "backend/secrets_util.py",
-            "backend/notifications.py",
-            "docker-compose.yml",
-            "memory/MODULE_REVIEW_ACTION_ITEMS.md",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": "ENV=dev keeps local DX; production must set strong JWT and explicit opt-ins.",
-        "progress": 100,
-        "implementation_notes": "2026-07-19: A-S1, A-S2/A-A1, A-S3, A-N1, A-D1 shipped.",
-        "tasks": [
-            {"id": "t1", "title": "A-S1 demo seed gate", "status": "done", "done": True},
-            {"id": "t2", "title": "A-S2 weak JWT hard-fail", "status": "done", "done": True},
-            {"id": "t3", "title": "A-S3/A-N3 no prod .env secret write", "status": "done", "done": True},
-            {"id": "t4", "title": "A-N1 email HTTP gateway default off", "status": "done", "done": True},
-            {"id": "t5", "title": "A-D1 compose MONGO_URL override", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-review-wave1-correctness",
-        "title": "Module review Wave 1 — correctness & reliability",
-        "summary": "SSE incident_ids, metrics auth, JWT role rebind, password policy, job queue, enrich cache, caps.",
-        "description": (
-            "Wave 1 from MODULE_REVIEW_ACTION_ITEMS: job SSE incident_ids; /metrics auth; "
-            "DB role re-bind; password ≥12; correlation_window wired; IoC enrich cap; llm_temperature; "
-            "prod unscored TI; enrichment cache; playbook phase normalize; template HiTL; unit tests; "
-            "durable Mongo job queue + disk payloads."
-        ),
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "l",
-        "target_release": "v0.4",
-        "week": "Hardening",
-        "category": "Quality / Security",
-        "modules": [
-            "backend/server.py",
-            "backend/auth.py",
-            "backend/pipeline.py",
-            "backend/correlator.py",
-            "backend/enrichment.py",
-            "backend/enrichment_cache.py",
-            "backend/job_queue.py",
-            "backend/llm_provider.py",
-            "backend/playbook_agent.py",
-            "backend/tests/test_p1_cache_throttle_queue.py",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": "Job queue is single-process asyncio worker with Mongo claim — not Celery.",
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: Wave 1 complete including A-K1 Knowledge page SBERT tip + reindex path."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "A-S4 SSE incident_ids", "status": "done", "done": True},
-            {"id": "t2", "title": "A-S5–S7 metrics / role rebind / job queue", "status": "done", "done": True},
-            {"id": "t3", "title": "A-E1–E2 enrich unscored + cache", "status": "done", "done": True},
-            {"id": "t4", "title": "A-P1–P2 correlator window + IoC caps", "status": "done", "done": True},
-            {"id": "t5", "title": "A-L1–L3 temperature / phases / template HiTL", "status": "done", "done": True},
-            {"id": "t6", "title": "A-T1–T3 unit tests", "status": "done", "done": True},
-            {"id": "t7", "title": "A-K1 SBERT Knowledge guidance", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-attack-drilldown",
-        "title": "ATT&CK technique drill-down (sub-techniques + evidence UI)",
-        "summary": "Sub-technique inference, CES rules, catalog APIs, TechniquePanel, heatmap filter.",
-        "description": (
-            "A-K4: attack_catalog + attack_mapping; evidence/mitigations; IncidentDetail drawer; "
-            "heatmap → /incidents?technique=; optional llm_technique_refine; golden parent-id recall."
+            "Curated ATT&CK catalog (not full STIX), CES/keyword mapping, optional LLM refine, "
+            "IncidentDetail drawer, heatmap filter to /incidents?technique=, golden parent-id recall."
         ),
         "status": "completed",
         "priority": "p2",
         "owner": "",
         "effort": "l",
         "target_release": "v0.4",
-        "week": "Hardening",
+        "week": "Foundation",
         "category": "Detection / ATT&CK",
         "modules": [
             "backend/attack_catalog.py",
             "backend/attack_mapping.py",
-            "backend/models.py",
-            "backend/pipeline.py",
-            "backend/server.py",
             "frontend/src/components/TechniquePanel.jsx",
             "frontend/src/components/AttackHeatmap.jsx",
-            "frontend/src/pages/IncidentDetail.jsx",
-            "frontend/src/pages/Incidents.jsx",
-            "backend/tests/test_attack_mapping.py",
         ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": "Curated catalog (not full STIX); extend ATTACK_CATALOG for more techniques.",
+        "docs": ["docs/compliance/MITRE_ATTACK.md"],
+        "architecture_notes": "Heuristic mapping — not detection coverage claims.",
         "progress": 100,
-        "implementation_notes": "2026-07-19: all drill-down phases shipped; tests green.",
+        "implementation_notes": "2026-07-19: drill-down phases shipped; tests green.",
         "tasks": [
-            {"id": "t1", "title": "Model + catalog + inference", "status": "done", "done": True},
+            {"id": "t1", "title": "Catalog + inference + CES rules", "status": "done", "done": True},
             {"id": "t2", "title": "UI panel + heatmap filter", "status": "done", "done": True},
-            {"id": "t3", "title": "CES rules + optional LLM refine", "status": "done", "done": True},
-            {"id": "t4", "title": "Unit tests + golden parent recall", "status": "done", "done": True},
+            {"id": "t3", "title": "Unit tests + golden parent recall", "status": "done", "done": True},
         ],
     },
     {
-        "id": "rm-review-wave2-quality",
-        "title": "Module review Wave 2 — quality & scale",
-        "summary": "Sidecar retention, private IPs, parser tests, KB ingest, analytics agg, session/URL guards.",
+        "id": "rm-foundation-hardening",
+        "title": "Production hardening — auth, secrets, jobs, HiTL, retention",
+        "summary": "Waves 0–3 hardening closed: demo seed gate, vault, job queue, HiTL races, retention, multi-worker.",
         "description": (
-            "Remaining P2 from MODULE_REVIEW_ACTION_ITEMS: original upload filename; sidecar retention; "
-            "private IP expansion; parser unit tests; safer LanceDB delete; prompt redaction; "
-            "analytics aggregation; retrieval env isolation; frontend API URL guard; broader tests."
+            "Single hardening card covering former module-review waves and ops stretch: "
+            "demo seed gated to lab ENV; weak JWT fail; Fernet vault + external Vault/AWS SM refs; "
+            "Mongo job queue + GridFS payloads + hung-job resume; secrets scrubbed from disk payloads; "
+            "HiTL severity gate + atomic review 409; enrich cache; retention + LLM token budget; "
+            "cookie-only SPA session; metrics auth; RBAC matrix; Playwright smoke; settings reset/profiles."
         ),
         "status": "completed",
-        "priority": "p2",
+        "priority": "p0",
         "owner": "",
-        "effort": "l",
-        "target_release": "v0.5",
-        "week": "Hardening",
-        "category": "Quality / Security",
-        "modules": [
-            "backend/pipeline.py",
-            "backend/job_status.py",
-            "backend/ioc_extractor.py",
-            "backend/vector_store.py",
-            "backend/analytics.py",
-            "backend/parsers.py",
-            "frontend/src/lib/api.js",
-            "memory/MODULE_REVIEW_ACTION_ITEMS.md",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": "A-H1 Mongo aggregation is default path with legacy scan fallback.",
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: P3 filename, retention purge, private IPs, parser tests, safe Lance delete, "
-            "llm_redact_iocs, api URL guard, retrieval env restore, A-H1 aggregation, A-K2 KB ingest."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "A-P3 original filename on single upload", "status": "done", "done": True},
-            {"id": "t2", "title": "A-P4 sidecar/outbox retention job", "status": "done", "done": True},
-            {"id": "t3", "title": "A-E3 private IP ranges + extract cap", "status": "done", "done": True},
-            {"id": "t4", "title": "A-E5 parser fixture unit tests", "status": "done", "done": True},
-            {"id": "t5", "title": "A-K3 safer vector_store delete", "status": "done", "done": True},
-            {"id": "t6", "title": "A-L4 investigator prompt redaction option", "status": "done", "done": True},
-            {"id": "t7", "title": "A-H1 analytics Mongo aggregation", "status": "done", "done": True},
-            {"id": "t8", "title": "A-F2 frontend backend URL guard", "status": "done", "done": True},
-            {"id": "t9", "title": "A-G2 retrieval_eval env isolation", "status": "done", "done": True},
-            {"id": "t10", "title": "A-K2 admin KB ingest API + UI", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-review-wave3-polish",
-        "title": "Module review Wave 3 — polish & ops",
-        "summary": "Retention, token budget, schema formalize, empty states, multi-worker notes.",
-        "description": (
-            "P3 items: throttle purge; golden_runs; correlation/files_meta on Incident; "
-            "UserCreatePublic; ListState empty/error UX; multi-worker readiness doc; "
-            "incident retention + LLM monthly budget metering; logout cookie clear; register UI."
-        ),
-        "status": "completed",
-        "priority": "p3",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.5",
-        "week": "Hardening",
-        "category": "Ops / Settings",
-        "modules": [
-            "backend/auth_throttle.py",
-            "backend/server.py",
-            "backend/golden_eval.py",
-            "backend/retention.py",
-            "backend/llm_usage.py",
-            "backend/models.py",
-            "frontend/src/components/ListState.jsx",
-            "frontend/src/pages/",
-            "docs/MULTI_WORKER.md",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md", "docs/MULTI_WORKER.md"],
-        "architecture_notes": (
-            "Residuals closed under rm-review-residual-open (A-F5 Playwright, A-T6/T8, "
-            "A-F1 sessionStorage dual-auth, A-H2 datetime helpers)."
-        ),
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: A-S11, A-A4, A-G3, A-K4, A-L5, A-P5, A-M3, A-F3/F4, A-D3, "
-            "incident retention purge, llm_token_budget_monthly meter, A-T4 job_status tests. "
-            "2026-07-20: residual card completed (tests + session hardening + A-H2)."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "A-A4 throttle collection purge", "status": "done", "done": True},
-            {"id": "t2", "title": "A-G3 persist last golden run", "status": "done", "done": True},
-            {"id": "t3", "title": "A-L5 citation quality metric", "status": "done", "done": True},
-            {"id": "t4", "title": "A-F3 empty/error states on list pages", "status": "done", "done": True},
-            {"id": "t5", "title": "A-D3 multi-worker readiness doc", "status": "done", "done": True},
-            {"id": "t6", "title": "A-M1 retention + token budget enforce", "status": "done", "done": True},
-            {"id": "t7", "title": "A-P5/A-M3 schema formalize", "status": "done", "done": True},
-            {"id": "t8", "title": "A-F4 remove privileged roles from Login signup", "status": "done", "done": True},
-            {"id": "t9", "title": "A-S11 logout cookie clear", "status": "done", "done": True},
-        ],
-    },
-    # ----- Residual MODULE_REVIEW + ops enhancements (track remaining work) -----
-    {
-        "id": "rm-pipeline-hung-resume",
-        "title": "Hung pipeline resume (startup reclaim + manual re-queue)",
-        "summary": "Worker reclaims in-flight jobs on restart; POST /logs/jobs/{id}/resume; Upload Resume button.",
-        "description": (
-            "Jobs left queue_state=running after process death no longer wait JOB_STALE_MINUTES. "
-            "requeue_on_startup reclaims immediately; requeue_stale also matches missing claimed_at. "
-            "Operators can force re-queue when durable job_payloads/{id} still exists."
-        ),
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "s",
-        "target_release": "v0.5",
-        "week": "Hardening",
-        "category": "Ops / Reliability",
-        "modules": [
-            "backend/job_queue.py",
-            "backend/server.py",
-            "frontend/src/pages/Upload.jsx",
-            "docs/MULTI_WORKER.md",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md", "docs/MULTI_WORKER.md"],
-        "architecture_notes": "Single asyncio worker; resume re-runs full pipeline from durable disk payload.",
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-19: requeue_on_startup + force_requeue + POST /logs/jobs/{id}/resume + UI Resume."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "Startup requeue all running claims", "status": "done", "done": True},
-            {"id": "t2", "title": "Manual resume API + payload guard", "status": "done", "done": True},
-            {"id": "t3", "title": "Upload page Resume control", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-investigator-llm-fallback",
-        "title": "AI Investigator — stream auth + actionable LLM fallback",
-        "summary": "SSE fetch sends Bearer; fallback surfaces missing key / LLM error instead of opaque ? message.",
-        "description": (
-            "Root cause of '? Full LLM analysis not available': raw fetch SSE omitted Authorization so "
-            "cross-origin SPA auth failed, or LLM key missing → silent template fallback. "
-            "Fix: TOKEN_KEY Bearer on stream; fallback_reason + UI banner; unknowns include Settings hint."
-        ),
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "s",
-        "target_release": "v0.5",
-        "week": "Hardening",
-        "category": "LLM / UX",
-        "modules": [
-            "frontend/src/components/AIInvestigator.jsx",
-            "backend/ai_investigator.py",
-            "backend/llm_provider.py",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": "Same dual auth as axios (Bearer + cookie). Configure keys under Admin Settings.",
-        "progress": 100,
-        "implementation_notes": "2026-07-19: stream Bearer + _fallback_reason + limited-analysis banner.",
-        "tasks": [
-            {"id": "t1", "title": "SSE Authorization Bearer from localStorage", "status": "done", "done": True},
-            {"id": "t2", "title": "Fallback reason + UI banner", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-rbac-golden-roadmap",
-        "title": "RBAC alignment — Golden Eval admin-only + Roadmap create/seed",
-        "summary": "Nav/route match A-S10; senior_reviewer can edit roadmap tasks but not create/reseed.",
-        "description": (
-            "Golden Eval: Layout nav was open to analysts while API + App route required admin → 403. "
-            "Roadmap: senior_reviewer saw New item / Sync seed but POST /roadmap and /roadmap/seed are admin-only."
-        ),
-        "status": "completed",
-        "priority": "p2",
-        "owner": "",
-        "effort": "xs",
-        "target_release": "v0.5",
-        "week": "Hardening",
-        "category": "Quality / Security",
-        "modules": [
-            "frontend/src/components/Layout.jsx",
-            "frontend/src/pages/Roadmap.jsx",
-            "frontend/src/App.js",
-            "backend/server.py",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": "canEdit (admin|senior_reviewer) vs canAdmin (admin) on Roadmap UI.",
-        "progress": 100,
-        "implementation_notes": "2026-07-19: Layout golden admin-only; Roadmap split canAdmin for create/seed.",
-        "tasks": [
-            {"id": "t1", "title": "Golden Eval nav roles = admin", "status": "done", "done": True},
-            {"id": "t2", "title": "Roadmap canAdmin for create/reseed", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-review-residual-open",
-        "title": "Module review residual OPEN items (track)",
-        "summary": "A-F5 Playwright, A-T6 pipeline ZIP isolation, A-T8 RBAC matrix, A-F1 session dual-auth, A-H2 datetime.",
-        "description": (
-            "Closed residuals from MODULE_REVIEW_ACTION_ITEMS after Waves 0–3: "
-            "A-F5 Playwright smoke E2E; A-T6 offline pipeline ZIP/per-file isolation tests; "
-            "A-T8 RBAC matrix unit tests; A-F1 sessionStorage + migrate-off localStorage JWT "
-            "(httpOnly cookie remains dual with Bearer for cross-origin SPA); "
-            "A-H2 mongo_util.to_mongo_doc + created_at_match for datetime/ISO dual-read."
-        ),
-        "status": "completed",
-        "priority": "p3",
-        "owner": "",
-        "effort": "l",
+        "effort": "xl",
         "target_release": "v0.6",
-        "week": "Backlog",
+        "week": "Foundation",
         "category": "Quality / Security",
         "modules": [
-            "frontend/e2e/smoke.spec.js",
-            "frontend/src/lib/auth.jsx",
-            "frontend/src/lib/api.js",
-            "backend/tests/test_pipeline_isolation.py",
-            "backend/tests/test_rbac_matrix.py",
-            "backend/mongo_util.py",
-            "backend/analytics.py",
-            "memory/MODULE_REVIEW_ACTION_ITEMS.md",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": (
-            "A-F1 later upgraded to pure cookie-only SPA under rm-review-deferred-close; "
-            "this card closed the dual sessionStorage path first."
-        ),
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-20: verified tests pass (pipeline isolation, RBAC matrix, payload scrub); "
-            "Playwright e2e/smoke.spec.js + yarn e2e; A-H2 helpers live; A-F1 sessionStorage dual then cookie-only."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "A-F5 Playwright smoke: login, upload, review, settings", "status": "done",
-             "done": True},
-            {"id": "t2", "title": "A-T6 pipeline offline ZIP/per-file isolation tests", "status": "done", "done": True},
-            {"id": "t3", "title": "A-T8 RBAC matrix tests (all role×route)", "status": "done", "done": True},
-            {"id": "t4", "title": "A-F1 sessionStorage + httpOnly dual (SPA); migrate off localStorage",
-             "status": "done", "done": True},
-            {"id": "t5", "title": "A-H2 consistent datetime created_at storage + dual-match", "status": "done",
-             "done": True},
-        ],
-    },
-    {
-        "id": "rm-enh-live-llm-golden-ui",
-        "title": "Enhancement — live LLM golden sample from UI (A-G1)",
-        "summary": "Admin Golden Eval page has Live LLM sample toggle; API live_llm flag + cost confirm.",
-        "description": (
-            "Backend POST /eval/golden-benchmark?live_llm=true runs first 5 cases with real playbook LLM. "
-            "UI: checkbox data-testid=golden-live-llm-toggle, confirm dialog, amber run button, longer timeout."
-        ),
-        "status": "completed",
-        "priority": "p3",
-        "owner": "",
-        "effort": "xs",
-        "target_release": "v0.6",
-        "week": "Backlog",
-        "category": "Evaluation",
-        "modules": [
-            "frontend/src/pages/GoldenBenchmark.jsx",
-            "backend/server.py",
-            "backend/golden_eval.py",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md", "backend/tests/golden/README.md"],
-        "architecture_notes": "Never default live_llm in CI; admin opt-in only.",
-        "progress": 100,
-        "implementation_notes": "2026-07-20: API + UI toggle + cost warning confirmed complete.",
-        "tasks": [
-            {"id": "t1", "title": "Backend live_llm query flag", "status": "done", "done": True},
-            {"id": "t2", "title": "Golden Eval UI toggle + cost warning", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-enh-payload-secret-redact",
-        "title": "Enhancement — redact secrets in durable job payloads",
-        "summary": "job_payloads meta.json scrubs secret fields; claim re-hydrates from live settings.",
-        "description": (
-            "A-N2/A-S3 follow-on: durable queue meta no longer embeds API keys/webhooks. "
-            "scrub_settings_for_disk on save; merge_settings_with_live at claim from Mongo settings."
-        ),
-        "status": "completed",
-        "priority": "p2",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.6",
-        "week": "Backlog",
-        "category": "Quality / Security",
-        "modules": ["backend/job_queue.py", "backend/secrets_util.py", "backend/server.py"],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md"],
-        "architecture_notes": "Claim path merges payload settings with live _get_settings() secrets.",
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-20: scrub_settings_for_disk + merge_settings_with_live + "
-            "test_payload_scrubs_secrets / test_merge_settings_with_live_restores_secrets."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "Strip secret fields from saved payload meta", "status": "done", "done": True},
-            {"id": "t2", "title": "Re-hydrate secrets from settings at claim", "status": "done", "done": True},
-            {"id": "t3", "title": "Unit test: payload meta has no sk- keys", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-review-deferred-close",
-        "title": "Module review deferred residuals closed (A-S3 vault, A-A3, A-F1 cookie)",
-        "summary": "Encrypt-at-rest secrets vault, multi-worker atomic throttle, cookie-only SPA session.",
-        "description": (
-            "Final MODULE_REVIEW deferred pointers: A-S3 Fernet encrypt-at-rest for Settings secrets "
-            "in Mongo (enc:v1:) + SECRETS_MASTER_KEY ops docs; A-A3 Mongo find_one_and_update rate limit "
-            "as sole multi-worker source of truth + tests; A-F1 SPA never stores JWT (httpOnly cookie only, "
-            "purge soc_token from web storage). External KMS and multi-node job payload store remain ops stretch."
-        ),
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.6",
-        "week": "Backlog",
-        "category": "Quality / Security",
-        "modules": [
+            "backend/auth.py",
             "backend/secret_vault.py",
-            "backend/secrets_util.py",
-            "backend/auth_throttle.py",
-            "backend/server.py",
-            "frontend/src/lib/api.js",
-            "frontend/src/lib/auth.jsx",
-            "frontend/src/components/AIInvestigator.jsx",
-            "docs/MULTI_WORKER.md",
-            "backend/tests/test_secret_vault_auth_residuals.py",
-        ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md", "docs/MULTI_WORKER.md", "backend/.env.example"],
-        "architecture_notes": (
-            "Vault key: SECRETS_MASTER_KEY or JWT_SECRET-derived. Cookie: SameSite auto/none for CORS SPA. "
-            "AUTH_RETURN_TOKEN_IN_BODY still for API clients; SPA ignores body token."
-        ),
-        "progress": 100,
-        "implementation_notes": (
-            "2026-07-20: vault tests, throttle multi-worker tests, cookie-only frontend, action items closed."
-        ),
-        "tasks": [
-            {"id": "t1", "title": "A-S3 Fernet vault encrypt/decrypt + migrate + settings status", "status": "done",
-             "done": True},
-            {"id": "t2", "title": "A-A3 atomic multi-worker rate limit tests + MULTI_WORKER.md", "status": "done",
-             "done": True},
-            {"id": "t3", "title": "A-F1 cookie-only SPA (no JWT in web storage)", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-ops-stretch-close",
-        "title": "Ops stretch closed — external vault + multi-node payloads + auto seed merge",
-        "summary": "Hashicorp/AWS SM secret backends, Mongo GridFS job payloads, roadmap auto-merge on boot.",
-        "description": (
-            "Closes remaining MODULE_REVIEW ops-stretch pointers: external_secrets.py "
-            "(Hashicorp Transit encrypt, KV refs vault://, AWS SM refs awssm://); "
-            "job_queue ACTIRA_JOB_PAYLOAD_BACKEND=mongo|disk|dual with GridFS multi-node "
-            "payload store; _ensure_roadmap_seeded auto-inserts missing seed IDs and promotes "
-            "seed-completed cards without Admin Sync seed."
-        ),
-        "status": "completed",
-        "priority": "p2",
-        "owner": "",
-        "effort": "m",
-        "target_release": "v0.6",
-        "week": "Backlog",
-        "category": "Quality / Security",
-        "modules": [
             "backend/external_secrets.py",
-            "backend/secret_vault.py",
             "backend/job_queue.py",
-            "backend/server.py",
+            "backend/hitl_gate.py",
+            "backend/retention.py",
+            "backend/auth_throttle.py",
             "docs/MULTI_WORKER.md",
-            "backend/tests/test_ops_stretch_close.py",
         ],
-        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md", "docs/MULTI_WORKER.md", "backend/.env.example"],
-        "architecture_notes": (
-            "Default payload backend is mongo (shared). Disk remains for tests via "
-            "ACTIRA_JOB_PAYLOAD_BACKEND=disk. Vault Transit optional; local Fernet default."
-        ),
+        "docs": ["memory/MODULE_REVIEW_ACTION_ITEMS.md", "docs/MULTI_WORKER.md", "SECURITY.md"],
+        "architecture_notes": "Single asyncio worker by default; multi-node needs shared Mongo payloads.",
         "progress": 100,
-        "implementation_notes": "2026-07-20: ops stretch closed with unit tests + auto seed merge.",
+        "implementation_notes": (
+            "Consolidated from: wave0–3, residual, deferred vault/cookie, ops stretch, hung-resume, "
+            "RBAC golden/roadmap, payload redact, settings reset, favicon, smoke."
+        ),
         "tasks": [
-            {"id": "t1", "title": "Hashicorp Transit + KV + AWS SM external secret backends", "status": "done",
-             "done": True},
-            {"id": "t2", "title": "Mongo GridFS multi-node job payload store", "status": "done", "done": True},
-            {"id": "t3", "title": "Roadmap auto-merge completed seed cards on startup", "status": "done", "done": True},
+            {"id": "t1", "title": "Prod safety gates (seed, JWT, .env write, email gateway)", "status": "done", "done": True},
+            {"id": "t2", "title": "Secrets vault + external backends + payload scrub", "status": "done", "done": True},
+            {"id": "t3", "title": "Job queue, resume, enrich cache, HiTL atomic review", "status": "done", "done": True},
+            {"id": "t4", "title": "Retention, throttle, cookie session, multi-worker docs", "status": "done", "done": True},
+            {"id": "t5", "title": "RBAC matrix + Playwright smoke + settings profiles", "status": "done", "done": True},
         ],
     },
-    # -------------------------------------------------------------------------
-    # Capstone / v1.0–v1.1 program (2026-07-23) — tracking for management UI
-    # Full checklist: ROADMAP.md (sections A–L)
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Capstone / platform versions (v1.x)
+    # =========================================================================
     {
-        "id": "rm-v1-enterprise-demo-pack",
-        "title": "v1.0 Enterprise Demonstration Ready pack",
-        "summary": "Board review, docs suite, diagrams, presentations, ops/AI-gov/compliance, packaging.",
+        "id": "rm-v1-docs-pack",
+        "title": "v1.0 Docs & board pack — enterprise review, capstone, ops/gov",
+        "summary": "Enterprise demo pack, 360° board report, capstone report/screenshots/PPTX, ops & AI-gov docs.",
         "description": (
-            "Enterprise Review Board report (~89/100 maturity). Full documentation index, "
-            "threat model, deploy/ops runbooks, AI governance, compliance maps, business pack, "
-            "presentation decks, Mermaid diagrams, K8s/Helm, API collections, benchmarks, "
-            "samples, repo professionalism (templates, CoC, SUPPORT)."
+            "One documentation/deliverable card: Enterprise Review + 2026-07-26 pilot board (76/100), "
+            "full docs suite (ops, AI governance, compliance maps, business), presentations, diagrams, "
+            "K8s/Helm, API collections, benchmarks, samples, and docs/capstone (report, PDF, 14 screenshots, PPTX)."
         ),
         "status": "completed",
         "priority": "p0",
         "owner": "",
         "effort": "l",
         "target_release": "v1.0",
-        "week": "Capstone 2026-07",
+        "week": "Capstone",
         "category": "Product / Docs",
         "modules": [
             "docs/",
+            "docs/capstone/",
             "presentation/",
             "diagrams/",
             "deployments/",
-            "api/",
-            "benchmarks/",
-            "samples/",
             "ROADMAP.md",
-            "docs/ENTERPRISE_REVIEW.md",
         ],
-        "docs": ["ROADMAP.md", "docs/ENTERPRISE_REVIEW.md", "DOCUMENTATION_INDEX.md"],
+        "docs": [
+            "docs/ENTERPRISE_REVIEW.md",
+            "docs/ENTERPRISE_REVIEW_BOARD_2026-07-26.md",
+            "docs/capstone/README.md",
+            "DOCUMENTATION_INDEX.md",
+        ],
         "architecture_notes": "Documentation and packaging only; no API break.",
         "progress": 100,
-        "implementation_notes": "2026-07-23: Enterprise pack completed for demo/capstone.",
+        "implementation_notes": (
+            "Consolidated from: enterprise demo pack, capstone deliverables, board 2026-07-26 cards."
+        ),
         "tasks": [
-            {"id": "t1", "title": "Enterprise board report + scorecard", "status": "done", "done": True},
-            {"id": "t2", "title": "Docs: overview, architecture, threat model, ops, AI gov, compliance",
-             "status": "done", "done": True},
-            {"id": "t3", "title": "presentation/ + diagrams/ Mermaid suite", "status": "done", "done": True},
-            {"id": "t4", "title": "deployments/ Helm K8s cloud runbooks + api collections", "status": "done",
-             "done": True},
-            {"id": "t5", "title": "Repo professionalism + start-demo scripts", "status": "done", "done": True},
+            {"id": "t1", "title": "Enterprise board + scorecard docs", "status": "done", "done": True},
+            {"id": "t2", "title": "Ops / AI-gov / compliance / business packs", "status": "done", "done": True},
+            {"id": "t3", "title": "Capstone report, screenshots, PPTX", "status": "done", "done": True},
+            {"id": "t4", "title": "Deployments + API collections + start-demo", "status": "done", "done": True},
         ],
     },
     {
-        "id": "rm-v1-1-modular-api",
-        "title": "v1.1 Modular API — routers + core + /api/v1",
-        "summary": "Split server.py into domain routers; dual /api and /api/v1; tests + OpenAPI.",
+        "id": "rm-v1-1-platform",
+        "title": "v1.1 Platform — modular API, services/repos, capstone UX",
+        "summary": "Domain routers + /api/v1; services/repos; analytics facet/cache; command palette UX.",
         "description": (
-            "backend/routers/* domain modules; core/database.py + core/services.py; slim server.py; "
-            "non-breaking /api/v1 alias; modularization unit tests; OpenAPI refresh; BACKEND_STRUCTURE.md."
+            "Modularization: backend/routers/*, core/database + services, dual /api + /api/v1. "
+            "Architecture layers: package imports, domain services/repos, Mongo $facet KPIs + TTL cache, "
+            "LLM budget KPI, pipeline stage_timings. Capstone UX: ⌘K palette, recents, quick actions, "
+            "skeletons, security response headers, Playwright expansion."
         ),
         "status": "completed",
         "priority": "p0",
         "owner": "",
-        "effort": "m",
+        "effort": "l",
         "target_release": "v1.1",
-        "week": "Capstone 2026-07",
+        "week": "Capstone",
         "category": "Architecture",
         "modules": [
             "backend/server.py",
             "backend/core/",
             "backend/routers/",
-            "backend/tests/test_modular_api_v1.py",
-            "docs/openapi.json",
-            "docs/dx/BACKEND_STRUCTURE.md",
+            "backend/services/",
+            "backend/repositories/",
+            "backend/analytics.py",
+            "frontend/src/components/CommandPalette.jsx",
+            "frontend/src/pages/Dashboard.jsx",
         ],
-        "docs": ["ROADMAP.md", "docs/dx/BACKEND_STRUCTURE.md", "RELEASE_NOTES.md"],
+        "docs": ["docs/dx/BACKEND_STRUCTURE.md", "docs/product/CAPSTONE_ENHANCEMENT_REVIEW.md"],
         "architecture_notes": "uvicorn server:app unchanged; SPA still uses /api.",
         "progress": 100,
-        "implementation_notes": "2026-07-23: modularization + offline tests green (142 unit path).",
-        "tasks": [
-            {"id": "t1", "title": "Extract domain routers", "status": "done", "done": True},
-            {"id": "t2", "title": "core database + services", "status": "done", "done": True},
-            {"id": "t3", "title": "Mount /api and /api/v1 parity", "status": "done", "done": True},
-            {"id": "t4", "title": "Modularization tests + OpenAPI export", "status": "done", "done": True},
-        ],
-    },
-    {
-        "id": "rm-v1-1-capstone-ux-polish",
-        "title": "v1.1 Capstone UX polish — palette, recents, quick actions",
-        "summary": "Non-breaking enterprise UX: ⌘K command palette, recent incidents, dashboard CTAs.",
-        "description": (
-            "CommandPalette Ctrl/Cmd+K; recentActivity localStorage; dashboard quick actions; "
-            "ListState skeletons; security response headers; Playwright e2e 6/6; "
-            "CAPSTONE_ENHANCEMENT_REVIEW.md."
+        "implementation_notes": (
+            "Consolidated from: modular-api, capstone-ux-polish, arch-p0-p3-layers-analytics."
         ),
-        "status": "completed",
-        "priority": "p1",
-        "owner": "",
-        "effort": "s",
-        "target_release": "v1.1",
-        "week": "Capstone 2026-07",
-        "category": "Frontend / UX",
-        "modules": [
-            "frontend/src/components/CommandPalette.jsx",
-            "frontend/src/components/Layout.jsx",
-            "frontend/src/lib/recentActivity.js",
-            "frontend/src/pages/Dashboard.jsx",
-            "frontend/src/pages/IncidentDetail.jsx",
-            "frontend/src/components/ListState.jsx",
-            "frontend/e2e/smoke.spec.js",
-            "backend/server.py",
-        ],
-        "docs": ["docs/product/CAPSTONE_ENHANCEMENT_REVIEW.md", "ROADMAP.md"],
-        "architecture_notes": "No API/schema break; client-only recents.",
-        "progress": 100,
-        "implementation_notes": "2026-07-23: e2e smoke 6/6 including palette + quick actions.",
         "tasks": [
-            {"id": "t1", "title": "Command palette + Layout wire-up", "status": "done", "done": True},
-            {"id": "t2", "title": "Recent incidents + dashboard quick actions", "status": "done", "done": True},
-            {"id": "t3", "title": "Skeletons + security headers", "status": "done", "done": True},
-            {"id": "t4", "title": "Playwright smoke expansion + build lint fix", "status": "done", "done": True},
+            {"id": "t1", "title": "Domain routers + /api/v1 parity", "status": "done", "done": True},
+            {"id": "t2", "title": "Services/repos + analytics performance", "status": "done", "done": True},
+            {"id": "t3", "title": "Command palette + recents + quick actions", "status": "done", "done": True},
+            {"id": "t4", "title": "Security headers + e2e smoke expansion", "status": "done", "done": True},
         ],
     },
     {
         "id": "rm-v1-2-oidc-sso",
         "title": "v1.2 Enterprise identity — OIDC SSO / MFA / group RBAC",
-        "summary": "Entra ID / Okta / Keycloak OIDC; MFA via IdP; map groups to analyst/reviewer/admin.",
+        "summary": "Env-gated OIDC PKCE scaffold; register policy; remaining JWKS + live IdP + federated logout.",
         "description": (
-            "Scaffold shipped: OIDC authorization-code + PKCE (`oidc_service`), public config + login/callback "
-            "routes, Login SSO CTA when enabled. F-05 register policy: auto-disable when OIDC on or "
-            "ENV production/staging; `ALLOW_PUBLIC_REGISTER` override; SPA hides Register. "
-            "Remaining: live IdP hardening, MFA (IdP), logout federation, full group RBAC validation. "
-            "Non-breaking for local JWT demos."
+            "Scaffold shipped: authorization-code + PKCE, public config + login/callback, Login SSO CTA, "
+            "group/role claim map, session cookie path, public register auto-off for OIDC/prod. "
+            "Still open for production: JWKS verification, shared PKCE state store, live IdP hardening, "
+            "IdP-enforced MFA, federated logout."
         ),
         "status": "in_progress",
         "priority": "p0",
@@ -1080,52 +350,31 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             "backend/services/oidc_service.py",
             "backend/services/auth_service.py",
             "backend/routers/auth.py",
-            "backend/repositories/users.py",
             "frontend/src/pages/Login.jsx",
         ],
-        "docs": ["ROADMAP.md#f-v12-enterprise-identity", "docs/CONFIGURATION.md", "SECURITY.md"],
-        "architecture_notes": "Keep demo JWT seed for lab ENV; SSO for staging/production profiles.",
-        "progress": 55,
+        "docs": ["docs/CONFIGURATION.md", "SECURITY.md", "ROADMAP.md"],
+        "architecture_notes": "Keep demo JWT for lab ENV; enable OIDC only with JWKS-ready config.",
+        "progress": 60,
         "implementation_notes": (
-            "2026-07-26: Env-gated OIDC (OIDC_ISSUER + OIDC_CLIENT_ID); PKCE state store; "
-            "OIDC_ROLE_CLAIM / OIDC_GROUP_ROLE_MAP; session cookie via existing token response. "
-            "Public register policy + auth/oidc/config.public_register; CONFIGURATION + .env.example. "
-            "Offline unit tests for disabled-by-default + route registration + register policy."
+            "2026-07-26: PKCE routes + register policy + role map scaffold. "
+            "Do not enable OIDC in prod until JWKS path is complete."
         ),
         "tasks": [
-            {
-                "id": "t1",
-                "title": "OIDC provider integration (authorization code + PKCE)",
-                "status": "done",
-                "done": True,
-            },
-            {
-                "id": "t2",
-                "title": "IdP group → ACTIRA role mapping",
-                "status": "in_progress",
-                "done": False,
-            },
-            {
-                "id": "t3",
-                "title": "MFA via IdP + enterprise register policy",
-                "status": "in_progress",
-                "done": False,
-            },
-            {
-                "id": "t4",
-                "title": "SPA cookie session + logout federation",
-                "status": "in_progress",
-                "done": False,
-            },
+            {"id": "t1", "title": "OIDC authorization code + PKCE scaffold", "status": "done", "done": True},
+            {"id": "t2", "title": "Group/role claim map + register policy", "status": "done", "done": True},
+            {"id": "t3", "title": "JWKS verify + shared state store", "status": "todo", "done": False},
+            {"id": "t4", "title": "Live IdP MFA + federated logout", "status": "todo", "done": False},
         ],
     },
     {
         "id": "rm-v1-3-otel-ha",
-        "title": "v1.3 Observability & HA — OTEL, multi-replica, load evidence",
-        "summary": "OpenTelemetry traces; multi-replica validation; published load tests; Helm polish.",
+        "title": "v1.3 Observability & HA — OTEL hooks, load tests, Helm",
+        "summary": "Stage timings + OTLP soft-dep; HA runbook; load 10/100 methodology; Helm 1.1 API+worker.",
         "description": (
-            "Planned: OTEL instrumentation, stateless multi-replica API, load tests 10/100+, "
-            "Helm prod values, production dashboards beyond skeletons."
+            "Shipped core v1.3: pipeline_trace stage timings, optional OTEL OTLP hook, multi-replica HA "
+            "validation runbook, load methodology 10/100 users, Helm chart with API + job-worker, HPA, PDB. "
+            "Production Grafana dashboards and deeper auto-instrument are tracked only under "
+            "rm-next-platform-hardening (not duplicated here)."
         ),
         "status": "completed",
         "priority": "p1",
@@ -1134,153 +383,264 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "target_release": "v1.3",
         "week": "Done",
         "category": "Platform / SRE",
-        "modules": ["backend/", "deployments/helm/", "monitoring/", "benchmarks/"],
-        "docs": ["ROADMAP.md#g-planned--v13-observability--ha", "docs/operations/"],
-        "architecture_notes": "Build on existing /metrics and job queue multi-worker docs.",
+        "modules": [
+            "backend/pipeline_trace.py",
+            "backend/otel_setup.py",
+            "deployments/helm/",
+            "benchmarks/",
+            "docs/operations/",
+        ],
+        "docs": ["docs/operations/HA_VALIDATION.md", "docs/operations/MONITORING.md"],
+        "architecture_notes": "Soft-dep OTEL; multi-worker needs shared job payload backend.",
         "progress": 100,
-        "implementation_notes": (
-            "2026-07-26: Pipeline stage timings (`pipeline_trace.py`, optional OTEL spans). "
-            "HA validation runbook + offline tests; load methodology 10/100 users; Helm chart 1.1.0 "
-            "with API+worker Deployments, HPA, PDB, values-prod.yaml. "
-            "Also: soft-dep OTLP HTTP exporter hook (`backend/otel_setup.py`, ACTIRA_OTEL_ENABLED / "
-            "OTEL_EXPORTER_OTLP_ENDPOINT); ops status can surface OTEL config. Deep auto-instrument optional."
-        ),
+        "implementation_notes": "2026-07-26: core HA/OTEL/load/Helm done. Stretch dashboards → next platform card.",
         "tasks": [
-            {
-                "id": "t1",
-                "title": "OpenTelemetry tracing for API + pipeline stages",
-                "status": "done",
-                "done": True,
-            },
-            {
-                "id": "t2",
-                "title": "Multi-replica / HA validation runbook + test",
-                "status": "done",
-                "done": True,
-            },
-            {
-                "id": "t3",
-                "title": "Load test report 10/100 users",
-                "status": "done",
-                "done": True,
-            },
-            {
-                "id": "t4",
-                "title": "Helm prod-like values polish",
-                "status": "done",
-                "done": True,
-            },
+            {"id": "t1", "title": "Stage timings + OTEL soft-dep", "status": "done", "done": True},
+            {"id": "t2", "title": "HA validation runbook", "status": "done", "done": True},
+            {"id": "t3", "title": "Load methodology 10/100", "status": "done", "done": True},
+            {"id": "t4", "title": "Helm API + worker packaging", "status": "done", "done": True},
         ],
     },
     {
         "id": "rm-v1-4-investigation-workspace",
-        "title": "v1.4 Investigation Workspace — AI SOC Command Center (Wave A)",
-        "summary": "Case hub, visual timeline, RCA, entity graph, notebook, AI assistant on /incidents/:id.",
+        "title": "v1.4 Investigation Workspace (Wave A)",
+        "summary": "Tabbed case hub: timeline, RCA, entity graph, notebook, AI assistant.",
         "description": (
-            "Design published 2026-07-26 (docs/product/INVESTIGATION_WORKSPACE_DESIGN.md). "
-            "Extend IncidentDetail into tabbed workspace; pure timeline/graph builders; atomic notes; "
-            "RCA with budget fallback; reuse investigator SSE with prompt-injection controls. "
-            "Implement via PR-1…PR-10 in design doc."
+            "Investigation Command Center MVP on /incidents/:id — pure timeline/graph builders, "
+            "notes CRUD, RCA with budget fallback, investigator SSE with untrusted-note framing."
         ),
-        "status": "in_progress",
+        "status": "completed",
         "priority": "p0",
         "owner": "",
         "effort": "l",
         "target_release": "v1.4",
-        "week": "Current",
+        "week": "Done",
         "category": "Product / Investigation",
         "modules": [
             "backend/investigation_views.py",
             "backend/services/workspace_service.py",
             "backend/routers/workspace.py",
             "backend/rca.py",
-            "backend/ai_investigator.py",
             "frontend/src/pages/IncidentDetail.jsx",
             "frontend/src/components/workspace/",
         ],
         "docs": [
-            "docs/product/VISION.md",
             "docs/product/INVESTIGATION_WORKSPACE_DESIGN.md",
-            "ROADMAP.md#m-vision-waves-agentic-soc-command-center",
+            "docs/product/VISION.md",
         ],
-        "architecture_notes": "No pipeline rewrite; dual /api + /api/v1; optional workspace on incident docs.",
-        "progress": 90,
-        "implementation_notes": (
-            "2026-07-26: PR-1…PR-9 on feature branch — builders, notes API, timeline/graph HTTP, RCA, "
-            "tabbed UI, visual timeline, entity graph, notebook, assistant starters + untrusted-note framing. "
-            "Remaining: PR-10 e2e polish / merge DoD."
-        ),
+        "architecture_notes": "No pipeline rewrite; dual /api + /api/v1.",
+        "progress": 100,
+        "implementation_notes": "2026-07-26: PR #8 workspace MVP merged.",
         "tasks": [
-            {
-                "id": "t1",
-                "title": "Design doc + product vision (Wave A)",
-                "status": "done",
-                "done": True,
-            },
-            {
-                "id": "t2",
-                "title": "PR-1…PR-3 pure views + notes + timeline/graph APIs",
-                "status": "done",
-                "done": True,
-            },
-            {
-                "id": "t3",
-                "title": "PR-4…PR-5 workspace RCA + UI shell",
-                "status": "done",
-                "done": True,
-            },
-            {
-                "id": "t4",
-                "title": "PR-6…PR-9 timeline/graph/notes/assistant + prompt safety",
-                "status": "done",
-                "done": True,
-            },
+            {"id": "t1", "title": "Design + pure builders + notes/timeline/graph APIs", "status": "done", "done": True},
+            {"id": "t2", "title": "RCA + tabbed UI shell", "status": "done", "done": True},
+            {"id": "t3", "title": "Graph/notebook/assistant + prompt safety", "status": "done", "done": True},
         ],
     },
     {
-        "id": "rm-arch-p0-p3-layers-analytics",
-        "title": "Architecture layers + analytics performance + cost/stage visibility",
-        "summary": "P0 import stabilization; P1 services/repos; P2 KPI facet/cache; P3 LLM budget KPI + stage timings.",
+        "id": "rm-v1-5-hunt-behavior-parsers",
+        "title": "v1.5 NL hunting, behavior, parsers (Wave B)",
+        "summary": "Rule-based NL hunt, behavioral signals, Suricata/Zeek/Defender/Sysmon parsers.",
         "description": (
-            "Refactor stack merged to main 2026-07-26: package-local backend imports; domain services; "
-            "Mongo $facet KPIs + TTL cache + indexes; Dashboard LLM budget meter; pipeline stage_timings."
+            "Deterministic NL hunt over incidents (no LLM required), behavioral analytics "
+            "(beaconing, login burst, multi-host, LOLBins, DNS), broader CES parsers, Hunt page + BehaviorPanel."
+        ),
+        "status": "completed",
+        "priority": "p0",
+        "owner": "",
+        "effort": "l",
+        "target_release": "v1.5",
+        "week": "Done",
+        "category": "Product / Detection",
+        "modules": [
+            "backend/hunting.py",
+            "backend/behavior.py",
+            "backend/parsers.py",
+            "frontend/src/pages/Hunt.jsx",
+            "frontend/src/components/workspace/BehaviorPanel.jsx",
+        ],
+        "docs": ["docs/product/FEATURE_INVENTORY.md", "docs/product/VISION.md"],
+        "architecture_notes": "Not lake-scale SIEM hunting — rule-based over stored incidents.",
+        "progress": 100,
+        "implementation_notes": "2026-07-26: Wave B complete.",
+        "tasks": [
+            {"id": "t1", "title": "NL hunt intents + Hunt page", "status": "done", "done": True},
+            {"id": "t2", "title": "Behavioral signals + BehaviorPanel", "status": "done", "done": True},
+            {"id": "t3", "title": "Suricata/Zeek/Defender/Sysmon parsers", "status": "done", "done": True},
+        ],
+    },
+    {
+        "id": "rm-v1-6-compliance-audit-llm",
+        "title": "v1.6 Compliance, audit intelligence, LLM catalog (Wave C)",
+        "summary": "Compliance score/gaps/evidence, audit chain + summary, executive export, free/paid LLM + fallback.",
+        "description": (
+            "Product-alignment compliance scoring (not certification), GRC evidence pack, executive export, "
+            "audit SHA-256 integrity chain + rule-based intelligence, free+paid model catalog, "
+            "cross-provider fallback with retriable error classification, last-effective LLM honesty, "
+            "OpenAPI contract refresh, and UI/API disclaimers that score ≠ ISO/SOC2 certification."
+        ),
+        "status": "completed",
+        "priority": "p0",
+        "owner": "",
+        "effort": "l",
+        "target_release": "v1.6",
+        "week": "Current",
+        "category": "Product / Compliance",
+        "modules": [
+            "backend/compliance_catalog.py",
+            "backend/services/compliance_service.py",
+            "backend/services/audit_service.py",
+            "backend/llm_provider.py",
+            "frontend/src/pages/Compliance.jsx",
+            "frontend/src/pages/AuditLogs.jsx",
+            "frontend/src/pages/Settings.jsx",
+        ],
+        "docs": ["docs/product/FEATURE_INVENTORY.md", "docs/product/VISION.md", "docs/openapi.json"],
+        "architecture_notes": "Best-effort audit chain (not WORM). Never market as formal certification.",
+        "progress": 100,
+        "implementation_notes": (
+            "2026-07-27: Wave C closed — W6-01..W6-05 done (score/gaps/export, audit intelligence, "
+            "LLM catalog+cross-provider resilience, DoD/OpenAPI/cert messaging)."
+        ),
+        "tasks": [
+            {"id": "t1", "title": "Compliance score + gaps + evidence + export", "status": "done", "done": True},
+            {"id": "t2", "title": "Audit intelligence + integrity UI", "status": "done", "done": True},
+            {"id": "t3", "title": "Free/paid LLM catalog + cross-provider fallback", "status": "done", "done": True},
+            {"id": "t4", "title": "Merge DoD + OpenAPI + cert messaging", "status": "done", "done": True},
+        ],
+    },
+    # =========================================================================
+    # Next (deduped — one card per track)
+    # =========================================================================
+    {
+        "id": "rm-next-trust-qa",
+        "title": "Next — trust UX + QA depth",
+        "summary": "DEMO banners, hard error states, a11y shell; fix E2E testids; cover workspace/hunt/compliance.",
+        "description": (
+            "Single next-sprint polish card (board P0/P1 UX+QA): unmistakable DEMO banners on synthetic data; "
+            "no infinite loading on incident/analytics failure; login design tokens; mobile off-canvas nav; "
+            "command palette Audit/Compliance; repair smoke testids; Playwright for workspace, hunt, compliance, audit."
+        ),
+        "status": "completed",
+        "priority": "p0",
+        "owner": "",
+        "effort": "m",
+        "target_release": "v1.6",
+        "week": "Next",
+        "category": "Frontend / QA",
+        "modules": [
+            "frontend/src/pages/Dashboard.jsx",
+            "frontend/src/pages/IncidentDetail.jsx",
+            "frontend/src/pages/Login.jsx",
+            "frontend/src/components/Layout.jsx",
+            "frontend/src/components/CommandPalette.jsx",
+            "frontend/e2e/",
+        ],
+        "docs": ["docs/ENTERPRISE_REVIEW_BOARD_2026-07-26.md", "docs/E2E_TESTING.md"],
+        "architecture_notes": "Prefer design-system empty/error primitives; stable data-testid contracts.",
+        "progress": 100,
+        "implementation_notes": (
+            "2026-07-26: DEMO opt-in + banner; hard errors on dashboard/incident/analytics/hunt; "
+            "login theme tokens + theme toggle; mobile off-canvas nav; palette Audit/Compliance; "
+            "workflow E2E for hunt/compliance/audit/workspace/agent roster."
+        ),
+        "tasks": [
+            {"id": "t1", "title": "DEMO banners + hard error states (no hang)", "status": "done", "done": True},
+            {"id": "t2", "title": "Login tokens + mobile nav + palette coverage", "status": "done", "done": True},
+            {"id": "t3", "title": "Repair smoke testids", "status": "done", "done": True},
+            {"id": "t4", "title": "Playwright workspace / hunt / compliance / audit", "status": "done", "done": True},
+        ],
+    },
+    {
+        "id": "rm-next-platform-hardening",
+        "title": "Next — platform scale, security, observability, layering",
+        "summary": "Incident pagination, global rate limit, CSP/HSTS, Grafana/OTEL depth, repos, AI catalog honesty.",
+        "description": (
+            "Single platform follow-on card (avoids split tech cards): server-side incident pagination; "
+            "global API rate limit + metrics; CSP/HSTS (app or edge docs); production Grafana dashboards + "
+            "deeper OTEL spans; complete repos (jobs/KB/roadmap); Settings page split; remove bkp facades; "
+            "tag experimental LLM model IDs and surface effective provider after fallback."
         ),
         "status": "completed",
         "priority": "p1",
         "owner": "",
         "effort": "l",
-        "target_release": "v1.1",
-        "week": "Done",
-        "category": "Platform / Architecture",
+        "target_release": "v1.7",
+        "week": "Next",
+        "category": "Platform / Security",
         "modules": [
-            "backend/services/",
+            "backend/routers/incidents.py",
+            "backend/server.py",
             "backend/repositories/",
-            "backend/analytics.py",
-            "backend/pipeline_trace.py",
-            "frontend/src/pages/Dashboard.jsx",
-            "frontend/src/pages/Upload.jsx",
+            "backend/llm_provider.py",
+            "monitoring/",
+            "frontend/src/pages/Settings.jsx",
+            "frontend/src/pages/Incidents.jsx",
         ],
-        "docs": ["docs/ARCHITECTURE.md", "CHANGELOG.md"],
-        "architecture_notes": "Thin routers; analytics cache is per-process (see MULTI_WORKER.md).",
-        "progress": 100,
+        "docs": [
+            "docs/operations/SECURITY_HARDENING.md",
+            "docs/operations/MONITORING.md",
+            "docs/dx/BACKEND_STRUCTURE.md",
+        ],
+        "architecture_notes": "Does not re-open v1.3 HA/Helm (done). Stretch only.",
+        "progress": 95,
         "implementation_notes": (
-            "Merged PRs #1–#3. CI green (unit, golden, openapi, bandit, frontend). "
-            "Env: ANALYTICS_KPI_CACHE_TTL_SECONDS, ANALYTICS_DASHBOARD_CACHE_TTL_SECONDS."
+            "2026-07-26: include_meta pagination + FE server page; GLOBAL_RATE_LIMIT_ENABLED; "
+            "CSP + ENABLE_HSTS; Grafana actira_* panels; otel_setup.span + pipeline_trace bridge; "
+            "repos jobs/kb/roadmap; experimental catalog tags + last effective LLM; "
+            "bkp README (facades retired). Settings mega-page further split remains stretch."
         ),
         "tasks": [
-            {"id": "t1", "title": "P0 import stabilization + ready/version probes", "status": "done", "done": True},
-            {"id": "t2", "title": "P1 services/repos architecture layers", "status": "done", "done": True},
-            {"id": "t3", "title": "P2 analytics facet + cache + indexes", "status": "done", "done": True},
-            {"id": "t4", "title": "P3 LLM KPI + pipeline stage timings", "status": "done", "done": True},
+            {"id": "t1", "title": "Server-side incidents pagination + global rate limit", "status": "done", "done": True},
+            {"id": "t2", "title": "CSP/HSTS + Grafana dashboards + deeper OTEL", "status": "done", "done": True},
+            {"id": "t3", "title": "Repos/Settings split + bkp cleanup", "status": "done", "done": True},
+            {"id": "t4", "title": "AI catalog experimental tags + effective provider UI", "status": "done", "done": True},
+        ],
+    },
+    {
+        "id": "rm-v1-7-agent-roster-exec",
+        "title": "v1.7 Wave D — agent roster UX + executive risk dashboard",
+        "summary": "Named agents over pipeline stages; executive risk/maturity/cost snapshot (no demo-masking).",
+        "description": (
+            "Productize pipeline stages as named collaborating agents (Triage, Investigation, TI, "
+            "Compliance, Playbook, Reviewer) with roster UX — without unconstrained multi-agent swarms. "
+            "Executive dashboard: open criticals, compliance score, MTTD/MTTR proxies, AI cost story. "
+            "Market as pipeline copilot until true multi-agent orchestration exists."
+        ),
+        "status": "completed",
+        "priority": "p1",
+        "owner": "",
+        "effort": "l",
+        "target_release": "v1.7",
+        "week": "Next",
+        "category": "Product / UX",
+        "modules": [
+            "frontend/src/pages/Dashboard.jsx",
+            "frontend/src/components/AgentRoster.jsx",
+            "frontend/src/components/ExecutiveStrip.jsx",
+            "backend/pipeline.py",
+        ],
+        "docs": ["docs/product/VISION.md"],
+        "architecture_notes": "Prefer wrapping existing stages over LangGraph rewrite (non-goal v1.x).",
+        "progress": 100,
+        "implementation_notes": (
+            "2026-07-26: AgentRoster + ExecutiveStrip on Dashboard; honesty badge "
+            "(pipeline copilot, not swarm); demo/error flags never mask fail as healthy."
+        ),
+        "tasks": [
+            {"id": "t1", "title": "Agent roster model + stage→agent UI", "status": "done", "done": True},
+            {"id": "t2", "title": "Executive risk/maturity/cost KPIs", "status": "done", "done": True},
+            {"id": "t3", "title": "Honest agentic claims in docs/UI", "status": "done", "done": True},
         ],
     },
     {
         "id": "rm-v2-multi-tenant",
-        "title": "v2.0 Multi-tenant + commercial pilot readiness",
-        "summary": "org_id isolation, per-tenant secrets, pen-test evidence, optional SOAR actions.",
+        "title": "v2.0 Multi-tenant + connectors + commercial pilot",
+        "summary": "org_id isolation, per-tenant secrets, SIEM connectors, pen-test pack, optional SOAR.",
         "description": (
-            "Future: multi-customer isolation, tenant settings, scale/pen-test pack, "
-            "optional SOAR with separate approval, optional multi-incident fan-out, SIEM connectors."
+            "Future Wave E: multi-customer isolation, tenant settings, scale/pen-test evidence, "
+            "SIEM/XDR connectors, optional SOAR with separate human approval, collab "
+            "(assign/comments/notifications), optional multi-incident fan-out."
         ),
         "status": "future",
         "priority": "p2",
@@ -1290,41 +650,41 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "week": "Future",
         "category": "Product",
         "modules": ["backend/", "frontend/"],
-        "docs": ["ROADMAP.md#h-future--v20-multi-tenant--commercial"],
+        "docs": ["docs/product/VISION.md", "ROADMAP.md"],
         "architecture_notes": "Do not claim multi-tenant until org_id is end-to-end.",
         "progress": 0,
         "implementation_notes": "",
         "tasks": [
-            {"id": "t1", "title": "org_id on users/incidents/jobs/settings", "status": "todo", "done": False},
+            {"id": "t1", "title": "org_id isolation on all docs", "status": "todo", "done": False},
             {"id": "t2", "title": "Per-tenant secrets + settings", "status": "todo", "done": False},
-            {"id": "t3", "title": "Pen-test + scale evidence pack", "status": "todo", "done": False},
-            {"id": "t4", "title": "Optional SOAR actions with human approval", "status": "todo", "done": False},
+            {"id": "t3", "title": "SIEM/XDR connectors", "status": "todo", "done": False},
+            {"id": "t4", "title": "Pen-test pack + optional SOAR approve-gate", "status": "todo", "done": False},
         ],
     },
     {
         "id": "rm-optional-release-packaging",
         "title": "Optional — git tags, demo video, hosted demo",
-        "summary": "Portfolio packaging: v1.0/v1.1 tags, 5–8 min demo recording, public/private host.",
+        "summary": "Portfolio packaging only; not required for functional completeness.",
         "description": (
-            "Not required for functional completeness. Improves interview/CXO presentation. "
-            "Also: secret history scan before public OSS; live backend_test on :8003."
+            "Tag releases, record 5–8 min demo from DEMO_SCRIPT, optional hosted demo, "
+            "secret history scan before public OSS. Capstone report/screenshots already under rm-v1-docs-pack."
         ),
         "status": "planned",
         "priority": "p3",
         "owner": "",
         "effort": "s",
-        "target_release": "v1.1",
+        "target_release": "v1.6",
         "week": "Optional",
         "category": "Product / Docs",
         "modules": ["RELEASE_NOTES.md", "docs/DEMO_SCRIPT.md"],
-        "docs": ["ROADMAP.md#e-optional-packaging-not-required-to-claim-done"],
-        "architecture_notes": "Process only; no code dependency.",
+        "docs": ["docs/DEMO_SCRIPT.md"],
+        "architecture_notes": "Process only — no code dependency.",
         "progress": 0,
         "implementation_notes": "",
         "tasks": [
-            {"id": "t1", "title": "Tag v1.0.0 and/or v1.1.0", "status": "todo", "done": False},
-            {"id": "t2", "title": "Record demo video from DEMO_SCRIPT", "status": "todo", "done": False},
-            {"id": "t3", "title": "Optional hosted demo environment", "status": "todo", "done": False},
+            {"id": "t1", "title": "Tag releases after merges", "status": "todo", "done": False},
+            {"id": "t2", "title": "Record demo video", "status": "todo", "done": False},
+            {"id": "t3", "title": "Optional hosted demo", "status": "todo", "done": False},
         ],
     },
 ]
@@ -1338,8 +698,12 @@ def default_tasks_for_item(item: Dict[str, Any]) -> List[Dict[str, Any]]:
     title = item.get("title") or "item"
     return [
         {"id": "t1", "title": f"Design approach for: {title}", "status": "todo", "done": False},
-        {"id": "t2", "title": f"Implement core path in modules: {', '.join((item.get('modules') or [])[:2]) or 'TBD'}",
-         "status": "todo", "done": False},
+        {
+            "id": "t2",
+            "title": f"Implement core path in modules: {', '.join((item.get('modules') or [])[:2]) or 'TBD'}",
+            "status": "todo",
+            "done": False,
+        },
         {"id": "t3", "title": "Add/adjust tests + docs", "status": "todo", "done": False},
         {"id": "t4", "title": "Update roadmap progress + implementation notes", "status": "todo", "done": False},
     ]

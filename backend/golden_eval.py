@@ -314,6 +314,13 @@ def aggregate(results: Sequence[CaseResult]) -> Dict[str, Any]:
             "mean_latency_s": 0.0,
             "full_phase_fraction": 0.0,
         }
+    lats = sorted(float(r.latency_s) for r in ok)
+    def _pct(p: float) -> float:
+        if not lats:
+            return 0.0
+        idx = min(len(lats) - 1, max(0, int(round((p / 100.0) * (len(lats) - 1)))))
+        return round(lats[idx], 4)
+
     return {
         "n_cases": n,
         "n_errors": sum(1 for r in results if r.error),
@@ -321,7 +328,11 @@ def aggregate(results: Sequence[CaseResult]) -> Dict[str, Any]:
         "mean_technique_recall": round(sum(r.technique_recall for r in ok) / n, 4),
         "mean_grounding": round(sum(r.grounding_score for r in ok) / n, 4),
         "mean_phase_coverage": round(sum(r.phase_coverage for r in ok) / n, 4),
-        "mean_latency_s": round(sum(r.latency_s for r in ok) / n, 4),
+        "mean_latency_s": round(sum(lats) / n, 4) if lats else 0.0,
+        "p50_latency_s": _pct(50),
+        "p95_latency_s": _pct(95),
+        "max_latency_s": round(max(lats), 4) if lats else 0.0,
+        "min_latency_s": round(min(lats), 4) if lats else 0.0,
         "full_phase_fraction": round(sum(1 for r in ok if r.phase_coverage >= 1.0) / n, 4),
         "min_ioc_f1": round(min(r.ioc_f1 for r in ok), 4),
         "min_technique_recall": round(min(r.technique_recall for r in ok), 4),

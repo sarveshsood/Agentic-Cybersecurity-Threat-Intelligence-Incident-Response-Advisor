@@ -1,0 +1,79 @@
+{
+  "case_id": "g001",
+  "log": "Jan 12 10:00:01 web01 sshd[1023]: Failed password for root from 185.220.101.45 port 45322 ssh2\nJan 12 10:00:02 web01 sshd[1024]: Failed password for admin from 185.220.101.45 port 45325 ssh2\nJan 12 10:00:03 web01 sshd[1025]: authentication failure for invalid user oracle from 185.220.101.45\n",
+  "expected": {
+    "iocs": [
+      {
+        "type": "ip",
+        "value": "185.220.101.45"
+      }
+    ],
+    "technique_ids": [
+      "T1110"
+    ],
+    "playbook_phases": [
+      "containment",
+      "eradication",
+      "recovery",
+      "lessons_learned"
+    ],
+    "min_grounding": 0.5
+  },
+  "prediction": {
+    "iocs": [
+      {
+        "type": "ip",
+        "value": "185.220.101.45"
+      }
+    ],
+    "techniques": [
+      "T1110"
+    ],
+    "playbook_phases": [
+      "containment",
+      "containment",
+      "eradication",
+      "recovery",
+      "lessons_learned"
+    ],
+    "playbook_steps": [
+      {
+        "order": 1,
+        "phase": "containment",
+        "action": "Isolate affected hosts from the network and preserve volatile evidence (memory, running processes).",
+        "citation_ids": [
+          "NIST-800-61-4.3"
+        ]
+      },
+      {
+        "order": 2,
+        "phase": "containment",
+        "action": "Block malicious IoCs (IPs, domains, hashes) at perimeter and endpoint controls.",
+        "citation_ids": [
+          "T1110",
+          "PB-BRUTEFORCE"
+        ]
+      },
+      {
+        "order": 3,
+        "phase": "eradication",
+        "action": "Remove malware artifacts, disable compromised accounts, and eliminate persistence mechanisms.",
+        "citation_ids": [
+          "T1110"
+        ]
+      },
+      {
+        "order": 4,
+        "phase": "recovery",
+        "action": "Restore systems from clean backups, rotate credentials, and validate integrity before returning to production.",
+        "citation_ids": [
+          "T1110"
+        ]
+      }
+    ],
+    "grounding_score": 1.0,
+    "severity": "medium",
+    "hitl_required": false,
+    "llm_provider": "template"
+  }
+}

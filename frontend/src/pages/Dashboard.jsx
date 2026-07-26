@@ -26,11 +26,6 @@ import {
     YAxis,
 } from "recharts";
 import {
-    ArrowUpRight,
-    ChartLineUp,
-    CheckCircle,
-    Clock,
-    Cpu,
     Database,
     Fingerprint,
     FolderSimpleLock,
@@ -38,18 +33,52 @@ import {
     HandTap,
     Info,
     MagnifyingGlass,
-    Pulse,
     ShieldCheck,
     ShieldWarning,
     Target,
-    Timer,
     TrendUp,
     UploadSimple,
     Users,
-    Lightning,
 } from "@phosphor-icons/react";
-import {DataTable, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
+import {DataTable, formatMetricValue, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
+import AgentRoster from "../components/AgentRoster";
+import ExecutiveStrip from "../components/ExecutiveStrip";
 
+/**
+ * Demo KPI/incident fallbacks are OFF by default (enterprise trust).
+ * Enable only for empty-DB marketing demos:
+ *   REACT_APP_DASHBOARD_DEMO_FALLBACK=true
+ */
+const DEMO_FALLBACK_ENABLED = ["1", "true", "yes", "on"].includes(
+    String(process.env.REACT_APP_DASHBOARD_DEMO_FALLBACK || "").toLowerCase(),
+);
+
+/** Zeroed KPI shape when the API returns nothing (real empty tenant). */
+const EMPTY_KPIS = {
+    total_incidents: 0,
+    critical_incidents: 0,
+    high_incidents: 0,
+    medium_incidents: 0,
+    low_incidents: 0,
+    pending_review: 0,
+    events_processed: 0,
+    unique_src_ips: 0,
+    unique_iocs: 0,
+    high_threat_iocs: 0,
+    multi_file_incidents: 0,
+    mean_grounding_score: 0,
+    acceptance_rate: 0,
+    mean_mttr_hours: null,
+    mttr_sample_size: 0,
+    approved: 0,
+    rejected: 0,
+    severity_distribution: [],
+    status_distribution: [],
+    top_ioc_types: [],
+    top_techniques: [],
+};
+
+/** Optional showcase data — never used unless REACT_APP_DASHBOARD_DEMO_FALLBACK=true. */
 const DEMO_FALLBACK_KPIS = {
     total_incidents: 65,
     critical_incidents: 23,
@@ -168,27 +197,27 @@ const DASH_TIPS = {
         title: "Threat Operations dashboard",
         body: "Live snapshot of SOC workload: incident volume, critical severity, HiTL queue, playbook quality, MTTR, recent cases, and ATT&CK coverage.",
     },
-    total: {title: "Incidents", body: "Total incident records (all statuses, all-time)."},
-    critical: {title: "Critical severity", body: "Incidents scored as critical by the pipeline."},
-    pending: {title: "HiTL pending", body: "Cases waiting for senior reviewer approval."},
-    grounding: {title: "Average grounding", body: "Mean citation quality of generated playbooks (0–1)."},
-    acceptance: {title: "Acceptance rate", body: "Share of HiTL decisions that were approved vs rejected."},
-    mttr: {title: "Mean time to review", body: "Average hours from incident creation to first review decision."},
-    llm: {
-        title: "LLM token budget",
-        body: "Estimated tokens used this calendar month vs Settings monthly soft budget (0 = unlimited).",
-    },
-    events: {title: "Events Processed", body: "Total raw log events ingested and analyzed."},
-    ips: {title: "Unique SRC IPs", body: "Distinct source IP addresses flagged across all incidents."},
-    iocs: {title: "Unique IOCs", body: "Distinct indicators of compromise extracted."},
-    high_threat: {title: "High Threat IOCs", body: "Indicators mapping directly to known threat actor infrastructure."},
-    multi: {title: "Multi-file Incidents", body: "Complex incidents spanning multiple log files."},
+    total: {title: "Incidents", body: "Total incident records (all statuses, all-time) from Mongo.", how: "COUNT of incidents collection."},
+    critical: {title: "Critical severity", body: "Incidents scored as critical by the pipeline.", how: "COUNT where severity=critical."},
+    high: {title: "High severity", body: "Incidents scored as high by the pipeline.", how: "COUNT where severity=high."},
+    medium: {title: "Medium severity", body: "Incidents scored as medium by the pipeline.", how: "COUNT where severity=medium."},
+    low: {title: "Low severity", body: "Incidents scored as low by the pipeline.", how: "COUNT where severity=low."},
+    pending: {title: "HiTL pending", body: "Cases waiting for senior reviewer approval.", how: "COUNT where status=pending_review."},
+    grounding: {title: "Average grounding", body: "Mean citation quality of generated playbooks (0–1).", how: "AVG(playbook.grounding_score) over incidents with a score."},
+    acceptance: {title: "Acceptance rate", body: "Share of HiTL decisions that were approved vs rejected.", how: "approved / (approved + rejected). 0 if none reviewed."},
+    mttr: {title: "Mean time to review", body: "Average hours from incident creation to first review decision.", how: "AVG(reviewed_at − created_at) in hours for reviewed cases."},
+    events: {title: "Events Processed", body: "Sum of raw log events across incidents (from correlation stats).", how: "SUM(correlation.stats.total_events)."},
+    ips: {title: "Unique SRC IPs", body: "Sum of distinct source IPs reported per incident correlation stats.", how: "SUM(correlation.stats.unique_source_ips)."},
+    iocs: {title: "Unique IOCs", body: "Total IoC objects extracted across all incidents.", how: "COUNT of IoC array elements (unwound)."},
+    high_threat: {title: "High Threat IOCs", body: "IoCs with enrichment threat_score ≥ 70.", how: "COUNT IoCs where threat_score ≥ 70."},
+    multi: {title: "Multi-file Incidents", body: "Incidents that include more than one source log file.", how: "COUNT where files_meta has 2+ files."},
     recent: {title: "Recent incidents", body: "Newest incidents for quick triage. Click headers to sort."},
     heatmap: {title: "MITRE ATT&CK coverage", body: "Technique frequency across incidents."},
     sev_mix: {title: "Severity distribution", body: "All-time severity mix from KPI aggregates."},
     ioc_mix: {title: "Top IoC types", body: "IoC type counts from KPI aggregates."},
-    trend: {title: "Incident creation trend", body: "Daily volume from the recent incident sample."},
+    trend: {title: "Incident creation trend", body: "Daily volume from the recent incident sample on this page (not all-time)."},
     status_mix: {title: "Lifecycle status mix", body: "Where cases sit in the IR lifecycle."},
+    top_tech: {title: "Top ATT&CK techniques", body: "Most frequent MITRE technique IDs mapped by the pipeline. Click a row to filter incidents."},
 };
 
 function kpiTip(tip) {
@@ -212,13 +241,6 @@ export default function Dashboard() {
     const chart = useChartTheme();
 
     const SEV_COLOR = chart.severity || {critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#3b82f6'};
-    const STATUS_COLOR = chart.status || {
-        new: '#3b82f6',
-        in_progress: '#f59e0b',
-        pending_review: '#8b5cf6',
-        approved: '#22c55e',
-        rejected: '#ef4444'
-    };
 
     const limit = Math.max(5, Math.min(50, Number(prefs.dashboard_recent_limit) || 8));
     const showExtra = prefs.dashboard_extra_widgets !== false;
@@ -227,14 +249,68 @@ export default function Dashboard() {
 
     const [rawKpis, setRawKpis] = useState(null);
     const [incidents, setIncidents] = useState([]);
+    const [ready, setReady] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [loadError, setLoadError] = useState(null);
     const [showTechLabels, setShowTechLabels] = useState(false);
 
-    const kpis = useMemo(() => {
-        return rawKpis && rawKpis.total_incidents > 0 ? {...DEMO_FALLBACK_KPIS, ...rawKpis} : DEMO_FALLBACK_KPIS;
-    }, [rawKpis]);
+    const hasApiKpis = ready && rawKpis != null;
+    const hasApiIncidents = ready && incidents.length > 0;
+    // Showcase demo only when explicitly enabled and we have no real payload
+    const useDemoKpis = DEMO_FALLBACK_ENABLED && ready && !hasApiKpis;
+    const useDemoIncidents = DEMO_FALLBACK_ENABLED && ready && incidents.length === 0;
 
-    const activeIncidents = incidents.length > 0 ? incidents : DEMO_INCIDENTS;
+    const normalizeKpis = useCallback((payload) => {
+        if (!payload || typeof payload !== "object") return {...EMPTY_KPIS};
+        const merged = {...EMPTY_KPIS, ...payload};
+        if (!merged.unique_src_ips && merged.unique_source_ips) {
+            merged.unique_src_ips = merged.unique_source_ips;
+        }
+        if ((!merged.top_techniques || !merged.top_techniques.length) && merged.attack_heatmap) {
+            const hm = merged.attack_heatmap;
+            if (hm && typeof hm === "object" && !Array.isArray(hm)) {
+                merged.top_techniques = Object.entries(hm)
+                    .map(([id, count]) => ({id, count: Number(count) || 0}))
+                    .filter((t) => t.id)
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 12);
+            }
+        }
+        if (Array.isArray(merged.severity_distribution)) {
+            for (const row of merged.severity_distribution) {
+                const s = (row.severity || "").toLowerCase();
+                const c = Number(row.count) || 0;
+                if (s === "high" && payload.high_incidents == null) merged.high_incidents = c;
+                if (s === "medium" && payload.medium_incidents == null) merged.medium_incidents = c;
+                if (s === "low" && payload.low_incidents == null) merged.low_incidents = c;
+                if (s === "critical" && payload.critical_incidents == null) merged.critical_incidents = c;
+            }
+        }
+        // Coerce numeric KPI fields so charts/cards stay consistent
+        for (const k of Object.keys(EMPTY_KPIS)) {
+            if (typeof EMPTY_KPIS[k] === "number" && merged[k] != null && merged[k] !== "") {
+                const n = Number(merged[k]);
+                if (!Number.isNaN(n)) merged[k] = n;
+            }
+        }
+        return merged;
+    }, []);
+
+    const kpis = useMemo(() => {
+        if (hasApiKpis) return normalizeKpis(rawKpis);
+        if (useDemoKpis) return DEMO_FALLBACK_KPIS;
+        return EMPTY_KPIS;
+    }, [hasApiKpis, rawKpis, useDemoKpis, normalizeKpis]);
+
+    const activeIncidents = useMemo(() => {
+        if (hasApiIncidents) return incidents;
+        if (useDemoIncidents) return DEMO_INCIDENTS;
+        return [];
+    }, [hasApiIncidents, incidents, useDemoIncidents]);
+
+    const showingDemoData = useDemoKpis || useDemoIncidents;
+    const loading = !ready;
+    const kpiLoading = loading || refreshing;
 
     const {sorted, sort, toggleSort} = useSortableData(
         activeIncidents,
@@ -242,53 +318,63 @@ export default function Dashboard() {
         ACCESSORS,
     );
 
-    const load = useCallback(() => {
-        api.get("/kpis").then((r) => setRawKpis(r.data)).catch((e) => {
-            setRawKpis(null);
-            setLoadError(e?.userMessage || "KPIs unavailable");
-        });
-        api.get("/incidents").then((r) => {
-            const all = Array.isArray(r.data) ? r.data : [];
-            const recent = [...all]
-                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-                .slice(0, limit);
-            setIncidents(recent);
-        }).catch(() => setIncidents([]));
+    const load = useCallback(async (opts = {}) => {
+        const silent = Boolean(opts.silent);
+        if (silent) setRefreshing(true);
+        else setLoadError(null);
+
+        try {
+            // Atomic dual fetch — avoid staggered KPI vs table paints
+            const [kpiRes, incRes] = await Promise.all([
+                api.get("/kpis", {params: {_t: Date.now()}}).catch((e) => ({__err: e, data: null})),
+                api.get("/incidents", {params: {limit, skip: 0, _t: Date.now()}}).catch((e) => ({__err: e, data: null})),
+            ]);
+
+            const errs = [];
+            if (kpiRes?.__err) {
+                errs.push(kpiRes.__err?.userMessage || kpiRes.__err?.message || "KPIs unavailable");
+                if (!silent) setRawKpis(null);
+            } else {
+                setRawKpis(kpiRes?.data && typeof kpiRes.data === "object" ? kpiRes.data : {});
+            }
+
+            if (incRes?.__err) {
+                errs.push(incRes.__err?.userMessage || incRes.__err?.message || "Incidents unavailable");
+                if (!silent) setIncidents([]);
+            } else {
+                const raw = incRes?.data;
+                const all = Array.isArray(raw) ? raw : Array.isArray(raw?.items) ? raw.items : [];
+                // API already sorts created_at desc; keep defensive client sort for consistency
+                const recent = [...all]
+                    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+                    .slice(0, limit);
+                setIncidents(recent);
+            }
+
+            setLoadError(errs.length ? errs.join(" · ") : null);
+            setReady(true);
+        } finally {
+            setRefreshing(false);
+        }
     }, [limit]);
 
     useEffect(() => {
-        load();
-        const ms = Number(prefs.dashboard_refresh_ms) || 0;
+        load({silent: false});
+        // Cap auto-refresh so “recommended” 60s does not thrash under load
+        const rawMs = Number(prefs.dashboard_refresh_ms) || 0;
+        const ms = rawMs > 0 ? Math.max(30_000, rawMs) : 0;
         if (ms <= 0) return undefined;
-        const id = setInterval(load, ms);
+        const id = setInterval(() => load({silent: true}), ms);
         return () => clearInterval(id);
     }, [load, prefs.dashboard_refresh_ms]);
 
     const severityPie = useMemo(() => {
         if (kpis?.severity_distribution?.length) {
-            return kpis.severity_distribution.map((e) => ({
-                severity: e.severity,
-                count: e.count,
-            }));
-        }
-        return [];
-    }, [kpis]);
-
-    const statusPie = useMemo(() => {
-        if (kpis?.status_distribution?.length) {
-            const labelMap = {
-                new: "New",
-                in_progress: "In Progress",
-                pending_review: "Pending Review",
-                approved: "Approved",
-                rejected: "Rejected",
-                closed: "Closed"
-            };
-            return kpis.status_distribution
-                .filter((e) => e.count > 0)
+            return kpis.severity_distribution
+                .filter((e) => Number(e.count) > 0)
                 .map((e) => ({
-                    ...e,
-                    status: labelMap[e.status] || e.status.replace(/_/g, " ")
+                    severity: e.severity,
+                    count: Number(e.count) || 0,
                 }));
         }
         return [];
@@ -302,17 +388,7 @@ export default function Dashboard() {
     }, [kpis]);
 
     const trendSeries = useMemo(() => {
-        if (incidents.length === 0) {
-            return [
-                {date: "2026-07-19", total: 8, critical: 2},
-                {date: "2026-07-20", total: 12, critical: 4},
-                {date: "2026-07-21", total: 2, critical: 0},
-                {date: "2026-07-22", total: 1, critical: 0},
-                {date: "2026-07-23", total: 6, critical: 2},
-                {date: "2026-07-24", total: 15, critical: 5},
-                {date: "2026-07-25", total: 4, critical: 1},
-            ];
-        }
+        if (!activeIncidents.length) return [];
 
         const byDay = {};
         for (const inc of activeIncidents) {
@@ -326,7 +402,7 @@ export default function Dashboard() {
             if (inc.severity === "high") byDay[key].high += 1;
         }
         return Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
-    }, [incidents, activeIncidents]);
+    }, [activeIncidents]);
 
     const workloadBars = useMemo(() => {
         const rawDist = kpis?.status_distribution;
@@ -337,11 +413,11 @@ export default function Dashboard() {
             });
         }
         return [
-            {status: "New", count: map["new"] ?? 2, rawKey: "new"},
-            {status: "In Progress", count: map["in_progress"] ?? 3, rawKey: "in_progress"},
+            {status: "New", count: map["new"] ?? 0, rawKey: "new"},
+            {status: "In Progress", count: map["in_progress"] ?? 0, rawKey: "in_progress"},
             {
                 status: "Pending Review",
-                count: map["pending_review"] ?? kpis.pending_review ?? 60,
+                count: map["pending_review"] ?? kpis?.pending_review ?? 0,
                 rawKey: "pending_review"
             }
         ];
@@ -358,20 +434,14 @@ export default function Dashboard() {
         return [];
     }, [kpis]);
 
-    const mttrLabel = kpis?.mean_mttr_hours != null ? `${kpis.mean_mttr_hours}h` : "—";
     const pendingCount = kpis?.pending_review ?? 0;
-    const llmUsage = rawKpis?.llm_usage || null;
-    const llmLabel = llmUsage
-        ? (llmUsage.unlimited
-            ? `${Number(llmUsage.tokens_used || 0).toLocaleString()}`
-            : `${llmUsage.percent_used != null ? `${llmUsage.percent_used}%` : "—"}`)
-        : "—";
-    const llmSub = llmUsage
-        ? (llmUsage.unlimited
-            ? `${llmUsage.month || "month"} · unlimited`
-            : `${Number(llmUsage.tokens_used || 0).toLocaleString()} / ${Number(llmUsage.budget || 0).toLocaleString()}`)
-        : "monthly soft budget";
-    const llmTone = llmUsage?.exhausted ? "critical" : (llmUsage?.percent_used != null && llmUsage.percent_used >= 80 ? "warning" : "default");
+
+    /** Stable chart shell — avoids Recharts layout thrash on empty data */
+    const ChartEmpty = ({label = "No data yet"}) => (
+        <div className="h-[160px] flex items-center justify-center text-xs text-slate-500 px-3 text-center">
+            {label}
+        </div>
+    );
 
     return (
         <div data-testid="dashboard-page" className="pb-12">
@@ -381,8 +451,8 @@ export default function Dashboard() {
                 tip={<HelpTip title={DASH_TIPS.page.title} body={DASH_TIPS.page.body} testid="dash-tip-page"/>}
                 subtitle={
                     <>
-                        Realtime view of ingestion, correlation, and reviewer workload. Hover{" "}
-                        <Info size={11} className="inline text-primary/80"/> for metric help.
+                        Executive risk at a glance, then ops volume, then charts and recent cases.
+                        Hover <Info size={11} className="inline text-primary/80"/> for metric help.
                     </>
                 }
                 actions={
@@ -398,6 +468,23 @@ export default function Dashboard() {
                 }
             />
 
+            {showingDemoData && (
+                <div
+                    className="mb-4 rounded-lg border border-[var(--warning-border)] bg-warning-soft px-3 py-2 text-xs text-warning flex flex-wrap items-center gap-2"
+                    data-testid="dashboard-demo-banner"
+                    role="status"
+                >
+                    <strong className="font-semibold">DEMO DATA</strong>
+                    <span>
+                        Showcase fallback is enabled (`REACT_APP_DASHBOARD_DEMO_FALLBACK`).
+                        Metrics below are not from your Mongo incidents — ingest logs for real data, or unset the flag.
+                    </span>
+                    <Link to="/upload" className="font-semibold underline underline-offset-2">
+                        Go to Ingest
+                    </Link>
+                </div>
+            )}
+
             {loadError && (
                 <ListState
                     variant="error"
@@ -405,6 +492,27 @@ export default function Dashboard() {
                     message={`${loadError} — is the backend running on the configured API URL?`}
                 />
             )}
+
+            {loading && (
+                <ListState
+                    variant="loading"
+                    testid="dashboard-loading"
+                    message="Loading live KPIs and recent incidents…"
+                />
+            )}
+            {refreshing && !loading && (
+                <div className="mb-3 text-[11px] text-muted-foreground font-mono" data-testid="dashboard-refreshing">
+                    Refreshing metrics…
+                </div>
+            )}
+
+            {/* Layer 1 — leadership / risk narrative (criticals, HiTL, MTTR, AI quality) */}
+            <ExecutiveStrip
+                kpis={kpis}
+                loading={kpiLoading}
+                loadError={loadError}
+                showingDemoData={showingDemoData}
+            />
 
             <div
                 className="flex flex-wrap items-center gap-2.5 mb-6"
@@ -436,51 +544,40 @@ export default function Dashboard() {
                 </Link>
             </div>
 
-            {/* KPI Grid Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
-                <KpiCard testid="kpi-total" tip={kpiTip(DASH_TIPS.total)} label="Incidents" value={kpis.total_incidents}
+            {/* Layer 2 — ops volume only (no overlap with executive strip) */}
+            <div className="mb-2 flex items-center gap-1.5">
+                <span className="soc-label">Ops volume</span>
+                <HelpTip
+                    title="Ops volume"
+                    body="Ingest and enrichment volume. Risk/review/AI quality live in the executive strip above; severity breakdown is in the charts below."
+                    testid="tip-ops-volume"
+                />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 mb-6" data-testid="dashboard-ops-kpis">
+                <KpiCard loading={kpiLoading} testid="kpi-total" tip={kpiTip(DASH_TIPS.total)} label="Incidents" value={kpis.total_incidents}
                          sub="all-time" icon={ShieldCheck} tone="primary" to="/incidents"/>
-                <KpiCard testid="kpi-critical" tip={kpiTip(DASH_TIPS.critical)} label="Critical"
-                         value={kpis.critical_incidents} sub="severity=critical" icon={Pulse} tone="critical"
-                         to="/incidents?severity=critical"/>
-                <KpiCard testid="kpi-pending" tip={kpiTip(DASH_TIPS.pending)} label="HITL Pending"
-                         value={kpis.pending_review} sub="awaiting reviewer" icon={HandTap} tone="warning"
-                         to="/review"/>
-                <KpiCard testid="kpi-events" tip={kpiTip(DASH_TIPS.events)} label="Events Processed"
+                <KpiCard loading={kpiLoading} testid="kpi-high" tip={kpiTip(DASH_TIPS.high)}
+                         label="High severity" value={kpis.high_incidents} sub="severity=high" icon={TrendUp}
+                         tone="warning" to="/incidents?severity=high"/>
+                <KpiCard loading={kpiLoading} testid="kpi-events" tip={kpiTip(DASH_TIPS.events)} label="Events Processed"
                          value={kpis.events_processed} sub="ingested logs" icon={Database} tone="primary"/>
-                <KpiCard testid="kpi-ips" tip={kpiTip(DASH_TIPS.ips)} label="Unique SRC IPs" value={kpis.unique_src_ips}
+                <KpiCard loading={kpiLoading} testid="kpi-ips" tip={kpiTip(DASH_TIPS.ips)} label="Unique SRC IPs" value={kpis.unique_src_ips}
                          sub="source addresses" icon={Globe} tone="primary"/>
-                <KpiCard testid="kpi-iocs" tip={kpiTip(DASH_TIPS.iocs)} label="Unique IOCs" value={kpis.unique_iocs}
+                <KpiCard loading={kpiLoading} testid="kpi-iocs" tip={kpiTip(DASH_TIPS.iocs)} label="Unique IOCs" value={kpis.unique_iocs}
                          sub="extracted indicators" icon={Target} tone="primary"/>
-                <KpiCard testid="kpi-high-threat" tip={kpiTip(DASH_TIPS.high_threat)} label="High Threat IOCs"
-                         value={kpis.high_threat_iocs} sub="score > 70" icon={ShieldWarning} tone="critical"/>
-
-                <KpiCard testid="kpi-high" label="High" value={kpis.high_incidents} sub="severity=high" icon={TrendUp}
-                         tone="warning"/>
-                <KpiCard testid="kpi-medium" label="Medium" value={kpis.medium_incidents} sub="severity=medium"
-                         icon={ChartLineUp} tone="default"/>
-                <KpiCard testid="kpi-low" label="Low" value={kpis.low_incidents} sub="severity=low" icon={ArrowUpRight}
+                <KpiCard loading={kpiLoading} testid="kpi-high-threat" tip={kpiTip(DASH_TIPS.high_threat)} label="High Threat IOCs"
+                         value={kpis.high_threat_iocs} sub={`score ≥ ${highThreat}`} icon={ShieldWarning} tone="critical"/>
+                <KpiCard loading={kpiLoading} testid="kpi-multi" tip={kpiTip(DASH_TIPS.multi)} label="Multi-File"
+                         value={kpis.multi_file_incidents} sub="complex packages" icon={FolderSimpleLock}
                          tone="default"/>
-                <KpiCard testid="kpi-multi" tip={kpiTip(DASH_TIPS.multi)} label="Multi-File"
-                         value={kpis.multi_file_incidents} sub="complex incidents" icon={FolderSimpleLock}
-                         tone="default"/>
-                <KpiCard testid="kpi-grounding" tip={kpiTip(DASH_TIPS.grounding)} label="Mean Grounding"
-                         value={kpis.mean_grounding_score} sub="citation rate" icon={Cpu} tone="success"/>
-                <KpiCard testid="kpi-acceptance" tip={kpiTip(DASH_TIPS.acceptance)} label="Acceptance Rate"
-                         value={`${Math.round(kpis.acceptance_rate * 100)}%`} sub={`${kpis.approved} approved`}
-                         icon={CheckCircle} tone="success"/>
-                <KpiCard testid="kpi-mttr" tip={kpiTip(DASH_TIPS.mttr)} label="Mean MTTR" value={mttrLabel}
-                         sub={`median ${kpis.mttr_sample_size}n`} icon={Timer} tone="default"/>
-                <KpiCard testid="kpi-llm-budget" tip={kpiTip(DASH_TIPS.llm)} label="LLM Budget"
-                         value={llmLabel} sub={llmSub} icon={Lightning} tone={llmTone} to="/settings"/>
             </div>
 
-            {showExtra && (
+            {showExtra && !loading && (
                 <>
-                    {/* Top 4 Mix & Health Grid with strict height alignment */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6 items-stretch">
+                    {/* Layer 3 — distributions (severity + IoC only; lifecycle lives in workload) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
+                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-sev-mix">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
@@ -491,11 +588,15 @@ export default function Dashboard() {
                                     <HelpTip title={DASH_TIPS.sev_mix.title} body={DASH_TIPS.sev_mix.body}/>
                                 </div>
                             </div>
-                            <div className="flex-1 flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height={160}>
+                            <div className="flex-1 flex items-center justify-center min-h-[160px]">
+                                {severityPie.length === 0 ? (
+                                    <ChartEmpty label="No severity data yet"/>
+                                ) : (
+                                <ResponsiveContainer width="100%" height={160} debounce={50}>
                                     <PieChart>
                                         <Pie data={severityPie} dataKey="count" nameKey="severity" cx="50%" cy="50%"
-                                             innerRadius={40} outerRadius={65} stroke="#ffffff" strokeWidth={2}>
+                                             innerRadius={40} outerRadius={65} stroke="#ffffff" strokeWidth={2}
+                                             isAnimationActive={false}>
                                             {severityPie.map((e) => (
                                                 <Cell key={e.severity} fill={SEV_COLOR[e.severity] || '#94a3b8'}/>
                                             ))}
@@ -509,44 +610,12 @@ export default function Dashboard() {
                                                 iconType="circle"/>
                                     </PieChart>
                                 </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
 
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
-                            data-testid="dash-status-mix">
-                            <div>
-                                <div className="flex items-center gap-1.5 mb-3">
-                                    <div
-                                        className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                                        <Users size={14} className="text-blue-600"/> Status mix
-                                    </div>
-                                    <HelpTip title={DASH_TIPS.status_mix.title} body={DASH_TIPS.status_mix.body}/>
-                                </div>
-                            </div>
-                            <div className="flex-1 flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height={160}>
-                                    <BarChart data={statusPie} margin={{left: -25, right: 0, top: 0, bottom: 0}}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                        <XAxis dataKey="status" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
-                                               tickLine={false} interval={0}/>
-                                        <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
-                                               allowDecimals={false}/>
-                                        <ReTooltip cursor={{fill: '#f8fafc'}}
-                                                   contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
-                                        <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={45}>
-                                            {statusPie.map((e) => {
-                                                const rawKey = e.status.toLowerCase().replace(/ /g, "_");
-                                                return <Cell key={e.status} fill={STATUS_COLOR[rawKey] || '#94a3b8'}/>;
-                                            })}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
+                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-ioc-types">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
@@ -557,8 +626,11 @@ export default function Dashboard() {
                                     <HelpTip title={DASH_TIPS.ioc_mix.title} body={DASH_TIPS.ioc_mix.body}/>
                                 </div>
                             </div>
-                            <div className="flex-1 flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height={160}>
+                            <div className="flex-1 flex items-center justify-center min-h-[160px]">
+                                {iocTypeBars.length === 0 ? (
+                                    <ChartEmpty label="No IoC type data yet"/>
+                                ) : (
+                                <ResponsiveContainer width="100%" height={160} debounce={50}>
                                     <BarChart data={iocTypeBars} margin={{left: -25, right: 0, top: 0, bottom: 0}}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
                                         <XAxis dataKey="type" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
@@ -567,54 +639,17 @@ export default function Dashboard() {
                                                allowDecimals={false}/>
                                         <ReTooltip cursor={{fill: '#f8fafc'}}
                                                    contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
-                                        <Bar dataKey="count" fill="#64748b" radius={[4, 4, 0, 0]} maxBarSize={35}/>
+                                        <Bar dataKey="count" fill="#64748b" radius={[4, 4, 0, 0]} maxBarSize={35} isAnimationActive={false}/>
                                     </BarChart>
                                 </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
-                            data-testid="dash-soc-health">
-                            <div>
-                                <div
-                                    className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 mb-3">
-                                    <Clock size={14} className="text-blue-600"/> SOC health
-                                    <HelpTip title="SOC health"
-                                             body="Operational signals from KPI totals. High-threat uses Settings UI threshold."/>
-                                </div>
-                            </div>
-                            <div className="space-y-2.5 text-[12px] flex-1 flex flex-col justify-center">
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                                    <span className="text-slate-500 font-medium" title="Pending HiTL / total">Queue pressure</span>
-                                    <span
-                                        className="font-mono text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded">
-                    {kpis.pending_review} <span className="text-amber-600/50">/</span> {kpis.total_incidents}
-                  </span>
-                                </div>
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                                    <span className="text-slate-500 font-medium">Critical share</span>
-                                    <span className="font-mono text-red-600 font-bold">
-                    {kpis.total_incidents > 0 ? Math.round((100 * kpis.critical_incidents) / kpis.total_incidents) : 0}%
-                  </span>
-                                </div>
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                                    <span className="text-slate-500 font-medium">HiTL acceptance</span>
-                                    <span className="font-mono text-emerald-600 font-bold">
-                    {Math.round(kpis.acceptance_rate * 100)}%
-                  </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-slate-500 font-medium">Mean MTTR</span>
-                                    <span className="font-mono text-blue-600 font-bold">{mttrLabel}</span>
-                                </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Middle Row: Analyst Workload & Top ATT&CK Techniques */}
+                    {/* Layer 3b — queue lifecycle + ATT&CK (single status chart) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
-                        {/* Analyst Workload */}
+                        {/* Analyst Workload — sole lifecycle status view */}
                         <div
                             className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm h-[380px] flex flex-col overflow-hidden"
                             data-testid="dash-workload"
@@ -622,11 +657,12 @@ export default function Dashboard() {
                             <div className="flex items-center gap-2 mb-4">
                                 <Users size={16} className="text-blue-600"/>
                                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    Analyst Workload
+                                    Analyst queue (by status)
                                 </div>
                                 <HelpTip
-                                    title="Analyst workload"
-                                    body="Open queue by lifecycle stage. Proxy for analyst backlog."
+                                    title="Analyst queue"
+                                    body="Open backlog by IR lifecycle stage. This is the only status breakdown on the dashboard (status mix chart was removed as duplicate)."
+                                    how="Uses the same status distribution as KPI status_distribution."
                                 />
                             </div>
 
@@ -692,8 +728,9 @@ export default function Dashboard() {
                                     <ShieldWarning size={16} className="text-blue-600"/>
                                     Top ATT&CK Techniques
                                     <HelpTip
-                                        title="Top techniques"
-                                        body="Most frequent MITRE ATT&CK techniques in KPIs. Click to filter."
+                                        title={DASH_TIPS.top_tech.title}
+                                        body={DASH_TIPS.top_tech.body}
+                                        testid="tip-dash-top-tech"
                                     />
                                 </div>
                                 <button
@@ -706,6 +743,11 @@ export default function Dashboard() {
                             </div>
 
                             <div className="flex-1 flex flex-col justify-evenly overflow-hidden">
+                                {!topTechMini.length && (
+                                    <p className="text-xs text-slate-500 px-2 py-4 text-center">
+                                        No ATT&CK techniques mapped yet. Ingest logs with detections to populate this list.
+                                    </p>
+                                )}
                                 {topTechMini.map((t) => (
                                     <Link
                                         key={t.id}
@@ -728,7 +770,10 @@ export default function Dashboard() {
                                                 <div
                                                     className="h-full rounded-full bg-blue-500"
                                                     style={{
-                                                        width: `${Math.min((t.count / 60) * 100, 100)}%`,
+                                                        width: `${Math.min(
+                                                            (t.count / Math.max(topTechMini[0]?.count || 1, 1)) * 100,
+                                                            100,
+                                                        )}%`,
                                                     }}
                                                 />
                                             </div>
@@ -742,7 +787,7 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6"
+                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6 min-h-[280px]"
                          data-testid="dash-trend">
                         <div className="flex items-center gap-1.5 mb-4">
                             <div
@@ -751,130 +796,172 @@ export default function Dashboard() {
                             </div>
                             <HelpTip title={DASH_TIPS.trend.title} body={DASH_TIPS.trend.body}/>
                         </div>
-                        <ResponsiveContainer width="100%" height={220}>
+                        {trendSeries.length === 0 ? (
+                            <ChartEmpty label="No recent incidents to plot. Ingest logs to build a timeline."/>
+                        ) : (
+                        <ResponsiveContainer width="100%" height={220} debounce={50}>
                             <AreaChart data={trendSeries} margin={{left: -20, right: 10, top: 10, bottom: 0}}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
                                 <XAxis dataKey="date" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
                                        tickLine={false}/>
-                                <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}/>
+                                <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
+                                       allowDecimals={false}/>
                                 <ReTooltip contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
                                 <Area type="monotone" dataKey="total" stroke="#3b82f6" fill="rgba(59, 130, 246, 0.1)"
-                                      strokeWidth={3} name="Total Volume"/>
+                                      strokeWidth={3} name="Total Volume" isAnimationActive={false}/>
                                 <Area type="monotone" dataKey="critical" stroke="#ef4444" fill="transparent"
-                                      strokeWidth={2} name="Critical"/>
+                                      strokeWidth={2} name="Critical" isAnimationActive={false}/>
                             </AreaChart>
                         </ResponsiveContainer>
+                        )}
                     </div>
                 </>
             )}
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-                <Panel
-                    className="xl:col-span-8 bg-white shadow-sm border-slate-200"
-                    noPadding
-                    title="Recent Incidents"
-                    testid="dash-recent-panel"
-                    actions={
-                        <div className="flex items-center gap-3">
-              <span
-                  className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                Limit: {limit}
-              </span>
-                            <Tip content="Browse all incidents with filters and full-column sort">
-                                <Link to="/incidents"
-                                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
-                                    View all →
-                                </Link>
-                            </Tip>
-                        </div>
-                    }
-                >
-                    <DataTable aria-label="Recent incidents" testid="dash-recent-table">
-                        <thead className="bg-slate-50/50">
+            <Panel
+                className="bg-white shadow-sm border-slate-200 mb-6"
+                noPadding
+                title="Recent Incidents"
+                testid="dash-recent-panel"
+                tip={
+                    <HelpTip
+                        title="Recent incidents"
+                        body="Latest cases from the pipeline. Open a row for the investigation workspace. Severity and status badges match the Incidents list."
+                        testid="tip-dash-recent"
+                    />
+                }
+                actions={
+                    <div className="flex items-center gap-3">
+                        <span
+                            className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                            Limit: {limit}
+                        </span>
+                        <Tip content="Browse all incidents with filters and full-column sort">
+                            <Link to="/incidents"
+                                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                                View all →
+                            </Link>
+                        </Tip>
+                    </div>
+                }
+            >
+                <DataTable aria-label="Recent incidents" testid="dash-recent-table">
+                    <thead className="bg-slate-50/50">
+                    <tr>
+                        <SortableTh label="Title" sortKey="title" sort={sort} onSort={toggleSort}/>
+                        <SortableTh label="Severity" sortKey="severity" sort={sort} onSort={toggleSort}/>
+                        <SortableTh label="Status" sortKey="status" sort={sort} onSort={toggleSort}/>
+                        <SortableTh label="Tech" sortKey="techniques" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                        <SortableTh label="IoCs" sortKey="iocs" sort={sort} onSort={toggleSort} align="right"/>
+                        <SortableTh label="Score" sortKey="threat_score" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                        <SortableTh label="Grounding" sortKey="grounding" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                        <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                    {sorted.length === 0 && !loading && (
                         <tr>
-                            <SortableTh label="Title" sortKey="title" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Severity" sortKey="severity" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Status" sortKey="status" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Tech" sortKey="techniques" sort={sort} onSort={toggleSort}
-                                        align="right"/>
-                            <SortableTh label="IoCs" sortKey="iocs" sort={sort} onSort={toggleSort} align="right"/>
-                            <SortableTh label="Score" sortKey="threat_score" sort={sort} onSort={toggleSort}
-                                        align="right"/>
-                            <SortableTh label="Grounding" sortKey="grounding" sort={sort} onSort={toggleSort}
-                                        align="right"/>
-                            <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={toggleSort}
-                                        align="right"/>
+                            <td colSpan={8} className="text-center text-slate-500 text-sm py-12" data-testid="dash-recent-empty">
+                                No incidents yet.{" "}
+                                <Link to="/upload" className="text-primary font-semibold underline-offset-2 hover:underline">
+                                    Ingest sample or production logs
+                                </Link>
+                                {" "}to populate live KPIs and this table.
+                            </td>
                         </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                        {sorted.length === 0 && (
-                            <tr>
-                                <td colSpan={8} className="text-center text-slate-500 text-sm py-12">
-                                    No recent incidents to display. Waiting for log ingestion.
+                    )}
+                    {sorted.map((inc) => {
+                        const titleLink = (
+                            <Link
+                                to={`/incidents/${inc.id}`}
+                                data-testid={`incident-link-${inc.id}`}
+                                className="text-[13px] font-semibold text-slate-800 hover:text-blue-600 transition-colors"
+                                title={inc.summary || inc.title}
+                            >
+                                {inc.title}
+                            </Link>
+                        );
+                        return (
+                            <tr key={inc.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-4 py-3">
+                                    {showPreviews ? (
+                                        <HoverCard openDelay={180}>
+                                            <HoverCardTrigger asChild>{titleLink}</HoverCardTrigger>
+                                            <HoverCardContent
+                                                side="right"
+                                                collisionPadding={16}
+                                                className="w-80 max-w-[min(20rem,calc(100vw-1.5rem))] bg-white border border-slate-200 shadow-xl p-4 z-[200] rounded-xl"
+                                            >
+                                                <IncidentPreview inc={inc}/>
+                                            </HoverCardContent>
+                                        </HoverCard>
+                                    ) : (
+                                        titleLink
+                                    )}
+                                    <div className="font-mono text-[10px] text-slate-400 mt-1 uppercase"
+                                         title={inc.id}>{inc.id?.slice(0, 8)}</div>
+                                </td>
+                                <td className="px-4 py-3"><SeverityBadge severity={inc.severity}/></td>
+                                <td className="px-4 py-3"><StatusPill status={inc.status}/></td>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-semibold text-blue-600">{inc.techniques?.length ?? 0}</td>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-medium text-slate-600">{inc.iocs?.length ?? 0}</td>
+                                <td className={`px-4 py-3 text-right font-mono text-[12px] font-bold ${Number(inc.threat_score) >= highThreat ? "text-red-600" : "text-blue-600"}`}>
+                                    {inc.threat_score}
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-emerald-600">{inc.playbook?.grounding_score ?? "—"}</td>
+                                <td className="px-4 py-3 text-right text-[11px] text-slate-500 font-mono">
+                                    {formatDateTime(inc.created_at, {showStandard: false})}
                                 </td>
                             </tr>
-                        )}
-                        {sorted.map((inc) => {
-                            const titleLink = (
-                                <Link
-                                    to={`/incidents/${inc.id}`}
-                                    data-testid={`incident-link-${inc.id}`}
-                                    className="text-[13px] font-semibold text-slate-800 hover:text-blue-600 transition-colors"
-                                    title={inc.summary || inc.title}
-                                >
-                                    {inc.title}
-                                </Link>
-                            );
-                            return (
-                                <tr key={inc.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-4 py-3">
-                                        {showPreviews ? (
-                                            <HoverCard openDelay={180}>
-                                                <HoverCardTrigger asChild>{titleLink}</HoverCardTrigger>
-                                                <HoverCardContent
-                                                    side="right"
-                                                    collisionPadding={16}
-                                                    className="w-80 max-w-[min(20rem,calc(100vw-1.5rem))] bg-white border border-slate-200 shadow-xl p-4 z-[200] rounded-xl"
-                                                >
-                                                    <IncidentPreview inc={inc}/>
-                                                </HoverCardContent>
-                                            </HoverCard>
-                                        ) : (
-                                            titleLink
-                                        )}
-                                        <div className="font-mono text-[10px] text-slate-400 mt-1 uppercase"
-                                             title={inc.id}>{inc.id?.slice(0, 8)}</div>
-                                    </td>
-                                    <td className="px-4 py-3"><SeverityBadge severity={inc.severity}/></td>
-                                    <td className="px-4 py-3"><StatusPill status={inc.status}/></td>
-                                    <td className="px-4 py-3 text-right font-mono text-[12px] font-semibold text-blue-600">{inc.techniques?.length ?? 0}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-[12px] font-medium text-slate-600">{inc.iocs?.length ?? 0}</td>
-                                    <td className={`px-4 py-3 text-right font-mono text-[12px] font-bold ${Number(inc.threat_score) >= highThreat ? "text-red-600" : "text-blue-600"}`}>
-                                        {inc.threat_score}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-emerald-600">{inc.playbook?.grounding_score ?? "—"}</td>
-                                    <td className="px-4 py-3 text-right text-[11px] text-slate-500 font-mono">
-                                        {formatDateTime(inc.created_at, {showStandard: false})}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        </tbody>
-                    </DataTable>
-                </Panel>
+                        );
+                    })}
+                    </tbody>
+                </DataTable>
+            </Panel>
 
-                <Panel
-                    className="xl:col-span-4 bg-white shadow-sm border-slate-200"
-                    title="MITRE ATT&CK Coverage"
-                    subtitle="by tactic (aggregated techniques)"
-                    testid="dash-heatmap-panel"
-                    actions={
-                        <HelpTip title={DASH_TIPS.heatmap.title} body={DASH_TIPS.heatmap.body} align="end"/>
-                    }
+            {/* Full-width ATT&CK panel so coverage matrix has room to fit */}
+            <Panel
+                className="bg-white shadow-sm border-slate-200 mb-6"
+                title="MITRE ATT&CK Coverage"
+                subtitle="Technique frequency by tactic — use Coverage matrix for the full catalog grid"
+                testid="dash-heatmap-panel"
+                tip={
+                    <HelpTip
+                        title="ATT&CK coverage heatmap"
+                        body="How often each technique appears across incidents in the selected window. Density is frequency, not true enterprise coverage of the full ATT&CK catalog."
+                        testid="tip-dash-heatmap"
+                    />
+                }
+                bodyClassName="p-4 overflow-x-auto"
+                actions={
+                    <HelpTip title={DASH_TIPS.heatmap.title} body={DASH_TIPS.heatmap.body} align="end"/>
+                }
+            >
+                <AttackHeatmap counts={kpis.attack_heatmap || {}}/>
+            </Panel>
+
+            {/* Layer 4 — product narrative (collapsed by default; not ops metrics) */}
+            <details className="soc-card mb-2 group" data-testid="agent-roster-details">
+                <summary
+                    className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-foreground hover:bg-[var(--shell-chip)]/50 rounded-xl"
                 >
-                    <AttackHeatmap counts={kpis.attack_heatmap || {}}/>
-                </Panel>
-            </div>
+                    <span className="inline-flex items-center gap-2">
+                        How ACTIRA investigates
+                        <span className="text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
+                            agent roster · pipeline stages
+                        </span>
+                    </span>
+                    <span className="text-[11px] text-muted-foreground font-medium group-open:hidden">Show</span>
+                    <span className="text-[11px] text-muted-foreground font-medium hidden group-open:inline">Hide</span>
+                </summary>
+                <div className="px-2 pb-3">
+                    <AgentRoster compact className="!border-0 !shadow-none !bg-transparent"/>
+                </div>
+            </details>
         </div>
     );
 }

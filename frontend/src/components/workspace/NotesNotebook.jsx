@@ -3,6 +3,7 @@ import {api} from "../../lib/api";
 import {toast} from "sonner";
 import {useAuth} from "../../lib/auth";
 import {formatDateTime} from "../../lib/uiPrefs";
+import {PaneLabel, Tip} from "../HelpTip";
 
 const KINDS = [
     {id: "", label: "All"},
@@ -80,7 +81,14 @@ export default function NotesNotebook({incidentId, kindFilter = null}) {
     return (
         <div className="space-y-4" data-testid="notes-notebook">
             <form onSubmit={create} className="soc-card p-4 space-y-3" data-testid="notes-create-form">
-                <div className="soc-label">Add {kind === "recommendation" ? "recommendation" : "note"}</div>
+                <PaneLabel
+                    title="Analyst notebook"
+                    body="Case notes, findings, and recommendations are stored with the incident for the investigation team. Recommendations also surface on the Recommendations tab."
+                    how="POST /incidents/{id}/workspace/notes · kinds: note | finding | recommendation."
+                    testid="tip-notes-create"
+                >
+                    Add {kind === "recommendation" ? "recommendation" : "note"}
+                </PaneLabel>
                 <div className="flex flex-wrap gap-2">
                     <select
                         className="text-xs border border-border rounded px-2 py-1.5 bg-background"
@@ -110,35 +118,51 @@ export default function NotesNotebook({incidentId, kindFilter = null}) {
                     required
                     data-testid="notes-body-input"
                 />
-                <button
-                    type="submit"
-                    disabled={busy}
-                    className="soc-btn-primary !text-xs !py-1.5 disabled:opacity-50"
-                    data-testid="notes-submit-btn"
-                >
-                    {busy ? "Saving…" : "Add to notebook"}
-                </button>
+                <Tip content={busy ? "Saving note…" : "Save this entry to the case notebook"}>
+                    <button
+                        type="submit"
+                        disabled={busy}
+                        className="soc-btn-primary !text-xs !py-1.5 disabled:opacity-50"
+                        data-testid="notes-submit-btn"
+                    >
+                        {busy ? "Saving…" : "Add to notebook"}
+                    </button>
+                </Tip>
             </form>
 
             <div className="soc-card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    <div className="soc-label">Notebook</div>
+                    <PaneLabel
+                        title="Notebook entries"
+                        body="Chronological investigation notes for this case. Filter by kind (note / finding / recommendation)."
+                        testid="tip-notes-list"
+                    >
+                        Notebook
+                    </PaneLabel>
                     {!kindFilter && (
                         <div className="flex gap-1">
                             {KINDS.map((k) => (
-                                <button
+                                <Tip
                                     key={k.id || "all"}
-                                    type="button"
-                                    onClick={() => setFilter(k.id)}
-                                    className={`text-[10px] px-2 py-1 rounded border ${
-                                        filter === k.id
-                                            ? "border-primary bg-primary/10 text-primary"
-                                            : "border-border text-muted-foreground"
-                                    }`}
-                                    data-testid={`notes-filter-${k.id || "all"}`}
+                                    content={
+                                        k.id
+                                            ? `Show only ${k.label.toLowerCase()}`
+                                            : "Show all notebook entry kinds"
+                                    }
                                 >
-                                    {k.label}
-                                </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilter(k.id)}
+                                        className={`text-[10px] px-2 py-1 rounded border ${
+                                            filter === k.id
+                                                ? "border-primary bg-primary/10 text-primary"
+                                                : "border-border text-muted-foreground"
+                                        }`}
+                                        data-testid={`notes-filter-${k.id || "all"}`}
+                                    >
+                                        {k.label}
+                                    </button>
+                                </Tip>
                             ))}
                         </div>
                     )}
@@ -165,14 +189,16 @@ export default function NotesNotebook({incidentId, kindFilter = null}) {
                                         )}
                                     </div>
                                     {canEdit(n) && (
-                                        <button
-                                            type="button"
-                                            className="text-[10px] text-error hover:underline"
-                                            onClick={() => remove(n)}
-                                            data-testid={`note-delete-${n.id}`}
-                                        >
-                                            Delete
-                                        </button>
+                                        <Tip content="Delete this notebook entry (permanent)">
+                                            <button
+                                                type="button"
+                                                className="text-[10px] text-error hover:underline"
+                                                onClick={() => remove(n)}
+                                                data-testid={`note-delete-${n.id}`}
+                                            >
+                                                Delete
+                                            </button>
+                                        </Tip>
                                     )}
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-1.5 whitespace-pre-wrap leading-relaxed">
@@ -197,7 +223,14 @@ export function RecommendationsPanel({incidentId, playbook}) {
     return (
         <div className="space-y-4" data-testid="recommendations-panel">
             <div className="soc-card p-4">
-                <div className="soc-label mb-2">Playbook containment (read-only)</div>
+                <PaneLabel
+                    className="mb-2"
+                    title="Playbook containment"
+                    body="Top containment steps from the generated IR playbook (read-only). Full phases live under the Playbooks tab."
+                    testid="tip-rec-containment"
+                >
+                    Playbook containment (read-only)
+                </PaneLabel>
                 {containment.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No containment steps on this playbook.</p>
                 ) : (

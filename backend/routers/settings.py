@@ -23,6 +23,18 @@ async def get_settings(user=Depends(get_current_user)):
     return await settings_service.public_settings_payload()
 
 
+@router.get("/settings/llm-catalog")
+async def get_llm_catalog(user=Depends(get_current_user)):
+    """Provider → model allow-list for Settings UI and clients."""
+    return settings_service.llm_catalog_payload()
+
+
+@router.post("/settings/test-llm")
+async def test_llm_connection(user=Depends(require_roles("admin"))):
+    """Probe configured LLM with a minimal completion (uses real API quota)."""
+    return await settings_service.test_llm(user)
+
+
 @router.put("/settings")
 async def update_settings(
     body: Dict[str, Any] = Body(...),

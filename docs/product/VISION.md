@@ -123,15 +123,15 @@ Named collaborating agents (productize existing pipeline stages first):
 
 Aligned with engineering phases (see root `ROADMAP.md` § Vision waves):
 
-| Wave | Focus | Priority |
-|------|--------|----------|
-| **A (v1.4)** | Investigation Workspace MVP: shell, timeline, RCA, entity graph, notebook, assistant | **P0 product** |
-| **B** | Broader evidence formats, hunting, behavioral analytics slices | High |
-| **C** | Compliance automation, audit intelligence, executive export | High |
-| **D** | Multi-agent roster UX + executive dashboard | Medium |
-| **E** | Enterprise connectors, multi-tenant, scale | Medium |
+| Wave | Focus | Priority | Status |
+|------|--------|----------|--------|
+| **A (v1.4)** | Investigation Workspace MVP: shell, timeline, RCA, entity graph, notebook, assistant | **P0 product** | ✅ Done |
+| **B (v1.5)** | Broader evidence formats, hunting, behavioral analytics slices | High | ✅ Done |
+| **C (v1.6)** | Compliance automation, audit intelligence, executive export, LLM fallback | High | ✅ Done |
+| **D (v1.7)** | Multi-agent roster UX + executive dashboard + trust/QA polish | Medium | 📋 Planned |
+| **E (v2.x)** | Enterprise connectors, multi-tenant, scale | Medium | 🔮 Future |
 
-**Already largely complete (engineering foundation):** modular API, hybrid RAG, HiTL, golden eval, OTEL/HA scaffolding, OIDC scaffold, ATT&CK matrix, EVTX scaffold.
+**Already complete (engineering foundation):** modular API, hybrid RAG, HiTL, golden eval, OTEL/HA scaffolding, OIDC scaffold, ATT&CK matrix, EVTX scaffold, architecture services/repos + analytics performance.
 
 ---
 

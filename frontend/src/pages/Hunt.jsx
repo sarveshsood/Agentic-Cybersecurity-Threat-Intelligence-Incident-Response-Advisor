@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from "react";
 import {Link} from "react-router-dom";
 import {api} from "../lib/api";
 import {PageHeader} from "../design-system";
+import {HelpTip} from "../components/HelpTip";
 import {SeverityBadge, StatusPill} from "../components/SeverityBadge";
 import {ListState} from "../components/ListState";
 import {MagnifyingGlass, Crosshair, Pulse} from "@phosphor-icons/react";
@@ -13,6 +14,7 @@ export default function Hunt() {
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [hotspots, setHotspots] = useState(null);
+    const [huntError, setHuntError] = useState(null);
 
     useEffect(() => {
         api
@@ -42,11 +44,14 @@ export default function Hunt() {
             }
             setQ(text);
             setLoading(true);
+            setHuntError(null);
             try {
                 const r = await api.get(`/hunt?q=${encodeURIComponent(text)}&limit=40`);
                 setResult(r.data);
             } catch (e) {
-                toast.error(e?.response?.data?.detail || "Hunt failed");
+                const msg = e?.userMessage || e?.response?.data?.detail || "Hunt failed";
+                toast.error(msg);
+                setHuntError(typeof msg === "string" ? msg : "Hunt failed");
                 setResult(null);
             } finally {
                 setLoading(false);
@@ -61,6 +66,14 @@ export default function Hunt() {
                 testid="hunt-header"
                 title="Threat Hunting"
                 subtitle="Natural-language hunt over recent incidents (rule-based intents + keyword scoring)"
+                tip={
+                    <HelpTip
+                        title="Threat Hunting"
+                        body="Ask in plain language (e.g. PowerShell, lateral movement). ACTIRA maps the query to rule-based intents and scores matching incidents — not a SIEM lake search (KQL/SPL)."
+                        how="Intents + keyword scoring over Mongo incidents and extracted IoCs/techniques."
+                        testid="tip-hunt-page"
+                    />
+                }
             />
 
             <form
@@ -71,8 +84,14 @@ export default function Hunt() {
                 }}
                 data-testid="hunt-form"
             >
-                <label className="soc-label" htmlFor="hunt-query">
+                <label className="soc-label inline-flex items-center gap-1.5" htmlFor="hunt-query">
                     Hunt query
+                    <HelpTip
+                        title="Hunt query"
+                        body="Plain-language intent (e.g. PowerShell, lateral movement, ransomware). Mapped to rule-based intents + keyword scoring over recent incidents — not KQL/SPL lake search."
+                        how="GET /hunt?q=… scores incidents by IoCs, techniques, and text fields."
+                        testid="tip-hunt-query"
+                    />
                 </label>
                 <div className="flex flex-wrap gap-2">
                     <div className="relative flex-1 min-w-[220px]">
@@ -119,7 +138,15 @@ export default function Hunt() {
                     <div className="flex items-center gap-2">
                         <Pulse size={16} className="text-primary"/>
                         <div>
-                            <div className="soc-label">Behavioral hotspots</div>
+                            <div className="soc-label inline-flex items-center gap-1.5">
+                                Behavioral hotspots
+                                <HelpTip
+                                    title="Behavioral hotspots"
+                                    body="Heuristic behavior flags across recent cases: beaconing intervals, login bursts, multi-host users, LOLBins, high DNS volume."
+                                    how="GET /hunt/behavior ranks incidents with behavior_flags from the pipeline."
+                                    testid="tip-hunt-hotspots"
+                                />
+                            </div>
                             <div className="text-[11px] text-muted-foreground">
                                 Beaconing, login bursts, multi-host users, LOLBins, DNS volume
                             </div>
@@ -153,10 +180,21 @@ export default function Hunt() {
 
             {loading && <ListState variant="loading" message="Scoring incidents…" testid="hunt-loading"/>}
 
+            {!loading && huntError && (
+                <ListState variant="error" message={huntError} testid="hunt-load-error"/>
+            )}
+
             {!loading && result && (
                 <div className="space-y-4" data-testid="hunt-results">
                     <div className="soc-card p-4">
-                        <div className="soc-label mb-1">Intent</div>
+                        <div className="soc-label mb-1 inline-flex items-center gap-1.5">
+                            Intent
+                            <HelpTip
+                                title="Mapped hunt intent"
+                                body="Rule-based intent matched from your query (keywords + patterns). Score ranks incidents by how well they fit — not a SIEM correlation engine."
+                                testid="tip-hunt-intent"
+                            />
+                        </div>
                         <div className="text-sm text-foreground font-medium">{result.intent?.label}</div>
                         <div className="text-[11px] text-muted-foreground mt-1 font-mono">
                             id={result.intent?.id} · matches {result.total_matches} / {result.total_candidates} scanned

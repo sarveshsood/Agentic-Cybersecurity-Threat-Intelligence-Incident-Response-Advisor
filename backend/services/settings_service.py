@@ -32,6 +32,8 @@ RECOMMENDED_SETTINGS_OPS = {
     "llm_model": "claude-sonnet-4-6",
     "llm_temperature": 0.15,
     "llm_token_budget_monthly": 500_000,
+    "llm_fallback_enabled": True,
+    "llm_fallback_provider": "anthropic",
     "grounding_threshold": 0.75,
     "hitl_severity_min": "high",
     "auto_approve_grounding_min": 0.92,
@@ -80,6 +82,8 @@ async def public_settings_payload() -> Dict[str, Any]:
         "llm_model": s.get("llm_model"),
         "llm_temperature": s.get("llm_temperature", 0.2),
         "llm_token_budget_monthly": s.get("llm_token_budget_monthly", 0),
+        "llm_fallback_enabled": bool(s.get("llm_fallback_enabled", True)),
+        "llm_fallback_provider": s.get("llm_fallback_provider") or "anthropic",
         "grounding_threshold": s.get("grounding_threshold"),
         "hitl_severity_min": s.get("hitl_severity_min"),
         "auto_approve_grounding_min": s.get("auto_approve_grounding_min", 0.9),
@@ -117,14 +121,57 @@ async def public_settings_payload() -> Dict[str, Any]:
         payload["secrets_vault"] = vault_status()
     except Exception:
         payload["secrets_vault"] = {"enabled": False}
+    try:
+        from backend.llm_provider import last_effective_llm
+
+        eff = last_effective_llm()
+        payload["llm_effective_provider"] = eff.get("provider")
+        payload["llm_effective_model"] = eff.get("model")
+        payload["llm_via_fallback"] = bool(eff.get("via_fallback"))
+        payload["llm_effective_ts"] = eff.get("ts")
+    except Exception:
+        payload["llm_effective_provider"] = None
+        payload["llm_effective_model"] = None
+        payload["llm_via_fallback"] = False
+        payload["llm_effective_ts"] = None
     for secret_key in SECRET_SETTINGS_FIELDS:
         payload.pop(secret_key, None)
     return payload
 
 
+def _validate_llm_selection(doc: Dict[str, Any]) -> None:
+    """Validate provider; allow custom model IDs (catalog is a convenience list, not a hard gate)."""
+    from backend.llm_provider import PROVIDER_MODELS, is_known_model
+
+    provider = str(doc.get("llm_provider") or "anthropic").strip().lower()
+    model = str(doc.get("llm_model") or "").strip()
+    if provider not in PROVIDER_MODELS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown llm_provider '{provider}'. Allowed: {', '.join(PROVIDER_MODELS)}",
+        )
+    if not model:
+        raise HTTPException(status_code=422, detail="llm_model is required")
+    # Unknown model IDs are allowed so Settings can pin vendor aliases / new IDs
+    # without a code deploy — catalog is the curated UX list, not a hard reject list.
+    if not is_known_model(provider, model):
+        logger.info(
+            "settings: custom llm_model %r for provider %s (not in catalog allow-list)",
+            model,
+            provider,
+        )
+    fb = doc.get("llm_fallback_provider")
+    if fb and str(fb).strip().lower() not in ("", "none", *PROVIDER_MODELS.keys()):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown llm_fallback_provider '{fb}'",
+        )
+
+
 async def update_settings(body: Dict[str, Any], user: dict) -> Dict[str, Any]:
     existing = await svc.get_settings()
     doc = svc.merge_settings_update(existing, body)
+    _validate_llm_selection(doc)
     keys_touched = [
         f
         for f in SECRET_SETTINGS_FIELDS
@@ -323,6 +370,73 @@ async def clear_secrets(body: ClearSecretsBody, user: dict) -> Dict[str, Any]:
         "env_cleared": cleared_env,
         "note": "Threat intel will use mock enrichment until new keys are saved.",
     }
+
+
+def llm_catalog_payload() -> Dict[str, Any]:
+    from backend.llm_provider import llm_catalog
+
+    return llm_catalog()
+
+
+async def test_llm(user: dict) -> Dict[str, Any]:
+    """Short connectivity probe for the configured primary LLM (admin)."""
+    import time
+
+    from backend.llm_provider import call_llm, LLMCallError, LLMConfigError
+
+    s = await svc.get_settings()
+    provider = str(s.get("llm_provider") or "anthropic")
+    model = str(s.get("llm_model") or "claude-sonnet-4-6")
+    t0 = time.perf_counter()
+    try:
+        text, eff_p, eff_m = await call_llm(
+            system="You are a health-check probe. Reply with exactly: ok",
+            user="ping",
+            provider=provider,
+            model=model,
+            settings=s,
+            json_mode=False,
+            use_prompt_cache=False,
+        )
+        ms = int((time.perf_counter() - t0) * 1000)
+        await svc.audit(
+            user,
+            "settings.test_llm",
+            "settings",
+            "global",
+            {"ok": True, "provider": eff_p, "model": eff_m, "latency_ms": ms},
+        )
+        return {
+            "ok": True,
+            "provider": eff_p,
+            "model": eff_m,
+            "latency_ms": ms,
+            "preview": (text or "")[:120],
+        }
+    except (LLMConfigError, LLMCallError, Exception) as e:
+        ms = int((time.perf_counter() - t0) * 1000)
+        logger.warning("test_llm failed: %s", e)
+        try:
+            await svc.audit(
+                user,
+                "settings.test_llm",
+                "settings",
+                "global",
+                {"ok": False, "error": type(e).__name__, "latency_ms": ms},
+            )
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "ok": False,
+                "error": type(e).__name__,
+                "message": str(e) or type(e).__name__,
+                "provider": provider,
+                "model": model,
+                "latency_ms": ms,
+            },
+        ) from e
 
 
 async def email_status() -> Dict[str, Any]:

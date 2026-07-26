@@ -296,24 +296,27 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
             pipeline_total_ms=timing.get("total_ms"),
         )
 
-        await db.audit_log.insert_one({
-            "id": new_id(),
-            "ts": datetime.now(timezone.utc).isoformat(),
-            "actor_id": user_id,
-            "actor_email": "system",
-            "action": "incident.created",
-            "target_type": "incident",
-            "target_id": incident.id,
-            "detail": {
-                "severity": severity,
-                "hitl_required": hitl_required,
-                "auto_approved": auto_approved,
-                "status": status,
-                "hitl_severity_min": settings.get("hitl_severity_min", "critical"),
-                "files": len(expanded),
-                "pipeline_total_ms": timing.get("total_ms"),
-            },
-        })
+        # Hashed audit chain (same path as reviews/settings) — not a raw insert
+        try:
+            from backend.repositories.audit import audit_repo
+
+            await audit_repo.insert(
+                actor={"sub": user_id or "system", "email": "system"},
+                action="incident.created",
+                target_type="incident",
+                target_id=incident.id,
+                detail={
+                    "severity": severity,
+                    "hitl_required": hitl_required,
+                    "auto_approved": auto_approved,
+                    "status": status,
+                    "hitl_severity_min": settings.get("hitl_severity_min", "critical"),
+                    "files": len(expanded),
+                    "pipeline_total_ms": timing.get("total_ms"),
+                },
+            )
+        except Exception as audit_err:
+            logger.warning("[job %s] audit insert skipped: %s", job_id, audit_err)
 
         # Critical / high / HiTL → Slack + email (best-effort; never fail the job)
         try:

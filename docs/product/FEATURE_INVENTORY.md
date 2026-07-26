@@ -30,12 +30,20 @@
 | User profile page            | Minimal via /auth/me           |
 | Formal API key mgmt UI       | Ingest key + settings keys     |
 | Metrics dashboard            | KPIs + /metrics                |
-| **Investigation Workspace**  | **In progress (v1.4)** — tabbed case hub |
+| **Investigation Workspace**  | **Yes (v1.4)** — tabbed case hub (timeline, RCA, graph, notes, assistant) |
 | AI timeline / RCA narrative  | Yes (workspace timeline + RCA API/UI) |
 | IOC entity graph             | Yes (SVG graph + Assets/Users) |
 | Case notebook                | Yes (notes CRUD API + UI) |
 | NL threat hunting            | Yes (rule-based intents + `/hunt`) |
 | Behavioral analytics         | Yes (beaconing, login burst, multi-host, LOLBins, DNS) |
-| Compliance live score        | Planned                        |
+| Compliance live score        | Yes (score/gaps/evidence + executive export; not certification) |
+| Audit intelligence           | Yes (summary + integrity chain) |
+| LLM multi-provider fallback  | Yes (retries + cross-provider chain + last-effective honesty) |
+| Capstone report / screenshots / PPTX | Yes (`docs/capstone/`) |
+| Multi-agent roster UX        | Roadmap (v1.7 Wave D) |
+| Global API rate limit        | Roadmap (tech enhancement) |
+| Server-side incident pagination | Yes (`include_meta` + skip/limit + total) |
+| Assign / comments / in-app inbox | Roadmap H-07 — **design only** (v2; see COLLABORATION_AND_SAVED_FILTERS_DESIGN.md) |
+| Saved filters / favorites / pins | Roadmap H-08 — **design only** (v2; same design doc) |
 | SIEM/XDR connectors          | Future                         |
 | Multi-tenant                 | Future (v2.0)                  |

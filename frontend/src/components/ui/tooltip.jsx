@@ -31,9 +31,11 @@ const TooltipContent = React.forwardRef(
                 avoidCollisions={avoidCollisions}
                 collisionPadding={collisionPadding}
                 className={cn(
-                    "z-[200] max-w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-md",
-                    "bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-md",
-                    "break-words whitespace-normal leading-snug",
+                    "z-[300] max-w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-md",
+                    // Prefer card surface (readable on light + dark); callers may override
+                    "bg-card border border-border text-foreground shadow-md",
+                    "px-2.5 py-1.5 text-[11px] leading-snug",
+                    "break-words whitespace-normal",
                     "animate-in fade-in-0 zoom-in-95",
                     "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
                     "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",

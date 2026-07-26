@@ -1,5 +1,5 @@
 import {Component, lazy, Suspense} from "react";
-import {BrowserRouter, Navigate, Route, Routes, useLocation} from "react-router-dom";
+import {BrowserRouter, Navigate, Route, Routes} from "react-router-dom";
 import {AuthProvider, useAuth} from "./lib/auth";
 import {ThemeProvider} from "./lib/theme";
 import {Toaster} from "./components/ui/sonner";
@@ -93,7 +93,6 @@ function PageFallback() {
 
 function Protected({children, roles}) {
     const {user, loading} = useAuth();
-    const loc = useLocation();
     if (loading) {
         return (
             <div className="min-h-screen grid place-items-center text-muted-foreground text-sm" role="status">
@@ -101,7 +100,8 @@ function Protected({children, roles}) {
             </div>
         );
     }
-    if (!user) return <Navigate to="/login" state={{from: loc}} replace/>;
+    // Login always lands on dashboard — no deep-link return path.
+    if (!user) return <Navigate to="/login" replace/>;
     if (roles && !roles.includes(user.role) && user.role !== "admin") {
         return (
             <Layout>
@@ -123,7 +123,7 @@ export default function App() {
         <BrowserRouter>
             <ThemeProvider>
                 <AuthProvider>
-                    <TooltipProvider delayDuration={200}>
+                    <TooltipProvider delayDuration={180} skipDelayDuration={120}>
                         <Toaster/>
                         <Routes>
                             <Route path="/login" element={<Login/>}/>

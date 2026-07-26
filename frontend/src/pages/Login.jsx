@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router-dom";
 import {useAuth} from "../lib/auth";
+import {useTheme} from "../lib/theme";
 import {api, apiErrorMessage} from "../lib/api";
 import {toast} from "sonner";
 import {
@@ -10,6 +11,7 @@ import {
     Clock,
     Cpu,
     Database,
+    Desktop,
     Eye,
     EyeSlash,
     FileText,
@@ -17,9 +19,11 @@ import {
     Globe,
     Key,
     MagnifyingGlass,
+    Moon,
     Pulse,
     Robot,
     ShieldCheck,
+    Sun,
     Target,
     User,
     Users,
@@ -47,19 +51,21 @@ const FEATURES = [
     {icon: Users, title: "Human Approval Workflow", desc: "Critical actions always pass through analyst sign-off."},
 ];
 
-const STATUS_ROWS = [
-    {label: "Backend API", value: "Connected", ok: true},
-    {label: "LLM", value: "Connected", ok: true},
-    {label: "Threat Intel", value: "Connected", ok: true},
-    {label: "Vector Database", value: "Connected", ok: true},
+/** Default status tiles — live values filled from public /health (no fake "Connected"). */
+const DEFAULT_STATUS_ROWS = [
+    {key: "api", label: "Backend API", value: "Checking…", ok: null},
+    {key: "mongo", label: "MongoDB", value: "Checking…", ok: null},
+    {key: "llm", label: "LLM", value: "After sign-in", ok: null},
+    {key: "ti", label: "Threat Intel", value: "After sign-in", ok: null},
 ];
 
-const METRICS = [
-    {icon: Pulse, label: "Events Processed", value: 11152, suffix: "", decimals: 0, grouped: true},
-    {icon: ShieldCheck, label: "Incidents", value: 65, suffix: "", decimals: 0},
-    {icon: Users, label: "HITL Pending", value: 60, suffix: "", decimals: 0},
-    {icon: CheckCircle, label: "Acceptance Rate", value: 80, suffix: "%", decimals: 0},
-    {icon: Clock, label: "Mean MTTR", value: 10.86, suffix: "h", decimals: 2},
+/** Capability highlights — not live tenant metrics (dashboard is source of truth after login). */
+const CAPABILITY_TILES = [
+    {icon: Pulse, label: "Pipeline", value: "Parse → IoC → TI"},
+    {icon: ShieldCheck, label: "HiTL", value: "Critical gated"},
+    {icon: Target, label: "ATT&CK", value: "Heuristic map"},
+    {icon: Database, label: "RAG", value: "Hybrid BM25+vec"},
+    {icon: CheckCircle, label: "Eval", value: "Golden IR CI"},
 ];
 
 const TEAM_MEMBERS = [
@@ -95,55 +101,41 @@ function showDemoOperators() {
     return process.env.NODE_ENV !== "production";
 }
 
-function useCountUp(target, {decimals = 0, duration = 1200} = {}) {
-    const [value, setValue] = useState(0);
-
-    useEffect(() => {
-        let startTime;
-        let animationFrame;
-
-        const tick = (timestamp) => {
-            if (!startTime) startTime = timestamp;
-            const progress = Math.min((timestamp - startTime) / duration, 1);
-            const easeOut = 1 - Math.pow(1 - progress, 3);
-
-            setValue(target * easeOut);
-
-            if (progress < 1) {
-                animationFrame = requestAnimationFrame(tick);
-            } else {
-                setValue(target);
-            }
-        };
-
-        animationFrame = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(animationFrame);
-    }, [target, duration]);
-
-    return Number(value).toFixed(decimals);
+function statusIconClass(ok) {
+    if (ok === true) return "text-green-500";
+    if (ok === false) return "text-red-500";
+    return "text-slate-400";
 }
 
-function Metric({icon: Icon, label, value, suffix, decimals, grouped, display}) {
-    const raw = useCountUp(value, {decimals});
-    const formatted = grouped ? Number(raw).toLocaleString("en-US") : raw;
-    const text = display ? display(Math.round(Number(raw))) : `${formatted}${suffix}`;
+const CAPABILITY_TIPS = {
+    Pipeline: "Ingest path: parse → IoC extract → threat intel enrich → ATT&CK → playbook.",
+    HiTL: "Human-in-the-loop: critical / low-grounding cases require senior review.",
+    "ATT&CK": "Heuristic MITRE ATT&CK technique mapping from logs and keywords.",
+    RAG: "Hybrid BM25 + vector retrieval grounds playbook citations in the KB.",
+    Eval: "Offline golden IR suite (CI gates) for quality regression checks.",
+};
 
+function CapabilityTile({icon: Icon, label, value}) {
     return (
-        <div className="sbp-status-tile">
+        <div
+            className="sbp-status-tile"
+            data-testid={`login-capability-${label.toLowerCase().replace(/\s+/g, "-")}`}
+            title={CAPABILITY_TIPS[label] || label}
+        >
             <div
                 className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-slate-500 font-semibold mb-2">
                 <Icon size={12} weight="bold" className="text-blue-600" aria-hidden/>
                 {label}
             </div>
-            <div className="font-mono text-slate-900 text-lg font-bold tabular-nums">{text}</div>
+            <div className="font-mono text-slate-900 text-sm font-bold">{value}</div>
         </div>
     );
 }
 
 export default function Login() {
     const {login, register} = useAuth();
+    const {theme, resolvedTheme, toggle: toggleTheme} = useTheme();
     const nav = useNavigate();
-    const location = useLocation();
     const [mode, setMode] = useState("login");
     const [form, setForm] = useState({email: "", password: "", name: ""});
     const [loading, setLoading] = useState(false);
@@ -151,7 +143,9 @@ export default function Login() {
     const [remember, setRemember] = useState(false);
     const [ssoEnabled, setSsoEnabled] = useState(false);
     const [publicRegister, setPublicRegister] = useState(true);
+    const [statusRows, setStatusRows] = useState(DEFAULT_STATUS_ROWS);
     const demos = showDemoOperators();
+    const ThemeIcon = theme === "light" ? Sun : theme === "system" ? Desktop : Moon;
 
     useEffect(() => {
         try {
@@ -174,6 +168,57 @@ export default function Login() {
                 setSsoEnabled(false);
                 setPublicRegister(true);
             });
+
+        // Live platform probe — only claim API/Mongo when /health responds.
+        // LLM / TI require signed-in Settings; never hard-code "Connected".
+        let cancelled = false;
+        api
+            .get("/health", {timeout: 8000})
+            .then((r) => {
+                if (cancelled) return;
+                const body = r.data || {};
+                const apiOk = body.status === "ok" || body.mongo === "up" || r.status === 200;
+                const mongoUp = body.mongo === "up";
+                const mongoDown = body.mongo === "down";
+                setStatusRows([
+                    {
+                        key: "api",
+                        label: "Backend API",
+                        value: apiOk ? "Reachable" : "Degraded",
+                        ok: apiOk,
+                    },
+                    {
+                        key: "mongo",
+                        label: "MongoDB",
+                        value: mongoUp ? "Up" : mongoDown ? "Down" : "Unknown",
+                        ok: mongoUp ? true : mongoDown ? false : null,
+                    },
+                    {
+                        key: "llm",
+                        label: "LLM",
+                        value: "After sign-in",
+                        ok: null,
+                    },
+                    {
+                        key: "ti",
+                        label: "Threat Intel",
+                        value: "Keys optional",
+                        ok: null,
+                    },
+                ]);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setStatusRows([
+                    {key: "api", label: "Backend API", value: "Unreachable", ok: false},
+                    {key: "mongo", label: "MongoDB", value: "Unknown", ok: null},
+                    {key: "llm", label: "LLM", value: "After sign-in", ok: null},
+                    {key: "ti", label: "Threat Intel", value: "Keys optional", ok: null},
+                ]);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
@@ -182,13 +227,8 @@ export default function Login() {
         }
     }, [publicRegister, mode]);
 
-    const redirectTo = (() => {
-        const from = location.state?.from;
-        if (from?.pathname && from.pathname !== "/login") {
-            return `${from.pathname}${from.search || ""}${from.hash || ""}`;
-        }
-        return "/";
-    })();
+    // Always land on main dashboard after auth (ignore deep-link return paths).
+    const redirectTo = "/";
 
     const submit = async (e) => {
         e.preventDefault();
@@ -226,7 +266,7 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen grid lg:grid-cols-5 bg-white text-slate-900">
+        <div className="min-h-screen grid lg:grid-cols-5 theme-shell text-[var(--shell-text)]" data-testid="login-page">
             <style>{`
         @keyframes sbp-drift {
           0%, 100% { transform: translate(0, 0); }
@@ -240,53 +280,56 @@ export default function Login() {
         .sbp-orb { animation: sbp-drift 12s ease-in-out infinite; }
         
         .sbp-status-tile {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
+          background: var(--shell-card);
+          border: 1px solid var(--shell-border);
           border-radius: 0.75rem;
           padding: 1rem;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
           transition: border-color 0.2s ease, box-shadow 0.2s ease;
+          color: var(--shell-text);
         }
-        .sbp-status-tile:hover { 
-          border-color: #93c5fd; 
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
+        .sbp-status-tile:hover {
+          border-color: hsl(var(--primary) / 0.45);
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08);
         }
         
         .sbp-feature-card {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          background: var(--shell-card);
+          border: 1px solid var(--shell-border);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
           transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+          color: var(--shell-text);
         }
         .sbp-feature-card:hover {
           transform: translateY(-2px);
-          border-color: #93c5fd;
-          box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+          border-color: hsl(var(--primary) / 0.45);
+          box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08);
         }
         
         .sbp-glass-card {
-          background: rgba(255, 255, 255, 0.98);
-          border: 1px solid #e2e8f0;
+          background: var(--shell-card);
+          border: 1px solid var(--shell-border);
           backdrop-filter: blur(20px);
-          box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.12);
+          color: var(--shell-text);
         }
         
         .sbp-input {
-          background: #ffffff;
-          border: 1px solid #cbd5e1;
-          color: #0f172a;
+          background: var(--shell-bg);
+          border: 1px solid var(--shell-border);
+          color: var(--shell-text);
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .sbp-input::placeholder { color: #94a3b8; }
+        .sbp-input::placeholder { color: hsl(var(--muted-foreground)); }
         .sbp-input:focus {
           outline: none;
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+          border-color: hsl(var(--primary));
+          box-shadow: 0 0 0 3px hsl(var(--primary) / 0.2);
         }
         
         .sbp-btn-primary {
-          background: linear-gradient(135deg, #2563EB, #1E40AF);
-          color: #ffffff;
+          background: linear-gradient(135deg, hsl(var(--primary)), var(--primary-hover));
+          color: hsl(var(--primary-foreground));
           transition: filter 0.15s ease, transform 0.1s ease;
         }
         .sbp-btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
@@ -302,7 +345,9 @@ export default function Login() {
 
             {/* LEFT HERO SECTION */}
             <div
-                className="hidden lg:flex lg:col-span-3 flex-col justify-between p-10 xl:p-16 relative overflow-y-auto max-h-screen scrollbar-thin bg-slate-50/50 border-r border-slate-200">
+                className="hidden lg:flex lg:col-span-3 flex-col justify-between p-10 xl:p-16 relative overflow-y-auto max-h-screen scrollbar-thin border-r theme-border"
+                style={{background: "color-mix(in srgb, var(--shell-bg) 92%, hsl(var(--primary)) 8%)"}}
+            >
                 <div
                     className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(37,99,235,0.08),_transparent_55%)] -z-10"/>
                 <div
@@ -370,32 +415,42 @@ export default function Login() {
                 <div className="relative sbp-fade-up mb-10" style={{animationDelay: "0.2s"}}>
                     <div className="flex items-center gap-2 mb-4">
                         <div
-                            className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                            className="w-1.5 h-1.5 rounded-full bg-slate-400"
                             aria-hidden/>
                         <span className="text-[11px] uppercase tracking-[0.1em] text-slate-500 font-bold">
-              Live Platform Status
+              Platform status (probed)
             </span>
                     </div>
+                    <p className="text-[11px] text-slate-500 mb-3 max-w-2xl" data-testid="login-status-honesty">
+                        API/Mongo reflect a live <span className="font-mono">/health</span> check.
+                        LLM and TI are configured after sign-in — not shown as connected until verified.
+                        Live tenant KPIs appear on the Dashboard after login (demo fill is opt-in only).
+                    </p>
 
-                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
-                        {STATUS_ROWS.map(({label, value, ok}) => (
-                            <div key={label} className="sbp-status-tile">
+                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-3" data-testid="login-status-rows">
+                        {statusRows.map(({key, label, value, ok}) => (
+                            <div key={key} className="sbp-status-tile" data-testid={`login-status-${key}`}>
                                 <div
                                     className="text-[11px] uppercase tracking-[0.08em] text-slate-500 font-semibold mb-2">
                                     {label}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800">
-                                    <CheckCircle size={14} weight="fill"
-                                                 className={ok ? "text-green-500" : "text-red-500"} aria-hidden/>
+                                    {ok === true ? (
+                                        <CheckCircle size={14} weight="fill" className={statusIconClass(ok)} aria-hidden/>
+                                    ) : ok === false ? (
+                                        <Circle size={14} weight="fill" className={statusIconClass(ok)} aria-hidden/>
+                                    ) : (
+                                        <Clock size={14} weight="bold" className={statusIconClass(ok)} aria-hidden/>
+                                    )}
                                     {value}
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-                        {METRICS.map((m) => (
-                            <Metric key={m.label} {...m} />
+                    <div className="grid grid-cols-2 xl:grid-cols-5 gap-3" data-testid="login-capability-tiles">
+                        {CAPABILITY_TILES.map((m) => (
+                            <CapabilityTile key={m.label} {...m} />
                         ))}
                     </div>
                 </div>
@@ -451,9 +506,11 @@ export default function Login() {
 
             {/* RIGHT AUTH CARD SECTION */}
             <div
-                className="lg:col-span-2 flex items-center justify-center p-6 py-12 lg:p-12 relative bg-white lg:bg-transparent">
+                className="lg:col-span-2 flex items-center justify-center p-6 py-12 lg:p-12 relative"
+                style={{background: "var(--shell-bg)"}}
+            >
                 <div
-                    className="absolute inset-0 lg:hidden bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.05),_transparent_60%)] pointer-events-none"
+                    className="absolute inset-0 lg:hidden bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)_/_0.08),_transparent_60%)] pointer-events-none"
                     aria-hidden/>
 
                 <form
@@ -465,15 +522,27 @@ export default function Login() {
                     <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-2">
                             <div
-                                className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 grid place-items-center lg:hidden">
-                                <Circle weight="fill" size={14} className="text-blue-600" aria-hidden/>
+                                className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 grid place-items-center lg:hidden">
+                                <Circle weight="fill" size={14} className="text-primary" aria-hidden/>
                             </div>
-                            <span className="font-bold tracking-tight text-slate-900 lg:hidden">{BRAND.shortName}</span>
+                            <span className="font-bold tracking-tight text-[var(--shell-text)] lg:hidden">{BRAND.shortName}</span>
                         </div>
-                        <span
-                            className="text-[10px] font-mono uppercase tracking-[0.08em] text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3 py-1 font-semibold">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                data-testid="login-theme-toggle"
+                                onClick={() => toggleTheme()}
+                                className="p-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary transition-colors"
+                                title={`Theme: ${theme} (${resolvedTheme}) — click to cycle`}
+                                aria-label={`Theme ${theme}. Click to change`}
+                            >
+                                <ThemeIcon size={16} weight="bold"/>
+                            </button>
+                            <span
+                                className="text-[10px] font-mono uppercase tracking-[0.08em] text-muted-foreground theme-chip border theme-border rounded-full px-3 py-1 font-semibold">
               v2 Enterprise Demo
             </span>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2 mb-1.5">
@@ -601,7 +670,7 @@ export default function Login() {
 
                     <button
                         data-testid="auth-submit"
-                        /* SSO sibling below */
+                        type="submit"
                         disabled={loading}
                         className="sbp-btn-primary w-full py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-600/20 mt-2"
                     >

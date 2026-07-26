@@ -16,14 +16,29 @@ async def list_incidents(
     technique: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
-) -> List[Dict[str, Any]]:
-    return await incidents_repo.list_filtered(
+    include_meta: bool = False,
+) -> Any:
+    """List incidents. When include_meta=True return {items,total,skip,limit} for pagination."""
+    items = await incidents_repo.list_filtered(
         status=status,
         severity=severity,
         technique=technique,
         skip=skip,
         limit=limit,
     )
+    if not include_meta:
+        return items
+    total = await incidents_repo.count_filtered(
+        status=status,
+        severity=severity,
+        technique=technique,
+    )
+    return {
+        "items": items,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
 
 
 async def get_incident(incident_id: str) -> Dict[str, Any]:

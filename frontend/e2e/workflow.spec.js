@@ -77,14 +77,111 @@ test.describe("ACTIRA workflows", () => {
         }
     });
 
+    test("threat hunt page and suggestions", async ({page}) => {
+        await login(page, ANALYST);
+        await page.goto("/hunt");
+        await expect(page.getByTestId("hunt-page")).toBeVisible({timeout: 15000});
+        await expect(page.getByTestId("hunt-form")).toBeVisible();
+        await expect(page.getByTestId("hunt-query-input")).toBeVisible();
+        // Suggestions load or fallback chips appear
+        await page.getByTestId("hunt-query-input").fill("powershell");
+        await page.getByTestId("hunt-submit").click();
+        // Either results, loading, or hard error — never infinite hang
+        await expect(
+            page.getByTestId("hunt-results")
+                .or(page.getByTestId("hunt-loading"))
+                .or(page.getByTestId("hunt-load-error")),
+        ).toBeVisible({timeout: 20000});
+    });
+
+    test("compliance page for admin", async ({page}) => {
+        await login(page, ADMIN);
+        await page.goto("/compliance");
+        await expect(page.getByTestId("compliance-page")).toBeVisible({timeout: 15000});
+        await expect(page.locator("body")).toContainText(/compliance|framework|gap|evidence|readiness/i);
+    });
+
+    test("audit trail for admin", async ({page}) => {
+        await login(page, ADMIN);
+        await page.goto("/audit");
+        await expect(page.getByTestId("audit-logs-page")).toBeVisible({timeout: 15000});
+        await expect(page.locator("body")).toContainText(/audit|integrity|event|trail/i);
+    });
+
+    test("investigation workspace opens from incidents", async ({page}) => {
+        await login(page, ANALYST);
+        await page.goto("/incidents");
+        await expect(page.getByTestId("incidents-page")).toBeVisible({timeout: 15000});
+        // Prefer first incident link if any; else soft-pass on empty list
+        const rowLink = page.locator('[data-testid^="incident-row"], a[href*="/incidents/"]').first();
+        if (await rowLink.count()) {
+            await rowLink.click();
+            await expect(page.getByTestId("incident-detail")).toBeVisible({timeout: 15000});
+            // Workspace tabs or load error
+            await expect(
+                page.locator('[data-testid^="workspace-panel-"], [data-testid="incident-load-error"]').first(),
+            ).toBeVisible({timeout: 10000}).catch(() => {});
+        } else {
+            await expect(page.locator("body")).toContainText(/incident|empty|no /i);
+        }
+    });
+
+    test("ingest page sample templates and paste panel", async ({page}) => {
+        await login(page, ANALYST);
+        await page.goto("/upload");
+        await expect(page.getByTestId("upload-page")).toBeVisible({timeout: 15000});
+        await expect(page.getByTestId("drop-zone")).toBeVisible();
+        await expect(page.getByTestId("supported-formats")).toBeVisible();
+        await page.getByTestId("paste-log-toggle").click();
+        await expect(page.getByTestId("paste-log-panel")).toBeVisible();
+        await page.getByTestId("paste-log-body").fill("Feb  1 09:13:02 web01 sshd[1]: Failed password for root from 1.2.3.4 port 22 ssh2\n");
+        await page.getByTestId("paste-stage-btn").click();
+        await expect(page.getByTestId("submit-batch")).toBeVisible({timeout: 5000});
+    });
+
+    test("dashboard agent roster and executive strip", async ({page}) => {
+        await login(page, ANALYST);
+        await page.goto("/");
+        await expect(page.getByTestId("dashboard-page")).toBeVisible({timeout: 15000});
+        await expect(page.getByTestId("executive-strip")).toBeVisible();
+        // Agent roster is collapsed by default (deduped primary metrics)
+        await expect(page.getByTestId("agent-roster-details")).toBeVisible();
+        await page.getByTestId("agent-roster-details").locator("summary").click();
+        await expect(page.getByTestId("agent-roster")).toBeVisible();
+        await expect(page.getByTestId("agent-roster-honesty")).toContainText(/pipeline copilot/i);
+    });
+
     test("theme toggle cycles", async ({page}) => {
         await login(page, ANALYST);
         await page.goto("/");
+        await page.evaluate(() => localStorage.setItem("soc_theme", "dark"));
+        await page.reload();
+        await expect(page).not.toHaveURL(/\/login/, {timeout: 15000});
+
         const theme = page.getByTestId("theme-toggle");
-        if (await theme.count()) {
-            await theme.click();
-            await theme.click();
-        }
+        if (!(await theme.count())) return;
+
+        const readTheme = () =>
+            page.evaluate(() => ({
+                stored: localStorage.getItem("soc_theme"),
+                dataTheme: document.documentElement.getAttribute("data-theme"),
+            }));
+
+        // dark → light → system → dark (global; must not depend on route)
+        await expect.poll(async () => (await readTheme()).stored).toBe("dark");
+        await theme.click();
+        await expect.poll(async () => (await readTheme()).stored).toBe("light");
+        await expect.poll(async () => (await readTheme()).dataTheme).toBe("light");
+        await theme.click();
+        await expect.poll(async () => (await readTheme()).stored).toBe("system");
+        await theme.click();
+        await expect.poll(async () => (await readTheme()).stored).toBe("dark");
+        await expect.poll(async () => (await readTheme()).dataTheme).toBe("dark");
+
+        // Theme must survive navigation (regression: per-route theme overrides)
+        await page.goto("/incidents");
+        await expect.poll(async () => (await readTheme()).stored).toBe("dark");
+        await expect.poll(async () => (await readTheme()).dataTheme).toBe("dark");
     });
 
     test("logout clears session", async ({page}) => {

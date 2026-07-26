@@ -41,6 +41,13 @@
 # commands you ran
 ```
 
+## UX / tooltips (prerequisite)
+
+- [ ] N/A (no UI change)
+- [ ] New/changed UI has HelpTips / Tips via design-system defaults
+      (`tipTitle`+`tipBody`, `PaneLabel`, `DsButton tooltip=`, or explicit `tip=`)
+- [ ] Hover-tested key panes/actions (see `docs/dx/TOOLTIP_PREREQUISITE.md`)
+
 ## Docs / diagrams
 
 - [ ] Updated docs if behavior changed

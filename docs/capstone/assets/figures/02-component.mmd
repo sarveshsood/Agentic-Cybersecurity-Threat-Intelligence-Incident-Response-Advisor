@@ -1,0 +1,35 @@
+%% ACTIRA — Component Diagram
+flowchart LR
+  subgraph Frontend
+    Pages[Pages]
+    LibAPI[api.js / auth]
+    DS[Design system]
+  end
+
+  subgraph Backend
+    Server[server.py routes]
+    Auth[auth + throttle]
+    Pipe[pipeline + job_queue]
+    Parse[parsers]
+    IoC[ioc_extractor]
+    Enrich[enrichment]
+    Corr[correlator]
+    ATT[attack_mapping]
+    KB[knowledge_base]
+    VS[vector_store]
+    PB[playbook_agent]
+    INV[ai_investigator]
+    HiTL[hitl_gate]
+    Sec[secret_vault]
+    Notif[notifications]
+  end
+
+  Pages --> LibAPI --> Server
+  Server --> Auth
+  Server --> Pipe
+  Pipe --> Parse --> IoC --> Enrich --> Corr --> ATT
+  Pipe --> KB --> VS
+  Pipe --> PB --> HiTL
+  Server --> INV
+  Server --> Sec
+  Pipe --> Notif

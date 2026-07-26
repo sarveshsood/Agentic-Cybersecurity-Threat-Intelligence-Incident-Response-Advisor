@@ -26,6 +26,7 @@ import {
     SignOut,
     Sun,
     UploadSimple,
+    X,
 } from "@phosphor-icons/react";
 import {BRAND} from "../constants/branding";
 import {countLiveIntel, liveIntelLabels, TI_HAS_FLAGS, TI_PROVIDERS,} from "../constants/threatIntel";
@@ -34,14 +35,20 @@ import CommandPalette from "./CommandPalette";
 import {formatDateTime, loadUiPrefs, saveRoutePrefs} from "../lib/uiPrefs";
 import {cn} from "../lib/utils";
 
+/**
+ * Left-rail order = IR workflow, then intel, then governance, then admin.
+ * Keep CommandPalette NAV_COMMANDS in the same order.
+ */
 const NAV = [
+    // —— Operate ——
     {
         to: "/",
         label: "Dashboard",
         icon: Gauge,
         roles: ["analyst", "senior_reviewer", "admin"],
         tip: "SOC KPIs, recent activity, ATT&CK heatmap",
-        colorClass: "text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+        section: "Operate",
+        colorClass: "text-blue-600 bg-blue-50 dark:bg-blue-950/30",
     },
     {
         to: "/upload",
@@ -49,7 +56,8 @@ const NAV = [
         icon: UploadSimple,
         roles: ["analyst", "senior_reviewer", "admin"],
         tip: "Upload logs or multi-file incident packages",
-        colorClass: "text-primary bg-primary/10"
+        section: "Operate",
+        colorClass: "text-primary bg-primary/10",
     },
     {
         to: "/incidents",
@@ -57,23 +65,8 @@ const NAV = [
         icon: ShieldWarning,
         roles: ["analyst", "senior_reviewer", "admin"],
         tip: "Browse and open IR cases",
-        colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30"
-    },
-    {
-        to: "/hunt",
-        label: "Threat Hunt",
-        icon: Crosshair,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "Natural-language hunt across recent incidents",
-        colorClass: "text-primary bg-primary/10"
-    },
-    {
-        to: "/analytics",
-        label: "Analytics",
-        icon: ChartBar,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "EDA charts, IoC trends, BM25 vs LanceDB retrieval comparison",
-        colorClass: "text-blue-500 bg-blue-50 dark:bg-blue-950/30"
+        section: "Operate",
+        colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30",
     },
     {
         to: "/review",
@@ -81,23 +74,27 @@ const NAV = [
         icon: ListChecks,
         roles: ["senior_reviewer", "admin"],
         tip: "Human-in-the-loop playbook approval queue",
-        colorClass: "text-amber-600 bg-amber-50 dark:bg-amber-950/30"
+        section: "Operate",
+        colorClass: "text-amber-600 bg-amber-50 dark:bg-amber-950/30",
     },
     {
-        to: "/audit",
-        label: "Audit Trail",
-        icon: FileText,
-        roles: ["senior_reviewer", "admin"],
-        tip: "Immutable compliance log of review decisions and justifications",
-        colorClass: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30"
+        to: "/hunt",
+        label: "Threat Hunt",
+        icon: Crosshair,
+        roles: ["analyst", "senior_reviewer", "admin"],
+        tip: "Natural-language hunt across recent incidents",
+        section: "Operate",
+        colorClass: "text-primary bg-primary/10",
     },
+    // —— Analyze ——
     {
-        to: "/compliance",
-        label: "Compliance",
-        icon: ShieldCheck,
-        roles: ["senior_reviewer", "admin"],
-        tip: "Automated framework mapping, control validation, and audit trail generation",
-        colorClass: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+        to: "/analytics",
+        label: "Analytics",
+        icon: ChartBar,
+        roles: ["analyst", "senior_reviewer", "admin"],
+        tip: "EDA charts, IoC trends, BM25 vs LanceDB retrieval comparison",
+        section: "Analyze",
+        colorClass: "text-blue-500 bg-blue-50 dark:bg-blue-950/30",
     },
     {
         to: "/knowledge",
@@ -105,23 +102,27 @@ const NAV = [
         icon: BookBookmark,
         roles: ["analyst", "senior_reviewer", "admin"],
         tip: "Search MITRE/NIST/CISA KB (BM25, dense, hybrid)",
-        colorClass: "text-teal-600 bg-teal-50 dark:bg-teal-950/30"
+        section: "Analyze",
+        colorClass: "text-teal-600 bg-teal-50 dark:bg-teal-950/30",
+    },
+    // —— Govern ——
+    {
+        to: "/audit",
+        label: "Audit Trail",
+        icon: FileText,
+        roles: ["senior_reviewer", "admin"],
+        tip: "Immutable compliance log of review decisions and justifications",
+        section: "Govern",
+        colorClass: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30",
     },
     {
-        to: "/benchmark",
-        label: "Golden Eval",
-        icon: Flask,
-        roles: ["admin"],
-        tip: "Offline golden IR quality gates (admin)",
-        colorClass: "text-slate-600 bg-slate-100 dark:bg-slate-800"
-    },
-    {
-        to: "/ops",
-        label: "Ops & Health",
-        icon: Heartbeat,
-        roles: ["admin"],
-        tip: "Multi-replica flags, queue, pipeline timings, LLM budget",
-        colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30"
+        to: "/compliance",
+        label: "Compliance",
+        icon: ShieldCheck,
+        roles: ["senior_reviewer", "admin"],
+        tip: "Automated framework mapping, control validation, and evidence packs",
+        section: "Govern",
+        colorClass: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30",
     },
     {
         to: "/roadmap",
@@ -129,7 +130,27 @@ const NAV = [
         icon: MapTrifold,
         roles: ["analyst", "senior_reviewer", "admin"],
         tip: "Product roadmap and progress",
-        colorClass: "text-sky-600 bg-sky-50 dark:bg-sky-950/30"
+        section: "Govern",
+        colorClass: "text-sky-600 bg-sky-50 dark:bg-sky-950/30",
+    },
+    // —— Admin ——
+    {
+        to: "/benchmark",
+        label: "Golden Eval",
+        icon: Flask,
+        roles: ["admin"],
+        tip: "Offline golden IR quality gates (admin)",
+        section: "Admin",
+        colorClass: "text-slate-600 bg-slate-100 dark:bg-slate-800",
+    },
+    {
+        to: "/ops",
+        label: "Ops & Health",
+        icon: Heartbeat,
+        roles: ["admin"],
+        tip: "Multi-replica flags, queue, pipeline timings, LLM budget",
+        section: "Admin",
+        colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30",
     },
     {
         to: "/settings",
@@ -137,9 +158,25 @@ const NAV = [
         icon: GearSix,
         roles: ["admin"],
         tip: "LLM, TI keys, pipeline, and retention",
-        colorClass: "text-slate-500 bg-slate-100 dark:bg-slate-800"
+        section: "Admin",
+        colorClass: "text-slate-500 bg-slate-100 dark:bg-slate-800",
     },
 ];
+
+/** Group visible nav items by section for left-rail labels. */
+function groupNav(items) {
+    const groups = [];
+    let current = null;
+    for (const item of items) {
+        const sec = item.section || "App";
+        if (!current || current.label !== sec) {
+            current = {label: sec, items: []};
+            groups.push(current);
+        }
+        current.items.push(item);
+    }
+    return groups;
+}
 
 const PROVIDER_KEY_FLAG = {
     anthropic: "has_anthropic",
@@ -156,7 +193,7 @@ function shortModel(model) {
         .replace(/^llama-/, "llama-");
 }
 
-function readCollapsed(pathname) {
+function readCollapsed() {
     try {
         const prefs = loadUiPrefs();
         if (prefs.sidebar_collapsed != null) return Boolean(prefs.sidebar_collapsed);
@@ -168,22 +205,51 @@ function readCollapsed(pathname) {
 
 export default function Layout({children}) {
     const {user, logout} = useAuth();
-    const {theme, resolvedTheme, setTheme} = useTheme();
+    // Theme is global (soc_theme) — never scope it to route prefs; that made the
+    // toggle appear broken when navigating between pages with different saved values.
+    const {theme, resolvedTheme, toggle: toggleTheme} = useTheme();
     const nav = useNavigate();
     const location = useLocation();
     const pathname = location.pathname || "/";
-    const [collapsed, setCollapsed] = useState(() => readCollapsed(pathname));
+    const [collapsed, setCollapsed] = useState(() => readCollapsed());
+    /** Mobile off-canvas drawer (independent of desktop collapse). */
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [tiLive, setTiLive] = useState(0);
     const [tiNames, setTiNames] = useState([]);
     const tiTotal = TI_HAS_FLAGS.length;
     const [pipelineOk, setPipelineOk] = useState(true);
-    const [llm, setLlm] = useState({provider: null, model: null, keyReady: false});
+    const [llm, setLlm] = useState({provider: null, model: null, keyReady: false, effective: null});
     const [now, setNow] = useState(() => new Date());
 
     useEffect(() => {
         const id = setInterval(() => setNow(new Date()), 60_000);
         return () => clearInterval(id);
     }, []);
+
+    // Close mobile drawer on route change
+    useEffect(() => {
+        setMobileNavOpen(false);
+    }, [pathname]);
+
+    // Escape closes mobile drawer
+    useEffect(() => {
+        if (!mobileNavOpen) return undefined;
+        const onKey = (e) => {
+            if (e.key === "Escape") setMobileNavOpen(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [mobileNavOpen]);
+
+    // Lock body scroll while mobile drawer is open
+    useEffect(() => {
+        if (!mobileNavOpen) return undefined;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [mobileNavOpen]);
 
     const setCollapsedPersist = (next) => {
         setCollapsed(next);
@@ -194,27 +260,15 @@ export default function Layout({children}) {
         }
     };
 
+    // Restore per-route layout prefs only (sidebar). Theme is intentionally global.
     useEffect(() => {
         try {
             const prefs = loadUiPrefs();
             if (prefs.sidebar_collapsed != null) setCollapsed(Boolean(prefs.sidebar_collapsed));
-            const routePrefs = (function () {
-                try {
-                    const raw = localStorage.getItem('actira_ui_prefs_v1');
-                    if (!raw) return {};
-                    const parsed = JSON.parse(raw);
-                    return (parsed.route_prefs && parsed.route_prefs[pathname]) || {};
-                } catch {
-                    return {};
-                }
-            })();
-            if (routePrefs && routePrefs.theme) {
-                setTheme(routePrefs.theme);
-            }
-        } catch (e) {
+        } catch {
             /* ignore */
         }
-    }, [pathname, setTheme]);
+    }, [pathname]);
 
     useEffect(() => {
         let cancelled = false;
@@ -229,20 +283,27 @@ export default function Layout({children}) {
                 const provider = data.llm_provider || "anthropic";
                 const model = data.llm_model || "claude-sonnet-4-6";
                 const flag = PROVIDER_KEY_FLAG[provider];
+                const effectiveProvider = data.llm_effective_provider || null;
+                const effectiveModel = data.llm_effective_model || null;
                 setLlm({
                     provider,
                     model,
                     keyReady: flag ? Boolean(data[flag]) : false,
+                    effective:
+                        effectiveProvider && effectiveProvider !== provider
+                            ? {provider: effectiveProvider, model: effectiveModel}
+                            : null,
                 });
             } catch {
                 if (!cancelled) setPipelineOk(false);
             }
         };
         load();
+        // Floor at 30s so ad-hoc prefs cannot hammer /settings
         const refreshMs = Number(loadUiPrefs().status_refresh_ms);
         let id = null;
         if (refreshMs > 0) {
-            id = setInterval(load, refreshMs);
+            id = setInterval(load, Math.max(30_000, refreshMs));
         }
         return () => {
             cancelled = true;
@@ -251,6 +312,7 @@ export default function Layout({children}) {
     }, []);
 
     const items = NAV.filter((n) => n.roles.includes(user?.role));
+    const groups = groupNav(items);
     const intelLive = tiLive > 0;
     const intelLabel = intelLive
         ? `LIVE INTEL · ${tiLive}/${tiTotal}`
@@ -261,11 +323,15 @@ export default function Layout({children}) {
         ? `${tiLive} of ${tiTotal} keys configured (matches Settings → Threat intel). Live: ${tiNames.join(", ") || "—"}${notConfigured.length ? `. Missing: ${notConfigured.join(", ")}` : ""}.`
         : "No threat-intel API keys configured — enrichment uses mock scores";
 
-    const llmLabel = llm.provider
-        ? `${llm.provider.toUpperCase()} · ${shortModel(llm.model)}`
+    const displayProvider = llm.effective?.provider || llm.provider;
+    const displayModel = llm.effective?.model || llm.model;
+    const llmLabel = displayProvider
+        ? `${displayProvider.toUpperCase()} · ${shortModel(displayModel)}`
         : "LLM …";
     const llmTitle = llm.provider
-        ? `Active LLM: ${llm.provider} / ${llm.model}${llm.keyReady ? " (API key configured)" : " (key missing — playbook may use template fallback)"}`
+        ? llm.effective
+            ? `Configured: ${llm.provider}/${llm.model} · Effective after fallback: ${llm.effective.provider}/${llm.effective.model || "—"}`
+            : `Active LLM: ${llm.provider} / ${llm.model}${llm.keyReady ? " (API key configured)" : " (key missing — playbook may use template fallback)"}`
         : "Loading LLM settings…";
 
     const themeMeta = {
@@ -296,7 +362,11 @@ export default function Layout({children}) {
     const ThemeIcon = themeMeta.Icon;
 
     return (
-        <div className="min-h-screen flex theme-shell" data-sidebar={collapsed ? "collapsed" : "expanded"}>
+        <div
+            className="min-h-screen flex theme-shell"
+            data-sidebar={collapsed ? "collapsed" : "expanded"}
+            data-mobile-nav={mobileNavOpen ? "open" : "closed"}
+        >
             <a
                 href="#main-content"
                 className="absolute left-[-10000px] top-auto z-[100] focus:left-3 focus:top-3 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-primary-foreground focus:text-sm focus:font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
@@ -304,97 +374,150 @@ export default function Layout({children}) {
             >
                 Skip to main content
             </a>
+
+            {/* Mobile off-canvas scrim */}
+            {mobileNavOpen && (
+                <button
+                    type="button"
+                    className="fixed inset-0 z-40 bg-black/50 md:hidden"
+                    aria-label="Close navigation"
+                    data-testid="mobile-nav-scrim"
+                    onClick={() => setMobileNavOpen(false)}
+                />
+            )}
+
             <aside
                 className={cn(
+                    // Desktop: original in-flow rail (width transition, shrink-0)
                     "shrink-0 border-r theme-border theme-sidebar flex flex-col transition-[width] duration-200 ease-out",
-                    collapsed ? "w-[4.25rem]" : "w-60",
+                    collapsed ? "md:w-[4.25rem]" : "md:w-60",
+                    // Mobile: fixed off-canvas drawer (full labels always)
+                    "fixed inset-y-0 left-0 z-50 w-60 md:static md:z-auto",
+                    "max-md:transition-transform max-md:duration-200 max-md:ease-out",
+                    mobileNavOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full",
                 )}
                 data-testid="app-sidebar"
                 aria-label="Application sidebar"
             >
-                <div className={cn(
-                    "border-b theme-border flex items-center gap-2.5",
-                    collapsed ? "px-2 py-4 flex-col" : "px-4 py-5",
-                )}>
+                <div
+                    className={cn(
+                        "border-b theme-border flex items-center gap-2.5",
+                        // Desktop collapse chrome; mobile drawer always expanded
+                        collapsed ? "md:px-2 md:py-4 md:flex-col px-4 py-5" : "px-4 py-5",
+                    )}
+                >
                     <div
-                        className="w-8 h-8 rounded-md bg-primary/15 border border-primary/40 grid place-items-center shrink-0">
+                        className="w-8 h-8 rounded-md bg-primary/15 border border-primary/40 grid place-items-center shrink-0"
+                    >
                         <Circle weight="fill" size={12} className="text-primary" aria-hidden/>
                     </div>
-                    {!collapsed && (
-                        <div className="min-w-0 flex-1">
-                            <div
-                                className="font-bold tracking-tight text-[16px] text-[var(--shell-sidebar-text)] truncate"
-                                title={BRAND.fullName}>
-                                {BRAND.shortName}
-                            </div>
-                            <div
-                                className="text-[10px] uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)] font-semibold">{BRAND.tagline}</div>
+                    {/* Labels always on mobile drawer; hide when desktop-collapsed */}
+                    <div className={cn("min-w-0 flex-1", collapsed && "md:hidden")}>
+                        <div
+                            className="font-bold tracking-tight text-[16px] text-[var(--shell-sidebar-text)] truncate"
+                            title={BRAND.fullName}
+                        >
+                            {BRAND.shortName}
                         </div>
-                    )}
+                        <div
+                            className="text-[10px] uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)] font-semibold"
+                        >
+                            {BRAND.tagline}
+                        </div>
+                    </div>
                     <Tip content={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
                         <button
                             type="button"
                             data-testid="sidebar-toggle"
                             onClick={() => setCollapsedPersist(!collapsed)}
-                            className="p-1.5 rounded-md text-[var(--shell-sidebar-muted)] hover:text-[var(--shell-sidebar-text)] hover:bg-[var(--shell-sidebar-hover)] transition-colors shrink-0"
+                            className="hidden md:inline-flex p-1.5 rounded-md text-[var(--shell-sidebar-muted)] hover:text-[var(--shell-sidebar-text)] hover:bg-[var(--shell-sidebar-hover)] transition-colors shrink-0"
                             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                             aria-expanded={!collapsed}
                         >
                             {collapsed ? <CaretRight size={14} weight="bold"/> : <CaretLeft size={14} weight="bold"/>}
                         </button>
                     </Tip>
+                    <button
+                        type="button"
+                        className="md:hidden p-1.5 rounded-md text-[var(--shell-sidebar-muted)] hover:text-[var(--shell-sidebar-text)] hover:bg-[var(--shell-sidebar-hover)] transition-colors shrink-0"
+                        aria-label="Close navigation"
+                        data-testid="mobile-nav-close"
+                        onClick={() => setMobileNavOpen(false)}
+                    >
+                        <X size={16} weight="bold"/>
+                    </button>
                 </div>
 
                 <nav
                     className="flex-1 min-h-0 overflow-y-auto py-3 px-2 flex flex-col gap-1.5"
                     aria-label="Main"
                 >
-                    {items.map((n) => {
-                        const Icon = n.icon;
-                        return (
-                            <NavLink
-                                key={n.to}
-                                to={n.to}
-                                end={n.to === "/"}
-                                title={n.tip || n.label}
-                                data-testid={`nav-${n.label.toLowerCase().replace(/\s/g, "-")}`}
-                                className={({isActive}) =>
-                                    cn(
-                                        "group flex flex-row flex-nowrap items-center",
-                                        collapsed
-                                            ? "justify-center px-2.5 py-2.5 gap-0"
-                                            : "justify-start px-3 py-2.5 gap-3",
-                                        "w-full rounded-lg border-l-2 border-transparent",
-                                        "text-[13.5px] font-semibold leading-none no-underline",
-                                        "text-[var(--shell-sidebar-muted)]",
-                                        "hover:bg-[var(--shell-sidebar-hover)] hover:text-[var(--shell-sidebar-text)]",
-                                        "transition-colors",
-                                        isActive &&
-                                        "border-l-[var(--shell-sidebar-active)] bg-[color-mix(in_srgb,var(--shell-sidebar-active)_18%,transparent)] text-[var(--shell-sidebar-text)] font-bold",
-                                    )
-                                }
-                            >
-                                <div className={cn(
-                                    "p-1.5 rounded-md transition-transform group-hover:scale-105 shrink-0 flex items-center justify-center",
-                                    n.colorClass || "text-slate-500 bg-slate-100"
-                                )}>
-                                    <Icon
-                                        size={16}
-                                        weight="duotone"
-                                        className="text-current"
-                                        aria-hidden
-                                    />
-                                </div>
-                                {!collapsed ? (
-                                    <span className="min-w-0 flex-1 truncate text-left leading-none">
-                    {n.label}
-                  </span>
-                                ) : (
-                                    <span className="sr-only">{n.label}</span>
+                    {groups.map((group) => (
+                        <div key={group.label} className="flex flex-col gap-1.5">
+                            <div
+                                className={cn(
+                                    "px-3 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--shell-sidebar-muted)] select-none",
+                                    collapsed && "md:hidden",
                                 )}
-                            </NavLink>
-                        );
-                    })}
+                            >
+                                {group.label}
+                            </div>
+                            {group.items.map((n) => {
+                                const Icon = n.icon;
+                                // On desktop collapsed, use icon-only row; mobile drawer always expanded.
+                                const iconOnly = collapsed;
+                                return (
+                                    <NavLink
+                                        key={n.to}
+                                        to={n.to}
+                                        end={n.to === "/"}
+                                        title={n.tip || n.label}
+                                        data-testid={`nav-${n.label.toLowerCase().replace(/\s/g, "-")}`}
+                                        className={({isActive}) =>
+                                            cn(
+                                                "group flex flex-row flex-nowrap items-center",
+                                                // Mobile: always expanded row
+                                                "justify-start px-3 py-2.5 gap-3",
+                                                // Desktop collapsed: icon-only
+                                                iconOnly && "md:justify-center md:px-2.5 md:py-2.5 md:gap-0",
+                                                "w-full rounded-lg border-l-2 border-transparent",
+                                                "text-[13.5px] font-semibold leading-none no-underline",
+                                                "text-[var(--shell-sidebar-muted)]",
+                                                "hover:bg-[var(--shell-sidebar-hover)] hover:text-[var(--shell-sidebar-text)]",
+                                                "transition-colors",
+                                                isActive &&
+                                                "border-l-[var(--shell-sidebar-active)] bg-[color-mix(in_srgb,var(--shell-sidebar-active)_18%,transparent)] text-[var(--shell-sidebar-text)] font-bold",
+                                            )
+                                        }
+                                    >
+                                        <div
+                                            className={cn(
+                                                "p-1.5 rounded-md transition-transform group-hover:scale-105 shrink-0 flex items-center justify-center",
+                                                n.colorClass || "text-slate-500 bg-slate-100",
+                                            )}
+                                        >
+                                            <Icon
+                                                size={16}
+                                                weight="duotone"
+                                                className="text-current"
+                                                aria-hidden
+                                            />
+                                        </div>
+                                        <span
+                                            className={cn(
+                                                "min-w-0 flex-1 truncate text-left leading-none",
+                                                iconOnly && "md:hidden",
+                                            )}
+                                        >
+                                            {n.label}
+                                        </span>
+                                        {/* Accessible name when desktop rail is icon-only */}
+                                        {iconOnly ? <span className="hidden md:sr-only">{n.label}</span> : null}
+                                    </NavLink>
+                                );
+                            })}
+                        </div>
+                    ))}
                 </nav>
             </aside>
 
@@ -405,8 +528,9 @@ export default function Layout({children}) {
                         <button
                             type="button"
                             className="md:hidden p-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary transition-colors flex items-center justify-center"
-                            onClick={() => setCollapsedPersist(!collapsed)}
-                            aria-label="Toggle sidebar"
+                            onClick={() => setMobileNavOpen((v) => !v)}
+                            aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+                            aria-expanded={mobileNavOpen}
                             data-testid="sidebar-toggle-mobile"
                         >
                             <SidebarSimple size={18} weight="bold"/>
@@ -422,11 +546,19 @@ export default function Layout({children}) {
                             data-testid="llm-active-badge"
                             title={llmTitle}
                         >
-              <Cpu size={14} weight="bold" className={llm.keyReady ? "text-primary" : "text-warning"}/>
-              <span className={llm.keyReady ? "text-primary" : "text-warning"}>
+              <Cpu size={14} weight="bold" className={llm.keyReady || llm.effective ? "text-primary" : "text-warning"}/>
+              <span className={llm.keyReady || llm.effective ? "text-primary" : "text-warning"}>
                 {llmLabel}
               </span>
-                            {!llm.keyReady && llm.provider && (
+                            {llm.effective && (
+                                <span
+                                    className="text-[10px] uppercase tracking-wider text-primary font-semibold"
+                                    data-testid="llm-effective-badge"
+                                >
+                                    via fallback
+                                </span>
+                            )}
+                            {!llm.keyReady && llm.provider && !llm.effective && (
                                 <span
                                     className="text-[10px] uppercase tracking-wider text-warning font-semibold">no key</span>
                             )}
@@ -456,17 +588,7 @@ export default function Layout({children}) {
                             <button
                                 type="button"
                                 data-testid="theme-toggle"
-                                onClick={() => {
-                                    const THEMES = ["dark", "light", "system"];
-                                    const i = THEMES.indexOf(theme);
-                                    const next = THEMES[(i + 1) % THEMES.length];
-                                    setTheme(next);
-                                    try {
-                                        saveRoutePrefs(pathname, {theme: next});
-                                    } catch {
-                                    }
-                                    ;
-                                }}
+                                onClick={() => toggleTheme()}
                                 title={themeMeta.title}
                                 className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary hover:border-primary/40 transition-all font-medium"
                                 aria-label={`Theme ${themeMeta.label}. Switch to ${themeMeta.next}`}

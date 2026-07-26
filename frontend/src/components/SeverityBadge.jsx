@@ -1,6 +1,8 @@
 /**
  * Severity + status badges — enterprise design tokens only.
+ * Tooltips use Radix Tip (instant, theme-aware) rather than native title.
  */
+import {Tip} from "./HelpTip";
 
 export const SEVERITY_STYLE = {
     critical: "sev-critical",
@@ -50,14 +52,15 @@ export function SeverityBadge({severity, className = ""}) {
     const s = (severity || "low").toLowerCase();
     const style = SEVERITY_STYLE[s] || SEVERITY_STYLE.low;
     return (
-        <span
-            data-testid={`severity-${s}`}
-            title={SEVERITY_TIP[s] || `Severity: ${s}`}
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-[0.08em] font-semibold ${style} ${className}`}
-        >
-      <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden/>
-            {s}
-    </span>
+        <Tip content={SEVERITY_TIP[s] || `Severity: ${s}`}>
+            <span
+                data-testid={`severity-${s}`}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-[0.08em] font-semibold ${style} ${className}`}
+            >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden/>
+                {s}
+            </span>
+        </Tip>
     );
 }
 
@@ -66,13 +69,14 @@ export function StatusPill({status, className = ""}) {
     const cls = STATUS_CLASS[key] || STATUS_CLASS.new;
     const label = (status || "new").replace(/_/g, " ");
     return (
-        <span
-            title={STATUS_TIP[key] || `Status: ${label}`}
-            className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-[0.08em] font-semibold ${cls} ${className}`}
-            data-testid={`status-${key}`}
-        >
-      {label}
-    </span>
+        <Tip content={STATUS_TIP[key] || `Status: ${label}`}>
+            <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-[0.08em] font-semibold ${cls} ${className}`}
+                data-testid={`status-${key}`}
+            >
+                {label}
+            </span>
+        </Tip>
     );
 }
 

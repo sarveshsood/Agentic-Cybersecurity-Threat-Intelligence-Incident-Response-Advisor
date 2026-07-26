@@ -327,6 +327,19 @@ async def add_correlation_and_logging(request: Request, call_next):
             "Permissions-Policy",
             "camera=(), microphone=(), geolocation=()",
         )
+        # CSP: API returns JSON primarily; default-src none + self for any HTML error pages.
+        # Override with CONTENT_SECURITY_POLICY env for edge-specific policies.
+        csp = (os.environ.get("CONTENT_SECURITY_POLICY") or "").strip()
+        if not csp:
+            csp = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+        response.headers.setdefault("Content-Security-Policy", csp)
+        # HSTS only when explicitly enabled (terminate TLS at edge in prod)
+        if (os.environ.get("ENABLE_HSTS") or "").strip().lower() in ("1", "true", "yes", "on"):
+            max_age = os.environ.get("HSTS_MAX_AGE", "31536000")
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                f"max-age={max_age}; includeSubDomains",
+            )
         return response
     except Exception:
         logger.exception("request failed", extra={"request_id": request_id})
@@ -351,17 +364,53 @@ try:
 except (TypeError, ValueError):
     RATE_LIMIT_MAX = 30
 
+# Global API rate limit (all /api paths). Off by default for local dev; enable for pilots.
+_GLOBAL_RL_ENABLED = (os.environ.get("GLOBAL_RATE_LIMIT_ENABLED") or "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+try:
+    GLOBAL_RATE_LIMIT_WINDOW = int(os.environ.get("GLOBAL_RATE_LIMIT_WINDOW_SECONDS", 60) or "60")
+except (TypeError, ValueError):
+    GLOBAL_RATE_LIMIT_WINDOW = 60
+try:
+    GLOBAL_RATE_LIMIT_MAX = int(os.environ.get("GLOBAL_RATE_LIMIT_MAX", 300) or "300")
+except (TypeError, ValueError):
+    GLOBAL_RATE_LIMIT_MAX = 300
+
+_RATE_LIMIT_EXEMPT_PREFIXES = (
+    "/health",
+    "/ready",
+    "/version",
+    "/metrics",
+    "/api/health",
+    "/api/ready",
+    "/api/version",
+    "/api/metrics",
+    "/api/v1/health",
+    "/api/v1/ready",
+    "/api/v1/version",
+    "/api/v1/metrics",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+)
+
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     path = request.url.path.rstrip("/") or "/"
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Stricter auth endpoint limits (login/register)
     if request.method == "POST" and path in _AUTH_RATE_LIMIT_PATHS:
         from backend.auth_throttle import rate_limit_allow
 
-        client_ip = request.client.host if request.client else "unknown"
         allowed = await rate_limit_allow(
             db,
-            client_ip,
+            f"auth:{client_ip}",
             window_seconds=RATE_LIMIT_WINDOW,
             max_attempts=RATE_LIMIT_MAX,
         )
@@ -369,7 +418,26 @@ async def rate_limit_middleware(request: Request, call_next):
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Too many requests. Please slow down."},
+                headers={"Retry-After": str(RATE_LIMIT_WINDOW)},
             )
+
+    # Optional global API rate limit (pilot / internet-facing)
+    if _GLOBAL_RL_ENABLED and not any(path == p or path.startswith(p + "/") for p in _RATE_LIMIT_EXEMPT_PREFIXES):
+        if path.startswith("/api") or path.startswith("/auth"):
+            from backend.auth_throttle import rate_limit_allow
+
+            allowed = await rate_limit_allow(
+                db,
+                f"global:{client_ip}",
+                window_seconds=GLOBAL_RATE_LIMIT_WINDOW,
+                max_attempts=GLOBAL_RATE_LIMIT_MAX,
+            )
+            if not allowed:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Global rate limit exceeded. Retry later."},
+                    headers={"Retry-After": str(GLOBAL_RATE_LIMIT_WINDOW)},
+                )
     return await call_next(request)
 
 
@@ -435,46 +503,14 @@ async def metrics(request: Request):
         "actira_log_jobs_total": job_count,
         "actira_pending_review": pending_review,
         "actira_up": 1,
+        "actira_global_rate_limit_enabled": 1 if _GLOBAL_RL_ENABLED else 0,
+        "actira_global_rate_limit_max": GLOBAL_RATE_LIMIT_MAX if _GLOBAL_RL_ENABLED else 0,
+        "actira_global_rate_limit_window_seconds": GLOBAL_RATE_LIMIT_WINDOW if _GLOBAL_RL_ENABLED else 0,
     }
 
 
-@app.get("/api/audit/logs")
-@app.get("/api/v1/audit/logs")
-async def get_audit_logs(q: str = None, action: str = None, current_user: dict = Depends(get_current_user)):
-    """Fetch immutable compliance audit logs with optional filtering."""
-    try:
-        cursor = db.audit_log.find({}, {"_id": 0}).sort([("ts", -1), ("timestamp", -1)]).limit(500)
-        logs = await cursor.to_list(500)
-
-        formatted_logs = []
-        for l in logs:
-            formatted_logs.append({
-                "id": l.get("id") or str(l.get("_id", "")),
-                "incident_id": l.get("incident_id") or l.get("id"),
-                "action": l.get("action") or l.get("event"),
-                "analyst": l.get("analyst") or l.get("user_id") or "System Analyst",
-                "comment": l.get("comment") or l.get("details") or "",
-                "timestamp": l.get("ts") or l.get("timestamp") or datetime.now(timezone.utc).isoformat()
-            })
-
-        if action:
-            formatted_logs = [l for l in formatted_logs if l["action"] and l["action"].lower() == action.lower()]
-
-        if q:
-            needle = q.lower()
-            formatted_logs = [
-                l for l in formatted_logs
-                if needle in str(l.get("incident_id", "")).lower()
-                   or needle in str(l.get("comment", "")).lower()
-                   or needle in str(l.get("analyst", "")).lower()
-            ]
-
-        return formatted_logs
-    except Exception as e:
-        logger.exception("Failed to fetch audit logs")
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=str(e))
-
+# Audit Trail: modular router (GET /api/audit/logs, /summary, /integrity) —
+# see backend/routers/audit.py (include_all_routers below).
 
 # Domain routers (/api + /api/v1)
 include_all_routers(app)

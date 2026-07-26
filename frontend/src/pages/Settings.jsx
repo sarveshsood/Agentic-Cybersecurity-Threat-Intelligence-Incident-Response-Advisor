@@ -31,13 +31,20 @@ import {
     uiPrefMatchesRecommended,
 } from "../lib/uiPrefs";
 import {HoverCard, HoverCardContent, HoverCardTrigger,} from "../components/ui/hover-card";
+import {HelpTip} from "../components/HelpTip";
 import {
+    catalogFromApi,
+    cloneModelCatalog,
     defaultModelForProvider,
     FACTORY_OPS,
     FIELD_META,
     getModelMeta,
-    PROVIDER_MODELS,
+    modelIdsForProvider,
+    modelLabel,
+    modelsByTier,
+    normalizeProvider,
     RECOMMENDED_OPS,
+    SUPPORTED_PROVIDERS,
     tipFromMeta,
     validateSettingsForm,
 } from "../constants/settingsMeta";
@@ -52,6 +59,8 @@ const OPS_KEYS = [
     "llm_model",
     "llm_temperature",
     "llm_token_budget_monthly",
+    "llm_fallback_enabled",
+    "llm_fallback_provider",
     "grounding_threshold",
     "hitl_severity_min",
     "auto_approve_grounding_min",
@@ -74,12 +83,12 @@ const SECRET_FORM_KEYS = [
 ];
 
 const SETTINGS_TABS = [
-    {id: "llm", label: "LLM", icon: Cpu, iconColor: "text-primary", sectionKey: "llm"},
-    {id: "pipeline", label: "Detection", icon: Sliders, iconColor: "text-primary", sectionKey: "pipeline"},
-    {id: "threat_intel", label: "Threat intel", icon: Key, iconColor: "text-warning", sectionKey: "threat_intel"},
-    {id: "notifications", label: "Alerts", icon: Bell, iconColor: "text-primary", sectionKey: "notifications"},
-    {id: "access", label: "Access & data", icon: Shield, iconColor: "text-success", sectionKey: "security"},
-    {id: "ui", label: "UI prefs", icon: Desktop, iconColor: "text-primary", sectionKey: "ui"},
+    {id: "llm", label: "LLM", icon: Cpu, iconColor: "text-primary", sectionKey: "llm", tip: "Provider, model, API keys, temperature, budget, and LLM fallback."},
+    {id: "pipeline", label: "Detection", icon: Sliders, iconColor: "text-primary", sectionKey: "pipeline", tip: "Grounding threshold, HiTL severity floor, auto-approve, correlation window."},
+    {id: "threat_intel", label: "Threat intel", icon: Key, iconColor: "text-warning", sectionKey: "threat_intel", tip: "Live CTI API keys (empty = mock enrichment)."},
+    {id: "notifications", label: "Alerts", icon: Bell, iconColor: "text-primary", sectionKey: "notifications", tip: "Slack webhook and alert email for critical/HiTL events."},
+    {id: "access", label: "Access & data", icon: Shield, iconColor: "text-success", sectionKey: "security", tip: "Session timeout, login lockout, retention, enrichment cache TTL."},
+    {id: "ui", label: "UI prefs", icon: Desktop, iconColor: "text-primary", sectionKey: "ui", tip: "Browser-local presentation prefs (tables, refresh, help tips) — not stored in Mongo."},
 ];
 
 const VALID_TAB_IDS = new Set(SETTINGS_TABS.map((t) => t.id));
@@ -90,6 +99,8 @@ const FIELD_TO_TAB = {
     llm_model: "llm",
     llm_temperature: "llm",
     llm_token_budget_monthly: "llm",
+    llm_fallback_enabled: "llm",
+    llm_fallback_provider: "llm",
     anthropic_api_key: "llm",
     openai_api_key: "llm",
     gemini_api_key: "llm",
@@ -493,10 +504,12 @@ const EMPTY_SECRETS = {
 
 function formFromSettings(d) {
     return {
-        llm_provider: d?.llm_provider || "anthropic",
+        llm_provider: normalizeProvider(d?.llm_provider),
         llm_model: d?.llm_model || "claude-sonnet-4-6",
         llm_temperature: d?.llm_temperature ?? 0.2,
         llm_token_budget_monthly: d?.llm_token_budget_monthly ?? 0,
+        llm_fallback_enabled: d?.llm_fallback_enabled !== false,
+        llm_fallback_provider: normalizeProvider(d?.llm_fallback_provider || "anthropic"),
         grounding_threshold: d?.grounding_threshold ?? 0.7,
         hitl_severity_min: d?.hitl_severity_min || "high",
         auto_approve_grounding_min: d?.auto_approve_grounding_min ?? 0.85,
@@ -528,13 +541,25 @@ function isRec(form, key) {
     return String(cur) === String(rec);
 }
 
+const PROVIDER_LABELS = {
+    anthropic: "Anthropic",
+    openai: "OpenAI",
+    gemini: "Gemini",
+    groq: "Groq",
+};
+
 export default function Settings() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [settings, setSettings] = useState(null);
+    const [settingsLoadMode, setSettingsLoadMode] = useState("loading"); // loading | live | fallback
     const [form, setForm] = useState({});
     const [initialForm, setInitialForm] = useState({});
     const [busy, setBusy] = useState(false);
     const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
+    const [customModelMode, setCustomModelMode] = useState(false);
+    // Catalog lives in React state so provider/model UI always re-renders correctly
+    const [llmCatalog, setLlmCatalog] = useState(() => cloneModelCatalog());
+    const [llmEffective, setLlmEffective] = useState(null);
     const [tiEditField, setTiEditField] = useState(null);
     const [showSlackHelp, setShowSlackHelp] = useState(false);
     const [uiPrefs, setUiPrefs] = useState(() => loadUiPrefs());
@@ -546,12 +571,16 @@ export default function Settings() {
 
     const activeTab = normalizeTabId(searchParams.get("tab") || DEFAULT_TAB);
 
-    const hydrate = useCallback((d) => {
+    const hydrate = useCallback((d, cat = null) => {
         const raw = d?.settings || d || {};
         setSettings(raw);
         const parsed = formFromSettings(raw);
         setForm(parsed);
         setInitialForm(parsed);
+        if (cat) {
+            const ids = modelIdsForProvider(cat, parsed.llm_provider);
+            setCustomModelMode(Boolean(parsed.llm_model && !ids.includes(parsed.llm_model)));
+        }
     }, []);
 
     const isDirty = useMemo(() => {
@@ -585,14 +614,26 @@ export default function Settings() {
         [setSearchParams],
     );
 
+    const activeProvider = normalizeProvider(form.llm_provider);
+
     const modelMeta = useMemo(
-        () => getModelMeta(form.llm_provider),
-        [form.llm_provider],
+        () => getModelMeta(activeProvider),
+        [activeProvider],
     );
 
     const issues = useMemo(
-        () => validateSettingsForm(form, settings || {}),
-        [form, settings],
+        () => validateSettingsForm(form, settings || {}, llmCatalog),
+        [form, settings, llmCatalog],
+    );
+
+    const modelGroups = useMemo(
+        () => modelsByTier(llmCatalog, activeProvider),
+        [llmCatalog, activeProvider],
+    );
+
+    const curatedModelIds = useMemo(
+        () => modelIdsForProvider(llmCatalog, activeProvider),
+        [llmCatalog, activeProvider],
     );
 
     const issueByField = useMemo(() => {
@@ -637,63 +678,68 @@ export default function Settings() {
         });
     }, [settings, form, tiSortCol, tiSortDir]);
 
-    // Load settings once with safety timer
+    // Load catalog + settings once on mount (do NOT re-run when settings changes —
+    // that previously reset the form while the user was editing the provider).
     useEffect(() => {
         let isSubscribed = true;
+        let resolved = false;
+        const fallback = {
+            llm_provider: "anthropic",
+            llm_model: "claude-sonnet-4-6",
+            llm_temperature: 0.2,
+            llm_token_budget_monthly: 0,
+            llm_fallback_enabled: true,
+            llm_fallback_provider: "anthropic",
+            grounding_threshold: 0.7,
+            hitl_severity_min: "high",
+            auto_approve_grounding_min: 0.85,
+            correlation_window_minutes: 30,
+            session_timeout_hours: 24,
+            failed_login_lockout: 5,
+            incident_retention_days: 90,
+            enrichment_cache_ttl_hours: 24,
+            cohere_rerank_enabled: true,
+        };
 
         const safetyTimer = setTimeout(() => {
-            if (isSubscribed && !settings) {
-                hydrate({
-                    llm_provider: "anthropic",
-                    llm_model: "claude-sonnet-4-6",
-                    llm_temperature: 0.2,
-                    llm_token_budget_monthly: 0,
-                    grounding_threshold: 0.7,
-                    hitl_severity_min: "high",
-                    auto_approve_grounding_min: 0.85,
-                    correlation_window_minutes: 30,
-                    session_timeout_hours: 24,
-                    failed_login_lockout: 5,
-                    incident_retention_days: 90,
-                    enrichment_cache_ttl_hours: 24,
-                    cohere_rerank_enabled: true,
-                });
+            if (isSubscribed && !resolved) {
+                hydrate(fallback, cloneModelCatalog());
+                setSettingsLoadMode("fallback");
             }
-        }, 1500);
+        }, 2500);
 
-        api.get("/settings")
-            .then((r) => {
-                if (isSubscribed) {
-                    clearTimeout(safetyTimer);
-                    hydrate(r.data);
-                }
-            })
-            .catch((e) => {
-                if (isSubscribed) {
-                    clearTimeout(safetyTimer);
-                    hydrate({
-                        llm_provider: "anthropic",
-                        llm_model: "claude-sonnet-4-6",
-                        llm_temperature: 0.2,
-                        llm_token_budget_monthly: 0,
-                        grounding_threshold: 0.7,
-                        hitl_severity_min: "high",
-                        auto_approve_grounding_min: 0.85,
-                        correlation_window_minutes: 30,
-                        session_timeout_hours: 24,
-                        failed_login_lockout: 5,
-                        incident_retention_days: 90,
-                        enrichment_cache_ttl_hours: 24,
-                        cohere_rerank_enabled: true,
+        Promise.all([
+            api.get("/settings/llm-catalog").catch(() => ({data: null})),
+            api.get("/settings").catch(() => null),
+        ]).then(([catRes, settingsRes]) => {
+            if (!isSubscribed) return;
+            resolved = true;
+            clearTimeout(safetyTimer);
+            const cat = catalogFromApi(catRes?.data || null);
+            setLlmCatalog(cat);
+            if (settingsRes?.data) {
+                hydrate(settingsRes.data, cat);
+                setSettingsLoadMode("live");
+                if (settingsRes.data.llm_effective_provider) {
+                    setLlmEffective({
+                        provider: settingsRes.data.llm_effective_provider,
+                        model: settingsRes.data.llm_effective_model,
+                        via: settingsRes.data.llm_via_fallback,
+                        ts: settingsRes.data.llm_effective_ts,
                     });
                 }
-            });
+            } else {
+                hydrate(fallback, cat);
+                setSettingsLoadMode("fallback");
+            }
+        });
 
         return () => {
             isSubscribed = false;
             clearTimeout(safetyTimer);
         };
-    }, [hydrate, settings]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const jumpToField = useCallback(
         (field) => {
@@ -732,7 +778,11 @@ export default function Settings() {
             return;
         }
         setBusy(true);
-        const payload = buildSettingsPayload(form);
+        const payload = buildSettingsPayload({
+            ...form,
+            llm_provider: activeProvider,
+            llm_model: String(form.llm_model || "").trim(),
+        });
         try {
             try {
                 await api.put("/settings", payload);
@@ -748,9 +798,13 @@ export default function Settings() {
                 saveUiPrefs(uiPrefs);
                 setUiPrefsDirty(false);
             }
-            toast.success(alsoUi ? "Settings + UI prefs saved" : "Settings saved");
+            toast.success(
+                alsoUi
+                    ? "Settings + UI prefs saved"
+                    : `Settings saved (${activeProvider} / ${payload.llm_model})`,
+            );
             const r = await api.get("/settings");
-            hydrate(r.data);
+            hydrate(r.data, llmCatalog);
             setTiEditField(null);
         } catch (e) {
             toast.error(apiErrorDetail(e) || "Save failed");
@@ -999,14 +1053,17 @@ export default function Settings() {
     };
 
     const onProviderChange = (provider) => {
+        const p = normalizeProvider(provider);
+        setCustomModelMode(false);
+        const nextModel = defaultModelForProvider(p, llmCatalog);
         setForm((f) => ({
             ...f,
-            llm_provider: provider,
-            llm_model: defaultModelForProvider(provider) || f.llm_model,
+            llm_provider: p,
+            llm_model: nextModel || f.llm_model,
         }));
     };
 
-    const pk = PROVIDER_KEY[form.llm_provider] || PROVIDER_KEY.anthropic;
+    const pk = PROVIDER_KEY[activeProvider] || PROVIDER_KEY.anthropic;
     const liveTiCount = TI_KEYS.filter(([, , flag]) => settings[flag]).length;
 
     const toggleTiSort = (col) => {
@@ -1025,9 +1082,12 @@ export default function Settings() {
                 title="Settings"
                 icon={HardDrives}
                 tip={
-                    <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            Hover <Info size={12} className="inline text-primary/80"/> for field help · secrets stay blank after load
-          </span>
+                    <HelpTip
+                        title="Settings"
+                        body="Admin configuration for LLM providers, HiTL gates, threat-intel keys, alerts, retention, and browser UI prefs. Hover (i) on fields for impact notes. Secret values stay blank after load — leave blank to keep existing."
+                        how="GET/PUT /settings · UI prefs in localStorage (actira_ui_prefs_v1). show_help_tips toggles HelpTip icons platform-wide."
+                        testid="tip-settings-page"
+                    />
                 }
                 subtitle="Admin configuration for providers, HiTL detection gates, threat intel keys, alerts, and browser UI preferences."
                 actions={
@@ -1107,15 +1167,25 @@ export default function Settings() {
                 }
             />
 
+            {settingsLoadMode === "fallback" && (
+                <AlertBanner
+                    variant="warning"
+                    title="Using offline defaults — server settings not loaded"
+                    description="GET /settings failed or timed out. Values below are browser defaults, not necessarily what is saved on the API. Fix connectivity and refresh before saving."
+                    testid="settings-fallback-banner"
+                    className="mb-4"
+                />
+            )}
+
             <ConfigHealth issues={issues} onJumpToField={jumpToField}/>
 
             <div
-                className="flex flex-wrap gap-1.5 mb-6 p-2 rounded-card border border-border bg-card shadow-sm sticky top-14 z-20 items-center"
+                className="flex flex-wrap gap-1 mb-6 p-1.5 rounded-card border border-border bg-card shadow-sm sticky top-14 z-20 items-stretch"
                 data-testid="settings-tabs"
                 role="tablist"
                 aria-label="Settings categories"
             >
-                {SETTINGS_TABS.map(({id, label, icon: Icon, iconColor}) => {
+                {SETTINGS_TABS.map(({id, label, icon: Icon, tip: tabTip}) => {
                     const active = activeTab === id;
                     const counts = tabIssueCounts[id] || {error: 0, warning: 0};
                     const badgeN = counts.error || counts.warning;
@@ -1128,19 +1198,24 @@ export default function Settings() {
                             aria-controls={`settings-panel-${id}`}
                             id={`settings-tab-${id}`}
                             data-testid={`tab-${id}`}
+                            title={tabTip || label}
                             onClick={() => setActiveTab(id)}
-                            className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[2.5rem] ${
+                            className={`inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-medium leading-none tracking-tight transition-colors min-h-[2.375rem] ${
                                 active
                                     ? "bg-primary text-primary-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
                             }`}
                         >
-                            <Icon size={16} weight={active ? "bold" : "regular"}
-                                  className={`shrink-0 ${active ? "text-primary-foreground" : iconColor}`}/>
-                            <span className="tracking-wide">{label}</span>
+                            <Icon
+                                size={15}
+                                weight={active ? "bold" : "regular"}
+                                className={`shrink-0 ${active ? "text-primary-foreground" : "text-muted-foreground"}`}
+                                aria-hidden
+                            />
+                            <span className="whitespace-nowrap">{label}</span>
                             {badgeN > 0 && (
                                 <span
-                                    className={`min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-md text-[10px] font-mono grid place-items-center ${
+                                    className={`min-w-[1.15rem] h-[1.15rem] px-1 rounded text-[10px] font-mono font-semibold grid place-items-center leading-none ${
                                         counts.error
                                             ? active
                                                 ? "bg-white/20 text-white"
@@ -1156,8 +1231,8 @@ export default function Settings() {
                                     }
                                     data-testid={`tab-badge-${id}`}
                                 >
-                  {badgeN}
-                </span>
+                                    {badgeN}
+                                </span>
                             )}
                         </button>
                     );
@@ -1178,59 +1253,181 @@ export default function Settings() {
                         <div className="xl:col-span-8 space-y-6">
                             <CollapsibleSection title="LLM Provider Configuration"
                                                 subtitle="Select provider, model weights, and API keys" icon={Cpu}>
-                                <div className={FIELD_GRID_2}>
-                                    <Field
-                                        label="Provider"
-                                        fieldKey="llm_provider"
-                                        matchesRecommended={isRec(form, "llm_provider")}
-                                        warning={issueByField.llm_provider}
+                                <Field
+                                    label="Provider"
+                                    fieldKey="llm_provider"
+                                    matchesRecommended={isRec(form, "llm_provider")}
+                                    warning={issueByField.llm_provider}
+                                    hint="Click a provider to switch. Model list updates immediately."
+                                >
+                                    <div
+                                        className="flex flex-wrap gap-2"
+                                        role="radiogroup"
+                                        aria-label="LLM provider"
+                                        data-testid="llm-provider"
                                     >
-                                        <select
-                                            data-testid="llm-provider"
-                                            className={inputCls(issueByField.llm_provider?.level === "error")}
-                                            value={form.llm_provider}
-                                            onChange={(e) => onProviderChange(e.target.value)}
-                                        >
-                                            {Object.keys(PROVIDER_MODELS).map((p) => (
-                                                <option key={p} value={p}>{p}</option>
-                                            ))}
-                                        </select>
-                                    </Field>
-                                    <Field
-                                        key={`model-field-${form.llm_provider}`}
-                                        label="Model"
-                                        fieldKey="llm_model"
-                                        meta={modelMeta}
-                                        tipKey={`llm_model-${form.llm_provider}`}
-                                        matchesRecommended={isRec(form, "llm_model") && isRec(form, "llm_provider")}
-                                        warning={issueByField.llm_model}
+                                        {SUPPORTED_PROVIDERS.map((p) => {
+                                            const active = activeProvider === p;
+                                            const keyMeta = PROVIDER_KEY[p];
+                                            const hasKey = keyMeta && settings?.[keyMeta.flag];
+                                            return (
+                                                <button
+                                                    key={p}
+                                                    type="button"
+                                                    role="radio"
+                                                    aria-checked={active}
+                                                    data-testid={`llm-provider-${p}`}
+                                                    onClick={() => onProviderChange(p)}
+                                                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-semibold border transition-colors ${
+                                                        active
+                                                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                                            : "bg-card text-foreground border-border hover:bg-muted hover:border-primary/40"
+                                                    }`}
+                                                >
+                                                    {PROVIDER_LABELS[p] || p}
+                                                    <span
+                                                        className={`text-[10px] font-mono font-normal ${
+                                                            active ? "text-primary-foreground/80" : "text-muted-foreground"
+                                                        }`}
+                                                    >
+                                                        {hasKey ? "key✓" : "no key"}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {/* Hidden select keeps accessibility + form parity */}
+                                    <select
+                                        id="llm_provider"
+                                        className="sr-only"
+                                        tabIndex={-1}
+                                        aria-hidden
+                                        value={activeProvider}
+                                        onChange={(e) => onProviderChange(e.target.value)}
                                     >
+                                        {SUPPORTED_PROVIDERS.map((p) => (
+                                            <option key={p} value={p}>{p}</option>
+                                        ))}
+                                    </select>
+                                </Field>
+
+                                {llmEffective?.provider && (
+                                    <div
+                                        className="rounded-lg border theme-border px-3 py-2 text-xs mb-3"
+                                        data-testid="llm-effective-strip"
+                                    >
+                                        <span className="font-semibold text-foreground">Last effective LLM: </span>
+                                        <span className="font-mono text-primary">
+                                            {llmEffective.provider}/{llmEffective.model || "—"}
+                                        </span>
+                                        {llmEffective.via ? (
+                                            <span className="ml-2 text-[10px] uppercase font-bold text-warning">via fallback</span>
+                                        ) : (
+                                            <span className="ml-2 text-[10px] uppercase font-bold text-success">primary</span>
+                                        )}
+                                        {llmEffective.ts && (
+                                            <span className="ml-2 text-muted-foreground font-mono text-[10px]">
+                                                {llmEffective.ts}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                <Field
+                                    key={`model-field-${activeProvider}`}
+                                    label={`Model (${PROVIDER_LABELS[activeProvider] || activeProvider})`}
+                                    fieldKey="llm_model"
+                                    meta={modelMeta}
+                                    tipKey={`llm_model-${activeProvider}`}
+                                    matchesRecommended={isRec(form, "llm_model") && isRec(form, "llm_provider")}
+                                    warning={issueByField.llm_model}
+                                    hint={`${curatedModelIds.length} curated models · free + paid · experimental tagged · custom ID allowed`}
+                                >
+                                    {!customModelMode ? (
                                         <select
+                                            id="llm_model"
                                             data-testid="llm-model"
                                             className={`${inputCls(issueByField.llm_model?.level === "error")} font-mono text-[12px]`}
-                                            value={form.llm_model}
-                                            onChange={(e) => upd("llm_model", e.target.value)}
+                                            value={curatedModelIds.includes(form.llm_model) ? form.llm_model : ""}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                if (v === "__custom__") {
+                                                    setCustomModelMode(true);
+                                                    return;
+                                                }
+                                                if (v) upd("llm_model", v);
+                                            }}
                                         >
-                                            {PROVIDER_MODELS[form.llm_provider]?.map((m) => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                            {form.llm_model
-                                                && !(PROVIDER_MODELS[form.llm_provider] || []).includes(form.llm_model) && (
-                                                    <option
-                                                        value={form.llm_model}>{form.llm_model} (unsupported)</option>
-                                                )}
+                                            {!curatedModelIds.includes(form.llm_model) && (
+                                                <option value="" disabled>
+                                                    {form.llm_model ? `Select model (current: ${form.llm_model})` : "Select a model…"}
+                                                </option>
+                                            )}
+                                            {modelGroups.free.length > 0 && (
+                                                <optgroup label={`Free tier (${modelGroups.free.length})`}>
+                                                    {modelGroups.free.map((m) => (
+                                                        <option key={m.id} value={m.id}>
+                                                            {modelLabel(llmCatalog, activeProvider, m.id)}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )}
+                                            {modelGroups.paid.length > 0 && (
+                                                <optgroup label={`Paid (${modelGroups.paid.length})`}>
+                                                    {modelGroups.paid.map((m) => (
+                                                        <option key={m.id} value={m.id}>
+                                                            {modelLabel(llmCatalog, activeProvider, m.id)}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )}
+                                            <option value="__custom__">Custom model ID…</option>
                                         </select>
-                                    </Field>
-                                </div>
+                                    ) : (
+                                        <div className="space-y-1.5">
+                                            <input
+                                                id="llm_model"
+                                                data-testid="llm-model-custom"
+                                                type="text"
+                                                className={`${inputCls(issueByField.llm_model?.level === "error")} font-mono text-[12px]`}
+                                                value={form.llm_model || ""}
+                                                placeholder="e.g. gpt-5.6-sol or gemini-3.6-flash"
+                                                onChange={(e) => upd("llm_model", e.target.value)}
+                                                autoComplete="off"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="text-[11px] text-primary hover:underline"
+                                                data-testid="llm-model-use-list"
+                                                onClick={() => {
+                                                    setCustomModelMode(false);
+                                                    if (!curatedModelIds.includes(form.llm_model)) {
+                                                        upd("llm_model", defaultModelForProvider(activeProvider, llmCatalog));
+                                                    }
+                                                }}
+                                            >
+                                                ← Back to curated list
+                                            </button>
+                                        </div>
+                                    )}
+                                    {!customModelMode && form.llm_model && !curatedModelIds.includes(form.llm_model) && (
+                                        <button
+                                            type="button"
+                                            className="mt-1 text-[11px] text-warning hover:underline"
+                                            onClick={() => setCustomModelMode(true)}
+                                        >
+                                            Current value “{form.llm_model}” is custom — click to edit
+                                        </button>
+                                    )}
+                                </Field>
 
                                 <Field
-                                    label={`${form.llm_provider || "Provider"} API key`}
+                                    label={`${PROVIDER_LABELS[activeProvider] || activeProvider} API key (active)`}
                                     fieldKey={pk.field}
                                     warning={issueByField[pk.field]}
                                     hint={
-                                        settings[pk.flag]
+                                        settings?.[pk.flag]
                                             ? "✓ configured — leave blank to keep"
-                                            : "Required for live playbooks"
+                                            : "Required for live playbooks on this provider"
                                     }
                                 >
                                     <input
@@ -1244,6 +1441,42 @@ export default function Settings() {
                                     />
                                 </Field>
 
+                                <div
+                                    className="rounded-lg border border-border bg-muted/30 p-3 space-y-2"
+                                    data-testid="llm-all-keys"
+                                >
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                        All provider keys (for fallback)
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground m-0">
+                                        Store keys for multiple providers so cross-provider fallback can run when the primary fails.
+                                        Leave blank to keep an existing secret.
+                                    </p>
+                                    <div className={`${FIELD_GRID_2}`}>
+                                        {SUPPORTED_PROVIDERS.map((prov) => {
+                                            const meta = PROVIDER_KEY[prov];
+                                            return (
+                                                <Field
+                                                    key={prov}
+                                                    label={`${PROVIDER_LABELS[prov] || prov}${prov === activeProvider ? " ★" : ""}`}
+                                                    fieldKey={meta.field}
+                                                    hint={settings?.[meta.flag] ? "✓ configured" : "not set"}
+                                                >
+                                                    <input
+                                                        data-testid={`key-all-${meta.field}`}
+                                                        type="password"
+                                                        placeholder={meta.ph}
+                                                        autoComplete="off"
+                                                        className={`${inputCls(false)} font-mono text-[12px]`}
+                                                        value={form[meta.field] || ""}
+                                                        onChange={(e) => upd(meta.field, e.target.value)}
+                                                    />
+                                                </Field>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
                                 <button
                                     type="button"
                                     onClick={() => setShowLlmAdvanced((v) => !v)}
@@ -1254,7 +1487,7 @@ export default function Settings() {
                                         size={12}
                                         className={`transition-transform ${showLlmAdvanced ? "rotate-180" : ""}`}
                                     />
-                                    {showLlmAdvanced ? "Hide advanced" : "Advanced (temperature, budget)"}
+                                    {showLlmAdvanced ? "Hide advanced" : "Advanced (temperature, budget, fallback)"}
                                 </button>
 
                                 {showLlmAdvanced && (
@@ -1292,6 +1525,74 @@ export default function Settings() {
                                                 onChange={(e) => upd("llm_token_budget_monthly", parseInt(e.target.value) || 0)}
                                             />
                                         </Field>
+                                        <Field
+                                            label="Provider fallback"
+                                            fieldKey="llm_fallback_enabled"
+                                            matchesRecommended={isRec(form, "llm_fallback_enabled")}
+                                            hint="On primary failure, try other providers that have keys"
+                                        >
+                                            <label className="inline-flex items-center gap-2 text-xs cursor-pointer">
+                                                <input
+                                                    data-testid="llm-fallback-enabled"
+                                                    type="checkbox"
+                                                    className="rounded border-border"
+                                                    checked={form.llm_fallback_enabled !== false}
+                                                    onChange={(e) => upd("llm_fallback_enabled", e.target.checked)}
+                                                />
+                                                Enable cross-provider fallback
+                                            </label>
+                                        </Field>
+                                        <Field
+                                            label="Preferred fallback provider"
+                                            fieldKey="llm_fallback_provider"
+                                            matchesRecommended={isRec(form, "llm_fallback_provider")}
+                                            hint="Tried first after primary; requires that provider’s key"
+                                        >
+                                            <select
+                                                data-testid="llm-fallback-provider"
+                                                className={`${inputCls(false)} font-mono text-[12px]`}
+                                                value={form.llm_fallback_provider || "anthropic"}
+                                                onChange={(e) => upd("llm_fallback_provider", e.target.value)}
+                                                disabled={form.llm_fallback_enabled === false}
+                                            >
+                                                {SUPPORTED_PROVIDERS.map((p) => (
+                                                    <option key={p} value={p}>{PROVIDER_LABELS[p] || p}</option>
+                                                ))}
+                                                <option value="none">none (disable preferred)</option>
+                                            </select>
+                                        </Field>
+                                        <div className="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-2">
+                                            <button
+                                                type="button"
+                                                data-testid="llm-test-connection"
+                                                disabled={busy}
+                                                onClick={async () => {
+                                                    setBusy(true);
+                                                    try {
+                                                        const res = await api.post("/settings/test-llm");
+                                                        const d = res.data || {};
+                                                        toast.success(
+                                                            `LLM ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
+                                                        );
+                                                    } catch (e) {
+                                                        const detail = e?.response?.data?.detail;
+                                                        const msg = typeof detail === "object"
+                                                            ? (detail.message || detail.error || JSON.stringify(detail))
+                                                            : (e?.userMessage || e?.message || "LLM test failed");
+                                                        toast.error(msg);
+                                                    } finally {
+                                                        setBusy(false);
+                                                    }
+                                                }}
+                                                className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
+                                                title="Sends a minimal completion using the saved provider/model"
+                                            >
+                                                Test LLM connection
+                                            </button>
+                                            <span className="text-[10px] text-muted-foreground">
+                                                Uses the last saved settings (save first if you changed provider/model).
+                                            </span>
+                                        </div>
                                         {settings?.llm_usage && (
                                             <div
                                                 className="md:col-span-2 xl:col-span-3 text-[11px] text-muted-foreground font-mono rounded-lg border border-border bg-muted/40 px-3 py-2"
@@ -1317,7 +1618,7 @@ export default function Settings() {
                                 <dl className="space-y-3 text-sm">
                                     <div className="flex items-start justify-between gap-3">
                                         <dt className="text-muted-foreground">Provider</dt>
-                                        <dd className="font-mono text-primary font-semibold uppercase">{form.llm_provider || "—"}</dd>
+                                        <dd className="font-mono text-primary font-semibold uppercase">{activeProvider || "—"}</dd>
                                     </div>
                                     <div className="flex items-start justify-between gap-3">
                                         <dt className="text-muted-foreground">Model</dt>

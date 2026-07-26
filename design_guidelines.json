@@ -67,7 +67,24 @@
     "attack_heatmap": "Severity-scale backgrounds without glow.",
     "citation_chips": "citation-chip / ioc-chip utility classes.",
     "hitl_approval_gate": "warning semantic border and badge; no neon pulse.",
-    "ai_surfaces": "Recommendation panels (confidence, evidence, MITRE, SOC actions) — not chat-product chrome."
+    "ai_surfaces": "Recommendation panels (confidence, evidence, MITRE, SOC actions) — not chat-product chrome.",
+    "tooltips": "PREREQUISITE: every page/panel/KPI/action ships HelpTip or Tip by default via design-system props (tipTitle/tipBody, PaneLabel, DsButton tooltip=). See docs/dx/TOOLTIP_PREREQUISITE.md. Never ship UI with 'tooltips later'."
+  },
+  "tooltip_prerequisite": {
+    "status": "mandatory",
+    "policy_module": "frontend/src/lib/tooltipPrerequisite.js",
+    "components": "frontend/src/components/HelpTip.jsx",
+    "design_system": "frontend/src/design-system/components.jsx",
+    "docs": "docs/dx/TOOLTIP_PREREQUISITE.md",
+    "defaults": {
+      "PageHeader": "tip= or tipTitle+tipBody (requireTip default true)",
+      "Panel": "tip= or tipTitle+tipBody when titled",
+      "KpiCard": "tip= or tipTitle+tipBody",
+      "PaneLabel": "title+body required by default",
+      "SectionLabel": "tipTitle+tipBody required by default",
+      "DsButton": "tooltip= wraps Tip; requireTooltip for icon-only"
+    },
+    "dev_behavior": "console.warn once per missing surface in DEV"
   },
   "icons": {
     "library": "@phosphor-icons/react",

@@ -229,13 +229,21 @@ def slim_golden_payload(out: Dict[str, Any], *, include_cases: bool) -> Dict[str
         ),
         "failures": out.get("failures") or [],
         "passed": bool(out.get("passed")),
-        "mode": "offline_template",
+        # Preserve live_llm_sample when present (was always overwritten to offline_template)
+        "mode": out.get("mode") or "offline_template",
         "ran_at": out.get("ran_at"),
         "ran_by": out.get("ran_by"),
+        "elapsed_s": out.get("elapsed_s"),
+        "note": out.get("note"),
     }
     if include_cases:
         cases = []
-        for r in out.get("results") or []:
+        # Accept either raw benchmark results[] or already-slimmed cases[]
+        raw_rows = out.get("results") or out.get("cases") or []
+        for r in raw_rows:
+            if not isinstance(r, dict):
+                continue
+            pred_iocs = r.get("predicted_iocs")
             cases.append({
                 "id": r.get("id"),
                 "name": r.get("name"),
@@ -251,7 +259,10 @@ def slim_golden_payload(out: Dict[str, Any], *, include_cases: bool) -> Dict[str
                 "hitl_required": r.get("hitl_required"),
                 "error": r.get("error"),
                 "predicted_techniques": r.get("predicted_techniques") or [],
-                "n_predicted_iocs": len(r.get("predicted_iocs") or []),
+                "n_predicted_iocs": (
+                    len(pred_iocs) if isinstance(pred_iocs, list)
+                    else r.get("n_predicted_iocs") or 0
+                ),
             })
         payload["cases"] = cases
     return payload
@@ -272,12 +283,20 @@ async def health_check():
 
 
 async def ensure_roadmap_seeded() -> None:
-    """Insert seed on empty DB, and auto-merge new/completed seed cards into live Mongo.
+    """Insert seed on empty DB, auto-merge new/completed cards, retire obsolete fragment IDs.
 
-    Admin Sync seed (force) still available for full refresh; this removes the need
-    to manually merge after pull for new completed seed IDs (e.g. rm-review-deferred-close).
+    Admin Sync seed (force) still available for full field refresh from seed.
     """
+    from backend.roadmap_data import RETIRED_ROADMAP_IDS
+
     now = datetime.now(timezone.utc).isoformat()
+
+    # Drop consolidated/duplicate fragment cards so UI stays one-theme-one-card
+    retired = 0
+    if RETIRED_ROADMAP_IDS:
+        result = await db.roadmap.delete_many({"id": {"$in": list(RETIRED_ROADMAP_IDS)}})
+        retired = int(result.deleted_count or 0)
+
     count = await db.roadmap.count_documents({})
     if count == 0:
         docs = []
@@ -289,10 +308,14 @@ async def ensure_roadmap_seeded() -> None:
             docs.append(d)
         if docs:
             await db.roadmap.insert_many(docs)
-            logger.info("Seeded %s roadmap items from weekly discussions", len(docs))
+            logger.info(
+                "Seeded %s roadmap items (retired_removed=%s)",
+                len(docs),
+                retired,
+            )
         return
 
-    # Auto-merge: insert missing IDs; promote seed-completed items without wiping owner notes
+    # Auto-merge: insert missing IDs; promote/refresh seed-completed items
     inserted = 0
     promoted = 0
     for item in ROADMAP_SEED:
@@ -309,41 +332,64 @@ async def ensure_roadmap_seeded() -> None:
             inserted += 1
             continue
         seed_done = (
-                str(d.get("status") or "") == "completed"
-                or int(d.get("progress") or 0) >= 100
+            str(d.get("status") or "") == "completed"
+            or int(d.get("progress") or 0) >= 100
         )
         if not seed_done:
+            # Keep non-completed seed definitions in sync for title/summary/tasks template
+            # only when local was never customized (empty owner + default progress)
             continue
-        # Promote completion from seed when local item is not yet completed
         local_status = str(existing.get("status") or "")
         local_progress = int(existing.get("progress") or 0)
         if local_status == "completed" and local_progress >= 100:
+            # Still refresh title/summary so consolidations show correct labels
+            await db.roadmap.update_one(
+                {"id": rid},
+                {
+                    "$set": {
+                        "title": d.get("title") or existing.get("title"),
+                        "summary": d.get("summary") or existing.get("summary"),
+                        "description": d.get("description") or existing.get("description"),
+                        "category": d.get("category") or existing.get("category"),
+                        "target_release": d.get("target_release") or existing.get("target_release"),
+                        "modules": d.get("modules") or existing.get("modules"),
+                        "docs": d.get("docs") or existing.get("docs"),
+                        "architecture_notes": d.get("architecture_notes")
+                        or existing.get("architecture_notes"),
+                        "implementation_notes": d.get("implementation_notes")
+                        or existing.get("implementation_notes"),
+                        "tasks": d.get("tasks") or existing.get("tasks"),
+                        "updated_at": now,
+                    }
+                },
+            )
             continue
         patch = {
             "status": d.get("status") or "completed",
             "progress": int(d.get("progress") or 100),
+            "title": d.get("title") or existing.get("title"),
             "summary": d.get("summary") or existing.get("summary"),
             "description": d.get("description") or existing.get("description"),
             "tasks": d.get("tasks") or existing.get("tasks"),
             "implementation_notes": d.get("implementation_notes")
-                                    or existing.get("implementation_notes"),
+            or existing.get("implementation_notes"),
             "modules": d.get("modules") or existing.get("modules"),
             "docs": d.get("docs") or existing.get("docs"),
             "architecture_notes": d.get("architecture_notes")
-                                  or existing.get("architecture_notes"),
+            or existing.get("architecture_notes"),
             "updated_at": now,
         }
         await db.roadmap.update_one({"id": rid}, {"$set": patch})
         promoted += 1
-    if inserted or promoted:
+    if inserted or promoted or retired:
         logger.info(
-            "Roadmap auto-merge: inserted=%s promoted_completed=%s (seed_total=%s)",
+            "Roadmap auto-merge: inserted=%s promoted_completed=%s retired_removed=%s (seed_total=%s)",
             inserted,
             promoted,
+            retired,
             len(ROADMAP_SEED),
         )
     else:
-        # Helps operators confirm seed is current after deploy
         logger.info(
             "Roadmap seed in sync (mongo_ids include all %s seed cards)",
             len(ROADMAP_SEED),

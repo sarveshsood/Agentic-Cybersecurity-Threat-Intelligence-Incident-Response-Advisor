@@ -324,6 +324,9 @@ class Settings(BaseModel):
     llm_model: str = "claude-sonnet-4-6"
     llm_temperature: float = 0.2
     llm_token_budget_monthly: int = 0  # 0 = unlimited
+    # Cross-provider fallback when primary fails (requires fallback provider key)
+    llm_fallback_enabled: bool = True
+    llm_fallback_provider: Optional[Literal["openai", "anthropic", "gemini", "groq", "none"]] = "anthropic"
     # Provider keys (UI → MongoDB; blank on update keeps previous value)
     # Send the sentinel __CLEAR__ (or use POST /settings/clear-secrets) to wipe a key.
     anthropic_api_key: Optional[str] = None

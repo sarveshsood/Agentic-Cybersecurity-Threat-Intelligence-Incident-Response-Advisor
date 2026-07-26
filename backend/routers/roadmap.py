@@ -25,7 +25,7 @@ async def list_roadmap(
     category: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(200, ge=1, le=500),
     user=Depends(get_current_user),
 ):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"

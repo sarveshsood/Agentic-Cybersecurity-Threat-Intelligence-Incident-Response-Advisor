@@ -1,0 +1,17 @@
+%% ACTIRA — Data Flow
+flowchart TD
+  LOG[Raw logs / ZIP / webhook] --> JOB[log_jobs]
+  JOB --> CES[Common Event Schema events]
+  CES --> IOCS[IoCs]
+  IOCS --> SCORES[Enriched scores]
+  CES --> CHAIN[Correlation attack chain]
+  SCORES --> INC[Incident document]
+  CHAIN --> INC
+  INC --> RAGQ[Retrieval query]
+  RAGQ --> CHUNKS[KB chunks + scores]
+  CHUNKS --> PB[Playbook JSON]
+  PB --> GS[Grounding score]
+  GS --> STATUS[status: new | pending_review | approved]
+  STATUS --> AUDIT[audit_log]
+  INC --> MONGO[(MongoDB)]
+  CHUNKS --> LANCE[(LanceDB)]

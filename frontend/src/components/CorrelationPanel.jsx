@@ -1,5 +1,6 @@
 import {Desktop, Fingerprint, GitFork, Globe, Users} from "@phosphor-icons/react";
 import {formatDateTime} from "../lib/uiPrefs";
+import {HelpTip, PaneLabel, Tip} from "./HelpTip";
 
 const KIND_ICON = {
     ip: Globe,
@@ -29,6 +30,12 @@ export default function CorrelationPanel({correlation}) {
                 <div>
                     <div className="soc-label flex items-center gap-1.5">
                         <GitFork size={12}/> Cross-Log Correlation
+                        <HelpTip
+                            title="Cross-log correlation"
+                            body="Links entities (IP, user, host, domain, hash) that appear across multiple files in the same package. Builds the attack-chain timeline from the anchor entity."
+                            how="Pipeline correlation stage over CES-normalized events."
+                            testid="tip-correlation-panel"
+                        />
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
                         {stats.total_events || 0} events · {filesCount} source file{filesCount !== 1 ? "s" : ""}
@@ -39,23 +46,33 @@ export default function CorrelationPanel({correlation}) {
             {/* Cross-file link chips */}
             {correlations.length > 0 ? (
                 <div>
-                    <div className="soc-label mb-2">Cross-file links ({correlations.length})</div>
+                    <div className="soc-label mb-2 inline-flex items-center gap-1.5">
+                        Cross-file links ({correlations.length})
+                        <HelpTip
+                            title="Cross-file links"
+                            body="Shared entity values spanning ≥2 source files. f = file count · e = event count."
+                            testid="tip-correlation-links"
+                        />
+                    </div>
                     <div className="flex flex-wrap gap-1.5">
                         {correlations.slice(0, 10).map((c, i) => {
                             const Icon = KIND_ICON[c.kind] || Globe;
+                            const files = (c.files || []).join(" · ") || "no file list";
+                            const tip = `${c.kind || "entity"}: ${c.value} · ${c.file_count ?? "?"} files · ${c.event_count ?? "?"} events · ${files}`;
                             return (
-                                <div
-                                    key={`${c.kind}-${c.value}-${i}`}
-                                    data-testid={`corr-${c.kind}-${i}`}
-                                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded border ${KIND_COLOR[c.kind] || KIND_COLOR.ip} text-[11px]`}
-                                    title={c.files.join(" · ")}
-                                >
-                                    <Icon size={11}/>
-                                    <span className="soc-mono">{c.value}</span>
-                                    <span className="text-[9px] opacity-70">
-                    {c.file_count}f · {c.event_count}e
-                  </span>
-                                </div>
+                                <Tip key={`${c.kind}-${c.value}-${i}`} content={tip}>
+                                    <div
+                                        data-testid={`corr-${c.kind}-${i}`}
+                                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded border ${KIND_COLOR[c.kind] || KIND_COLOR.ip} text-[11px] cursor-help`}
+                                        title={tip}
+                                    >
+                                        <Icon size={11}/>
+                                        <span className="soc-mono">{c.value}</span>
+                                        <span className="text-[9px] opacity-70">
+                                            {c.file_count}f · {c.event_count}e
+                                        </span>
+                                    </div>
+                                </Tip>
                             );
                         })}
                     </div>
@@ -67,14 +84,25 @@ export default function CorrelationPanel({correlation}) {
             {/* Per-file breakdown */}
             {stats.files && (
                 <div>
-                    <div className="soc-label mb-2">Per-file events</div>
+                    <PaneLabel
+                        className="mb-2"
+                        title="Per-file events"
+                        body="Event counts contributed by each source file in this package."
+                        testid="tip-correlation-files"
+                    >
+                        Per-file events
+                    </PaneLabel>
                     <div className="grid grid-cols-2 gap-1.5">
                         {Object.entries(stats.files).map(([f, c]) => (
-                            <div key={f}
-                                 className="text-[11px] flex items-center justify-between px-2 py-1 rounded bg-background border border-border">
-                                <span className="soc-mono truncate">{f.split("/").pop()}</span>
-                                <span className="text-primary font-mono">{c}</span>
-                            </div>
+                            <Tip key={f} content={`${f}: ${c} events`}>
+                                <div
+                                    className="text-[11px] flex items-center justify-between px-2 py-1 rounded bg-background border border-border cursor-help"
+                                    title={`${f}: ${c} events`}
+                                >
+                                    <span className="soc-mono truncate">{f.split("/").pop()}</span>
+                                    <span className="text-primary font-mono">{c}</span>
+                                </div>
+                            </Tip>
                         ))}
                     </div>
                 </div>
@@ -83,7 +111,14 @@ export default function CorrelationPanel({correlation}) {
             {/* Attack chain */}
             {attack_chain.length > 0 && (
                 <div>
-                    <div className="soc-label mb-2">Attack chain (anchor entity)</div>
+                    <div className="soc-label mb-2 inline-flex items-center gap-1.5">
+                        Attack chain (anchor entity)
+                        <HelpTip
+                            title="Attack chain"
+                            body="Ordered events around the primary correlated entity — approximate kill-chain narrative from logs, not full EDR process trees."
+                            testid="tip-correlation-chain"
+                        />
+                    </div>
                     <ol className="space-y-1.5 border-l border-primary/30 pl-3">
                         {attack_chain.slice(0, 8).map((step, i) => (
                             <li key={i} className="text-[11px]" data-testid={`chain-step-${i}`}>
@@ -123,14 +158,30 @@ export default function CorrelationPanel({correlation}) {
                     {["ips", "users", "hosts"].map((k) => (
                         entities[k]?.length > 0 && (
                             <div key={k}>
-                                <div className="soc-label mb-1.5">Top {k}</div>
+                                <PaneLabel
+                                    className="mb-1.5"
+                                    title={`Top ${k}`}
+                                    body={`Highest-frequency ${k} from correlation over this package’s events.`}
+                                    testid={`tip-correlation-top-${k}`}
+                                >
+                                    Top {k}
+                                </PaneLabel>
                                 <div className="space-y-0.5">
-                                    {entities[k].slice(0, 4).map((e) => (
-                                        <div key={e.value} className="text-[11px] flex items-center justify-between">
-                                            <span className="soc-mono truncate text-foreground/90">{e.value}</span>
-                                            <span className="text-primary font-mono">{e.count}</span>
-                                        </div>
-                                    ))}
+                                    {entities[k].slice(0, 4).map((e) => {
+                                        const tip = `${k.slice(0, -1) || k}: ${e.value} · seen in ${e.count ?? "?"} events`;
+                                        return (
+                                            <Tip key={e.value} content={tip}>
+                                                <div
+                                                    className="text-[11px] flex items-center justify-between cursor-help"
+                                                    title={tip}
+                                                    data-testid={`corr-entity-${k}-${e.value}`}
+                                                >
+                                                    <span className="soc-mono truncate text-foreground/90">{e.value}</span>
+                                                    <span className="text-primary font-mono">{e.count}</span>
+                                                </div>
+                                            </Tip>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )

@@ -1583,7 +1583,8 @@
     },
     "/api/audit": {
       "get": {
-        "operationId": "audit_log_api_audit_get",
+        "description": "Normalized audit entries (who/what/when + integrity flags).",
+        "operationId": "get_audit_api_audit_get",
         "parameters": [
           {
             "in": "query",
@@ -1603,6 +1604,200 @@
             "schema": {
               "default": 50,
               "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/audit/integrity": {
+      "get": {
+        "description": "Best-effort hash/chain verification over recent entries.",
+        "operationId": "get_audit_integrity_api_audit_integrity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sample",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Sample",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit Integrity",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/audit/logs": {
+      "get": {
+        "description": "Audit Trail UI compatibility endpoint.",
+        "operationId": "get_audit_logs_api_audit_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -1634,33 +1829,27 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Audit Log",
+        "summary": "Get Audit Logs",
         "tags": [
           "audit"
         ]
       }
     },
-    "/api/audit/logs": {
+    "/api/audit/summary": {
       "get": {
-        "description": "Fetch immutable compliance audit logs with optional filtering.",
-        "operationId": "get_audit_logs_api_audit_logs_get",
+        "description": "Rule-based audit intelligence summary.",
+        "operationId": "get_audit_summary_api_audit_summary_get",
         "parameters": [
           {
             "in": "query",
-            "name": "q",
+            "name": "days",
             "required": false,
             "schema": {
-              "title": "Q",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "action",
-            "required": false,
-            "schema": {
-              "title": "Action",
-              "type": "string"
+              "default": 7,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
             }
           }
         ],
@@ -1689,7 +1878,57 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Audit Logs"
+        "summary": "Get Audit Summary",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/audit/telemetry": {
+      "post": {
+        "description": "Optional client telemetry (403 page, etc.). Authenticated users only.",
+        "operationId": "post_audit_telemetry_api_audit_telemetry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Audit Telemetry",
+        "tags": [
+          "audit"
+        ]
       }
     },
     "/api/auth/login": {
@@ -1946,8 +2185,109 @@
         ]
       }
     },
+    "/api/compliance/evidence-pack": {
+      "get": {
+        "description": "JSON evidence pack for auditors / GRC export.",
+        "operationId": "get_evidence_pack_api_compliance_evidence_pack_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence Pack",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/compliance/executive-export": {
+      "get": {
+        "description": "Board-ready compliance + audit snapshot (JSON + markdown field).",
+        "operationId": "get_executive_export_api_compliance_executive_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Executive Export",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/compliance/gaps": {
+      "get": {
+        "description": "Failed controls with remediation priority.",
+        "operationId": "get_compliance_gaps_api_compliance_gaps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Gaps",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/compliance/score": {
+      "get": {
+        "description": "Compact scorecard (overall + domain + framework maps).",
+        "operationId": "get_compliance_score_api_compliance_score_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Score",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
     "/api/compliance/status": {
       "get": {
+        "description": "Overall score, frameworks, domains, gap preview (+ live audit/golden signals).",
         "operationId": "get_compliance_status_api_compliance_status_get",
         "responses": {
           "200": {
@@ -2333,6 +2673,18 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "When true, return {items,total,skip,limit} for server-side pagination",
+            "in": "query",
+            "name": "include_meta",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "When true, return {items,total,skip,limit} for server-side pagination",
+              "title": "Include Meta",
+              "type": "boolean"
             }
           }
         ],
@@ -4413,8 +4765,8 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 200,
+              "default": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -5210,6 +5562,31 @@
         ]
       }
     },
+    "/api/settings/llm-catalog": {
+      "get": {
+        "description": "Provider \u2192 model allow-list for Settings UI and clients.",
+        "operationId": "get_llm_catalog_api_settings_llm_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Llm Catalog",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
     "/api/settings/profiles": {
       "get": {
         "operationId": "settings_profiles_api_settings_profiles_get",
@@ -5346,6 +5723,31 @@
           }
         ],
         "summary": "Test Email Alert",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/settings/test-llm": {
+      "post": {
+        "description": "Probe configured LLM with a minimal completion (uses real API quota).",
+        "operationId": "test_llm_connection_api_settings_test_llm_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Llm Connection",
         "tags": [
           "settings"
         ]
@@ -5621,7 +6023,8 @@
     },
     "/api/v1/audit": {
       "get": {
-        "operationId": "audit_log_api_v1_audit_get",
+        "description": "Normalized audit entries (who/what/when + integrity flags).",
+        "operationId": "get_audit_api_v1_audit_get",
         "parameters": [
           {
             "in": "query",
@@ -5641,6 +6044,200 @@
             "schema": {
               "default": 50,
               "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit/integrity": {
+      "get": {
+        "description": "Best-effort hash/chain verification over recent entries.",
+        "operationId": "get_audit_integrity_api_v1_audit_integrity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sample",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Sample",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit Integrity",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit/logs": {
+      "get": {
+        "description": "Audit Trail UI compatibility endpoint.",
+        "operationId": "get_audit_logs_api_v1_audit_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -5672,33 +6269,27 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Audit Log",
+        "summary": "Get Audit Logs",
         "tags": [
           "audit"
         ]
       }
     },
-    "/api/v1/audit/logs": {
+    "/api/v1/audit/summary": {
       "get": {
-        "description": "Fetch immutable compliance audit logs with optional filtering.",
-        "operationId": "get_audit_logs_api_v1_audit_logs_get",
+        "description": "Rule-based audit intelligence summary.",
+        "operationId": "get_audit_summary_api_v1_audit_summary_get",
         "parameters": [
           {
             "in": "query",
-            "name": "q",
+            "name": "days",
             "required": false,
             "schema": {
-              "title": "Q",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "action",
-            "required": false,
-            "schema": {
-              "title": "Action",
-              "type": "string"
+              "default": 7,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
             }
           }
         ],
@@ -5727,7 +6318,57 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Audit Logs"
+        "summary": "Get Audit Summary",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit/telemetry": {
+      "post": {
+        "description": "Optional client telemetry (403 page, etc.). Authenticated users only.",
+        "operationId": "post_audit_telemetry_api_v1_audit_telemetry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Post Audit Telemetry",
+        "tags": [
+          "audit"
+        ]
       }
     },
     "/api/v1/auth/login": {
@@ -5984,8 +6625,109 @@
         ]
       }
     },
+    "/api/v1/compliance/evidence-pack": {
+      "get": {
+        "description": "JSON evidence pack for auditors / GRC export.",
+        "operationId": "get_evidence_pack_api_v1_compliance_evidence_pack_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence Pack",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/v1/compliance/executive-export": {
+      "get": {
+        "description": "Board-ready compliance + audit snapshot (JSON + markdown field).",
+        "operationId": "get_executive_export_api_v1_compliance_executive_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Executive Export",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/v1/compliance/gaps": {
+      "get": {
+        "description": "Failed controls with remediation priority.",
+        "operationId": "get_compliance_gaps_api_v1_compliance_gaps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Gaps",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
+    "/api/v1/compliance/score": {
+      "get": {
+        "description": "Compact scorecard (overall + domain + framework maps).",
+        "operationId": "get_compliance_score_api_v1_compliance_score_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Score",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
     "/api/v1/compliance/status": {
       "get": {
+        "description": "Overall score, frameworks, domains, gap preview (+ live audit/golden signals).",
         "operationId": "get_compliance_status_api_v1_compliance_status_get",
         "responses": {
           "200": {
@@ -6371,6 +7113,18 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "When true, return {items,total,skip,limit} for server-side pagination",
+            "in": "query",
+            "name": "include_meta",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "When true, return {items,total,skip,limit} for server-side pagination",
+              "title": "Include Meta",
+              "type": "boolean"
             }
           }
         ],
@@ -8451,8 +9205,8 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 200,
+              "default": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -9248,6 +10002,31 @@
         ]
       }
     },
+    "/api/v1/settings/llm-catalog": {
+      "get": {
+        "description": "Provider \u2192 model allow-list for Settings UI and clients.",
+        "operationId": "get_llm_catalog_api_v1_settings_llm_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Llm Catalog",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
     "/api/v1/settings/profiles": {
       "get": {
         "operationId": "settings_profiles_api_v1_settings_profiles_get",
@@ -9384,6 +10163,31 @@
           }
         ],
         "summary": "Test Email Alert",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/test-llm": {
+      "post": {
+        "description": "Probe configured LLM with a minimal completion (uses real API quota).",
+        "operationId": "test_llm_connection_api_v1_settings_test_llm_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Llm Connection",
         "tags": [
           "settings"
         ]

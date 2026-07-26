@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from backend.core import services as svc
 from backend.database import db
 from backend.models import new_id
-from backend.roadmap_data import ROADMAP_SEED, default_tasks_for_item
+from backend.roadmap_data import RETIRED_ROADMAP_IDS, ROADMAP_SEED, default_tasks_for_item
 
 ROADMAP_STATUSES = ("planned", "in_progress", "completed", "future")
 ROADMAP_PRIORITIES = ("p0", "p1", "p2", "p3")
@@ -72,7 +72,7 @@ async def list_items(
     category: Optional[str] = None,
     q: Optional[str] = None,
     skip: int = 0,
-    limit: int = 50,
+    limit: int = 200,  # default high enough for full seed set in UI
 ) -> Dict[str, Any]:
     await svc.ensure_roadmap_seeded()
     query: Dict[str, Any] = {}
@@ -98,7 +98,7 @@ async def list_items(
         .limit(limit)
     )
     items = await cursor.to_list(limit)
-    all_items = await db.roadmap.find({}, {"_id": 0, "status": 1, "priority": 1}).to_list(500)
+    all_items = await db.roadmap.find({}, {"_id": 0, "status": 1, "priority": 1}).to_list(1000)
     counts = {s: 0 for s in ROADMAP_STATUSES}
     for it in all_items:
         s = it.get("status") or "planned"
@@ -113,14 +113,18 @@ async def list_items(
 
 
 async def get_item(item_id: str) -> Dict[str, Any]:
+    from backend.repositories.roadmap import roadmap_repo
+
     await svc.ensure_roadmap_seeded()
-    doc = await db.roadmap.find_one({"id": item_id}, {"_id": 0})
+    doc = await roadmap_repo.find_by_id(item_id)
     if not doc:
         raise HTTPException(404, "Roadmap item not found")
     return doc
 
 
 async def create_item(body: RoadmapCreateBody, user: dict) -> Dict[str, Any]:
+    from backend.repositories.roadmap import roadmap_repo
+
     await svc.ensure_roadmap_seeded()
     now = datetime.now(timezone.utc).isoformat()
     doc = body.model_dump()
@@ -128,7 +132,7 @@ async def create_item(body: RoadmapCreateBody, user: dict) -> Dict[str, Any]:
     doc["tasks"] = default_tasks_for_item(doc)
     doc["created_at"] = now
     doc["updated_at"] = now
-    await db.roadmap.insert_one(doc)
+    await roadmap_repo.insert(doc)
     doc.pop("_id", None)
     await svc.audit(user, "roadmap.create", "roadmap", doc["id"], {"title": doc["title"]})
     return doc
@@ -314,6 +318,10 @@ async def reseed(
 ) -> Dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     if force:
+        retired = 0
+        if RETIRED_ROADMAP_IDS:
+            result = await db.roadmap.delete_many({"id": {"$in": list(RETIRED_ROADMAP_IDS)}})
+            retired = int(result.deleted_count or 0)
         for item in ROADMAP_SEED:
             d = dict(item)
             d.setdefault("tasks", default_tasks_for_item(d))
@@ -350,13 +358,18 @@ async def reseed(
             "roadmap.reseed",
             "roadmap",
             "all",
-            {"force": True, "reset_progress": reset_progress},
+            {
+                "force": True,
+                "reset_progress": reset_progress,
+                "retired_removed": retired,
+            },
         )
         return {
             "ok": True,
             "force": True,
             "reset_progress": reset_progress,
             "seed_count": len(ROADMAP_SEED),
+            "retired_removed": retired,
         }
 
     await svc.ensure_roadmap_seeded()
