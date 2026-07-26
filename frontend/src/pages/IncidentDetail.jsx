@@ -14,6 +14,7 @@ import WorkspaceTabs, {WORKSPACE_TAB_IDS} from "../components/workspace/Workspac
 import InvestigationTimeline from "../components/workspace/InvestigationTimeline";
 import EntityGraph, {EntityTypeTable} from "../components/workspace/EntityGraph";
 import NotesNotebook, {RecommendationsPanel} from "../components/workspace/NotesNotebook";
+import BehaviorPanel from "../components/workspace/BehaviorPanel";
 import {PageHeader} from "../design-system";
 import {pushRecentIncident} from "../lib/recentActivity";
 import {formatDateTime} from "../lib/uiPrefs";
@@ -376,6 +377,7 @@ export default function IncidentDetail() {
                                     </div>
                                 )}
                             </div>
+                            <BehaviorPanel incidentId={inc.id}/>
                             <EntityGraph
                                 incidentId={inc.id}
                                 selectedId={selectedEntity}

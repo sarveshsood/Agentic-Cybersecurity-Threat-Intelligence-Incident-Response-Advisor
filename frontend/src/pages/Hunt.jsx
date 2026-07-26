@@ -4,7 +4,7 @@ import {api} from "../lib/api";
 import {PageHeader} from "../design-system";
 import {SeverityBadge, StatusPill} from "../components/SeverityBadge";
 import {ListState} from "../components/ListState";
-import {MagnifyingGlass, Crosshair} from "@phosphor-icons/react";
+import {MagnifyingGlass, Crosshair, Pulse} from "@phosphor-icons/react";
 import {toast} from "sonner";
 
 export default function Hunt() {
@@ -12,6 +12,7 @@ export default function Hunt() {
     const [suggestions, setSuggestions] = useState([]);
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [hotspots, setHotspots] = useState(null);
 
     useEffect(() => {
         api
@@ -26,6 +27,10 @@ export default function Hunt() {
                     "Find persistence",
                 ])
             );
+        api
+            .get("/hunt/behavior?limit=8")
+            .then((r) => setHotspots(r.data))
+            .catch(() => setHotspots(null));
     }, []);
 
     const run = useCallback(
@@ -108,6 +113,43 @@ export default function Hunt() {
                     ))}
                 </div>
             </form>
+
+            {hotspots?.items?.length > 0 && (
+                <div className="soc-card p-4 space-y-3" data-testid="behavior-hotspots">
+                    <div className="flex items-center gap-2">
+                        <Pulse size={16} className="text-primary"/>
+                        <div>
+                            <div className="soc-label">Behavioral hotspots</div>
+                            <div className="text-[11px] text-muted-foreground">
+                                Beaconing, login bursts, multi-host users, LOLBins, DNS volume
+                            </div>
+                        </div>
+                    </div>
+                    <ul className="space-y-2">
+                        {hotspots.items.map((h) => (
+                            <li
+                                key={h.id}
+                                className="flex flex-wrap items-center gap-2 border border-border rounded-lg px-3 py-2"
+                                data-testid={`behavior-hotspot-${h.id}`}
+                            >
+                                <Link
+                                    to={`/incidents/${h.id}?tab=case`}
+                                    className="text-sm text-primary hover:underline font-medium flex-1 min-w-[140px]"
+                                >
+                                    {h.title || h.id}
+                                </Link>
+                                <SeverityBadge severity={h.severity}/>
+                                <span className="text-[10px] font-mono text-primary">
+                                    {h.risk} {h.risk_score}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground max-w-xs truncate">
+                                    {(h.signal_ids || []).join(", ")}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             {loading && <ListState variant="loading" message="Scoring incidents…" testid="hunt-loading"/>}
 

@@ -2185,6 +2185,55 @@
         ]
       }
     },
+    "/api/hunt/behavior": {
+      "get": {
+        "description": "Incidents ranked by behavioral anomaly signals.",
+        "operationId": "hunt_behavior_hotspots_api_hunt_behavior_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Hunt Behavior Hotspots",
+        "tags": [
+          "hunt"
+        ]
+      }
+    },
     "/api/hunt/suggestions": {
       "get": {
         "operationId": "hunt_suggestions_api_hunt_suggestions_get",
@@ -2360,6 +2409,52 @@
         "summary": "Get Incident",
         "tags": [
           "incidents"
+        ]
+      }
+    },
+    "/api/incidents/{incident_id}/behavior": {
+      "get": {
+        "description": "Behavioral signals for a single incident (beaconing, login burst, etc.).",
+        "operationId": "incident_behavior_api_incidents__incident_id__behavior_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Incident Behavior",
+        "tags": [
+          "hunt"
         ]
       }
     },
@@ -6128,6 +6223,55 @@
         ]
       }
     },
+    "/api/v1/hunt/behavior": {
+      "get": {
+        "description": "Incidents ranked by behavioral anomaly signals.",
+        "operationId": "hunt_behavior_hotspots_api_v1_hunt_behavior_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Hunt Behavior Hotspots",
+        "tags": [
+          "hunt"
+        ]
+      }
+    },
     "/api/v1/hunt/suggestions": {
       "get": {
         "operationId": "hunt_suggestions_api_v1_hunt_suggestions_get",
@@ -6303,6 +6447,52 @@
         "summary": "Get Incident",
         "tags": [
           "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{incident_id}/behavior": {
+      "get": {
+        "description": "Behavioral signals for a single incident (beaconing, login burst, etc.).",
+        "operationId": "incident_behavior_api_v1_incidents__incident_id__behavior_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Incident Behavior",
+        "tags": [
+          "hunt"
         ]
       }
     },
