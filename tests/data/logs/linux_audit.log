@@ -1,0 +1,2 @@
+﻿type=USER_AUTH msg=audit(1719831323.100:88): pid=2201 uid=0 auid=1000 msg='op=PAM:authentication acct="root" exe="/usr/sbin/sshd" hostname=203.0.113.50 addr=203.0.113.50 res=failed'
+type=SYSCALL msg=audit(1719831400.200:99): arch=c000003e syscall=59 success=yes exe="/bin/bash" key="exec"

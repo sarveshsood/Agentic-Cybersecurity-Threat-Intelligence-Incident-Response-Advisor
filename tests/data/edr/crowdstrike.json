@@ -1,0 +1,7 @@
+﻿{
+  "event_simpleName": "ProcessRollup2",
+  "ComputerName": "WS01",
+  "RemoteAddressIP4": "203.0.113.50",
+  "SHA256HashData": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "CommandLine": "powershell -enc AAA"
+}

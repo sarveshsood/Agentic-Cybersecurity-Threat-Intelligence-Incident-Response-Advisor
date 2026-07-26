@@ -1,0 +1,63 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_source": "actira.v1",
+  "resources": [
+    {
+      "_id": "wrk_actira",
+      "_type": "workspace",
+      "name": "ACTIRA",
+      "description": "ACTIRA API workspace"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_actira",
+      "name": "Base",
+      "data": {
+        "baseUrl": "http://127.0.0.1:8001",
+        "token": ""
+      }
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "wrk_actira",
+      "name": "Health",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/api/health"
+    },
+    {
+      "_id": "req_login",
+      "_type": "request",
+      "parentId": "wrk_actira",
+      "name": "Login",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/api/auth/login",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\"email\":\"analyst@soc.example.com\",\"password\":\"Analyst123!\"}"
+      }
+    },
+    {
+      "_id": "req_incidents",
+      "_type": "request",
+      "parentId": "wrk_actira",
+      "name": "Incidents",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/api/incidents",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    }
+  ]
+}

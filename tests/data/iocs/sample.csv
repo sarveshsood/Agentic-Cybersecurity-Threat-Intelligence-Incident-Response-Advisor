@@ -1,0 +1,5 @@
+﻿ip,203.0.113.50,high
+domain,evil.example.com,high
+hash,d41d8cd98f00b204e9800998ecf8427e,low
+url,https://evil.example.com/a,high
+email,phish@evil.example.com,medium

@@ -1,0 +1,7 @@
+﻿{
+  "type": "alert",
+  "device_name": "WS01",
+  "remote_ip": "203.0.113.50",
+  "process_path": "C:\\Windows\\Temp\\a.exe",
+  "md5": "c4ca4238a0b923820dcc509a6f75849b"
+}

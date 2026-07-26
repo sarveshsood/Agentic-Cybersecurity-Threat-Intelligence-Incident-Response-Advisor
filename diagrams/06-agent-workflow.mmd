@@ -1,0 +1,18 @@
+%% ACTIRA — Agent / stage workflow (pipeline agents)
+stateDiagram-v2
+  [*] --> Queued
+  Queued --> Parsing
+  Parsing --> Extracting
+  Extracting --> Enriching
+  Enriching --> Correlating
+  Correlating --> Generating
+  Generating --> Done
+  Generating --> Failed
+  Parsing --> Failed
+  Done --> [*]
+  Failed --> [*]
+
+  note right of Generating
+    RAG + Playbook LLM
+    then HiTL policy
+  end note

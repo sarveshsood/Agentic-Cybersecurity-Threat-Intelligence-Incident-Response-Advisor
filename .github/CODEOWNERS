@@ -1,0 +1,17 @@
+# ACTIRA default code ownership — update GitHub handles before public launch.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+*                       @actira-maintainers
+
+/backend/               @actira-maintainers
+/frontend/              @actira-maintainers
+/docs/                  @actira-maintainers
+/diagrams/              @actira-maintainers
+/deployments/           @actira-maintainers
+/.github/               @actira-maintainers
+
+# Security-sensitive paths require maintainer review
+/backend/auth.py        @actira-maintainers
+/backend/secret_vault.py @actira-maintainers
+/backend/secrets_util.py @actira-maintainers
+/SECURITY.md            @actira-maintainers

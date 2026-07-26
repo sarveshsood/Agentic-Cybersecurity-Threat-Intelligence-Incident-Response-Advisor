@@ -1,0 +1,39 @@
+replicaCount: 2
+
+image:
+  repository: actira-backend
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8001
+
+ingress:
+  enabled: false
+  className: ""
+  host: actira.example.com
+  tls: false
+
+env:
+  DB_NAME: soc_console
+  ENV: production
+  SEED_DEMO_USERS: "false"
+  CORS_ORIGINS: "https://actira.example.com"
+  ACTIRA_VECTOR_STORE: "1"
+
+# Prefer existingSecret over inline
+existingSecret: actira-secrets
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+lancedb:
+  # emptyDir for demo; PVC for persistence
+  persistence: false
+  size: 5Gi

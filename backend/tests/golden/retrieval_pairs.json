@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "description": "Golden Q→doc pairs for offline retrieval hit@k (synthetic IR queries over in-code KB).",
+  "base_model_recommendation": "BAAI/bge-small-en-v1.5",
+  "pairs": [
+    {
+      "id": "q-brute-ssh",
+      "query": "SSH brute force failed password authentication",
+      "relevant_ids": [
+        "T1110",
+        "PB-BRUTEFORCE"
+      ]
+    },
+    {
+      "id": "q-phishing",
+      "query": "phishing email credential harvest attachment",
+      "relevant_ids": [
+        "T1566",
+        "PB-PHISHING"
+      ]
+    },
+    {
+      "id": "q-log4shell",
+      "query": "Log4Shell CVE-2021-44228 JNDI LDAP exploit",
+      "relevant_ids": [
+        "CISA-KEV-Log4Shell",
+        "T1190"
+      ]
+    },
+    {
+      "id": "q-ransomware",
+      "query": "ransomware encrypted files do not pay ransom",
+      "relevant_ids": [
+        "T1486",
+        "PB-RANSOMWARE"
+      ]
+    },
+    {
+      "id": "q-c2",
+      "query": "command and control beacon callback domain sinkhole",
+      "relevant_ids": [
+        "T1071",
+        "PB-C2"
+      ]
+    },
+    {
+      "id": "q-containment",
+      "query": "NIST containment isolate systems preserve evidence",
+      "relevant_ids": [
+        "NIST-800-61-4.3"
+      ]
+    },
+    {
+      "id": "q-powershell",
+      "query": "malicious PowerShell command interpreter execution",
+      "relevant_ids": [
+        "T1059",
+        "PB-MALWARE"
+      ]
+    },
+    {
+      "id": "q-tool-transfer",
+      "query": "wget curl certutil download ingress tool transfer",
+      "relevant_ids": [
+        "T1105"
+      ]
+    },
+    {
+      "id": "q-valid-accounts",
+      "query": "abuse valid accounts MFA anomalous login",
+      "relevant_ids": [
+        "T1078"
+      ]
+    },
+    {
+      "id": "q-moveit",
+      "query": "MOVEit Transfer SQL injection LEMURLOOT CL0P",
+      "relevant_ids": [
+        "CISA-KEV-MOVEit",
+        "T1190"
+      ]
+    }
+  ]
+}

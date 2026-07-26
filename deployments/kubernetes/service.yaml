@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: actira-api
+  namespace: actira
+spec:
+  selector:
+    app: actira-api
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001

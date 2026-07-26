@@ -1,0 +1,13 @@
+%% ACTIRA — Incident response product flow
+flowchart TD
+  D[Detect / Ingest] --> T[Triage incident]
+  T --> A[Analyze IoCs + ATT&CK]
+  A --> P[AI playbook draft]
+  P --> H{HiTL required?}
+  H -->|yes| R[Senior review]
+  H -->|no| N[Status new / auto-approved]
+  R --> AP[Approved playbook]
+  R --> RJ[Rejected]
+  AP --> C[Contain / Eradicate / Recover guidance]
+  C --> L[Lessons learned]
+  N --> C

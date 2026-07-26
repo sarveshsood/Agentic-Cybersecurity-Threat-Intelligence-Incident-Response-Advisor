@@ -1,0 +1,11 @@
+%% ACTIRA — CI/CD
+flowchart TD
+  PR[Pull Request] --> CI[ci.yml unit + lint + openapi + FE build]
+  PR --> LINT[lint.yml]
+  PR --> SEC[security.yml bandit/audit]
+  PR --> GOLD[golden-ci.yml]
+  PR --> OAPI[openapi-ci.yml]
+  main[Push main] --> REL[release.yml]
+  main --> E2E[e2e.yml optional]
+  CI --> ART[Artifacts junit/html]
+  REL --> TAG[Semver tag / notes]

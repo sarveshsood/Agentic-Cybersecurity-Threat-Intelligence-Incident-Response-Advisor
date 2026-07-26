@@ -1,0 +1,18 @@
+target-version = "py312"
+line-length = 100
+exclude = [
+    "frontend",
+    "backend/data",
+    ".venv",
+    "venv",
+    "node_modules",
+    "reports",
+]
+
+[lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+"backend/tests/*" = ["E402", "F401"]
+"tests/*" = ["E402", "F401"]

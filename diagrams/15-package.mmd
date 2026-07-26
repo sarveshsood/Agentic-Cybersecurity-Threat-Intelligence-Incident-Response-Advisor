@@ -1,0 +1,35 @@
+%% ACTIRA — Package / module map
+flowchart TB
+  subgraph backend
+    server
+    models
+    auth
+    pipeline
+    job_queue
+    parsers
+    ioc_extractor
+    enrichment
+    correlator
+    attack_mapping
+    knowledge_base
+    vector_store
+    embeddings
+    playbook_agent
+    ai_investigator
+    hitl_gate
+    secret_vault
+    notifications
+  end
+
+  subgraph frontend_src
+    pages
+    components
+    lib
+    design_system
+  end
+
+  subgraph quality
+    tests_backend[backend/tests]
+    tests_root[tests/]
+    github_wf[.github/workflows]
+  end

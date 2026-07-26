@@ -1,0 +1,26 @@
+%% ACTIRA — Sequence: upload to review
+sequenceDiagram
+  actor Analyst
+  participant UI as React SPA
+  participant API as FastAPI
+  participant W as Job Worker
+  participant DB as MongoDB
+  actor Reviewer
+
+  Analyst->>UI: Upload sample / logs
+  UI->>API: POST /api/logs/upload
+  API->>DB: create log_job
+  API->>W: enqueue / claim
+  W->>W: parse → extract → enrich → correlate
+  W->>W: RAG + LLM playbook
+  W->>W: HiTL decide status
+  W->>DB: insert incident
+  UI->>API: GET /api/incidents
+  API->>DB: query
+  API-->>UI: incidents
+  Reviewer->>UI: Open Review Queue
+  UI->>API: GET /api/review/queue
+  Reviewer->>UI: Approve
+  UI->>API: POST /api/review/{id}
+  API->>DB: atomic update + audit
+  API-->>UI: 200 or 409

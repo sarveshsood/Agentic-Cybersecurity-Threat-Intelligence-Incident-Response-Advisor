@@ -1,0 +1,7 @@
+%% ACTIRA — Network (compose / lab)
+flowchart LR
+  User((User)) -->|HTTP :3000| FE[frontend]
+  User -->|HTTP :8001 docs| BE[backend]
+  FE -->|API calls host:8001| BE
+  BE -->|27017| DB[(mongodb)]
+  BE -->|HTTPS egress| EXT[LLM + TI + Slack]

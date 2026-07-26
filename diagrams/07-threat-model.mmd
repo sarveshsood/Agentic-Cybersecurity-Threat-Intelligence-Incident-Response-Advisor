@@ -1,0 +1,28 @@
+%% ACTIRA — Threat model (trust boundaries)
+flowchart TB
+  subgraph Untrusted
+    Browser
+    Forwarder
+    InternetLLM[LLM / TI Internet]
+  end
+
+  subgraph TrustedApp
+    API[ACTIRA API]
+    Worker[Pipeline worker]
+  end
+
+  subgraph TrustedData
+    Mongo[(Mongo)]
+    Secrets[Secret vault]
+  end
+
+  Browser -->|CORS + JWT cookie| API
+  Forwarder -->|Ingest key| API
+  API --> Worker
+  API --> Mongo
+  API --> Secrets
+  API -->|egress TLS| InternetLLM
+
+  Browser -.->|threat: XSS, CSRF, stolen session| API
+  Forwarder -.->|threat: key theft, flood| API
+  InternetLLM -.->|threat: prompt inject via data, data exfil| API

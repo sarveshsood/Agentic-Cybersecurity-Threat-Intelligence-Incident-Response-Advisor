@@ -1,0 +1,7 @@
+﻿{
+  "DeviceName": "WS01",
+  "ActionType": "AlertTriggered",
+  "RemoteIP": "203.0.113.50",
+  "SHA256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "ThreatName": "Trojan:Win32/Test"
+}

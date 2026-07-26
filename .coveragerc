@@ -1,0 +1,47 @@
+# ACTIRA coverage — used by pytest-cov / make coverage / CI quality gate.
+# Goal: ≥95% line+branch on backend application modules (see fail_under).
+
+[run]
+branch = True
+source =
+    backend
+parallel = True
+concurrency =
+    thread
+    multiprocessing
+omit =
+    backend/tests/*
+    backend/scripts/*
+    backend/**/__pycache__/*
+    */site-packages/*
+    */.venv/*
+    */venv/*
+    # Optional heavy deps paths if imported
+    */lora_train.py
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+skip_empty = True
+# Quality gate: pipeline fails if overall coverage is below this threshold.
+fail_under = 95
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:
+    @abstractmethod
+    @overload
+    if typing.TYPE_CHECKING:
+
+[html]
+directory = reports/coverage_html
+
+[xml]
+output = reports/coverage.xml
+
+[json]
+output = reports/coverage.json

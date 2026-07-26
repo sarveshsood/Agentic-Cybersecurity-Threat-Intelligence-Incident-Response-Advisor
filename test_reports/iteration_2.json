@@ -1,0 +1,48 @@
+{
+  "summary": "Regression test after code-quality refactor pass (MD5->SHA-256 in enrichment._stable_score, useCallback/useMemo in auth.jsx/Upload.jsx/IncidentDetail.jsx, module-scope constants in App.js + Login.jsx). All 30 backend pytest cases pass (28 existing + 2 new determinism tests) and all frontend flows pass (all 3 demo logins, pipeline end-to-end, sidebar RBAC for analyst/reviewer/admin). No regressions detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/logs/upload",
+        "issue": "Still no file-size cap or rate limiting (pre-existing, flagged in iteration_1)."
+      },
+      {
+        "endpoint": "GET /api/incidents",
+        "issue": "Still no pagination — hard-coded to_list(200) (pre-existing)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "enrichment.py::_stable_score: SHA-256 refactor is clean; hex-int mod arithmetic preserves determinism and range. Verified via new TestEnrichmentDeterminism::test_same_input_same_threat_scores (uploaded same log twice, matching IoC values produce identical threat_score).",
+    "auth.jsx: useCallback(login/register/logout, []) is safe — closures only touch setUser and localStorage (stable refs). useMemo on context value with correct deps [user, loading, login, register, logout] avoids re-render cascades in consumers. No stale-closure risk.",
+    "Upload.jsx: refresh useCallback([]) is stable; uploadFile depends on [refresh] which is stable; uploadSample depends on [uploadFile] which is stable. useEffect dep [refresh] is safe — will not re-trigger interval on re-render. Good pattern.",
+    "IncidentDetail.jsx: load = useCallback([id]) is correct — reroute /incidents/:id changes id, load reference changes, useEffect refires. Verified visually: navigating from job-view button to /incidents/:id renders correct incident.",
+    "App.js: QUERY_OPTS is declared but never wired to a QueryClientProvider (dormant since iteration_1, pre-existing dead code). Not a regression — flag for cleanup.",
+    "Login.jsx setDemo closes over `form` (mode='login', name, role); using functional setState (setForm(prev => ...)) would be marginally cleaner but current code works because setDemo is invoked from a click, not from a memoized callback. Non-blocking.",
+    "All refactors preserve identical user-facing behavior and API contract."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestEnrichmentDeterminism class with 2 new tests: same_input_same_threat_scores, score_range_and_type)"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30)",
+    "frontend": "100% (all UI regression flows passed)"
+  },
+  "test_credentials": "analyst@soc.example.com/Analyst123!, reviewer@soc.example.com/Reviewer123!, admin@soc.example.com/Admin123! — all seeded and working.",
+  "seed_data_creation": "None added. Determinism test uploads same SAMPLE_LOG twice as `det_a.log` and `det_b.log` and asserts matching IoC values yield equal threat_scores.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "backend_test.py in /app/backend/tests/ now has 30 tests across 8 classes: TestAuth (10), TestPipeline (6), TestHiTL (5), TestKPIs (1), TestSettings (3), TestKB (3), TestEnrichmentDeterminism (2). Run via `pytest backend/tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml`. The determinism tests upload the SSH-brute+Log4Shell sample twice and compare threat_scores of shared IoCs — this is the regression contract for any future change to enrichment._stable_score (must remain a pure function of value+salt). Frontend testids verified working: demo-analyst, demo-senior-reviewer, demo-admin, auth-email, auth-password, auth-submit, upload-sample-btn, job-view-*, job-status-*, incident-detail, tech-*, ioc-*, hitl-panel, approve-btn, reject-btn, nav-review-queue, nav-settings, logout-btn.",
+  "rca_of_the_issue": "N/A — this was a code-quality refactor pass with no functional changes. The MD5->SHA-256 change intentionally rotates numeric enrichment scores but preserves determinism (verified). React memoization changes preserve identical component behavior."
+}

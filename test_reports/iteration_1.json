@@ -1,0 +1,60 @@
+{
+  "summary": "Full end-to-end test of SOC Console MVP (backend + frontend). All 28 pytest backend cases passed (auth, RBAC, upload pipeline, incident IoC/technique/playbook/citations, HiTL flow, KPIs, Settings, KB). Frontend Playwright flow passed for all three demo roles: analyst logs in via demo button, uploads sample SSH-brute+Log4Shell log, pipeline reaches 'done' in ~2s, incident detail opens; sidebar RBAC correctly hides Review Queue/Settings from analyst; reviewer sees Review Queue; admin sees Settings; KB search page renders.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/register",
+        "issue": "email validator rejects .local TLDs (e.g., soc.local) with 422 due to Pydantic EmailStr's reserved-name check. Not a defect but worth documenting: test users must use routable-looking domains like example.com."
+      },
+      {
+        "endpoint": "POST /api/logs/upload",
+        "issue": "Endpoint has no role restriction — any authenticated user (including analyst, which is correct) can upload. Just note: no rate limiting or file-size cap."
+      },
+      {
+        "endpoint": "GET /api/incidents",
+        "issue": "No pagination — hard-coded to_list(200). Acceptable for MVP; flag for scale."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Global",
+        "issues": [
+          "Dark theme is consistent; contrast is adequate. No issues found in tested screens."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py::require_roles allows admin implicitly (line 55: user.role != 'admin' check). Good practice, matches intent.",
+    "playbook_agent.py: LLM failure path is gracefully caught and fallback template used — grounding_score is guaranteed > 0. Verified.",
+    "ioc_extractor.py: SHA-256 regex uses \\b word boundary — correctly detects exact 64-hex sequences and rejects longer runs. My initial test payload had 96/90-char hex which correctly did NOT match; adjusted the test.",
+    "auth.py: JWT_SECRET defaults to 'dev-secret' when env missing. .env sets it, so OK, but consider failing hard if missing in prod.",
+    "server.py: BackgroundTasks used for pipeline — fine for MVP, but a job queue (Celery/RQ) would be better for concurrent large logs.",
+    "No pagination on /incidents, /logs/jobs, /audit — MVP acceptable.",
+    "No file size limit on /logs/upload — could be abused.",
+    "Frontend correctly uses data-testid throughout and process.env.REACT_APP_BACKEND_URL."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (28/28)",
+    "frontend": "100% (all UI flows passed)"
+  },
+  "test_credentials": "analyst@soc.example.com/Analyst123!, reviewer@soc.example.com/Reviewer123!, admin@soc.example.com/Admin123! — all seeded and working (see /app/memory/test_credentials.md).",
+  "seed_data_creation": "Backend auto-seeds three demo users on startup via seed_demo_data(). Verified by successful logins for all three roles.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "backend_test.py in /app/backend/tests/ is the source of truth — pytest with 2 workers via xdist. Note: the pipeline test uploads a sample log containing valid 64-char SHA256 hashes and CVE-2021-44228; expected techniques are T1110 + T1190 (and often T1105 for curl). Grounding is guaranteed >0 by fallback template even if LLM fails. Register test uses @example.com because Pydantic EmailStr rejects .local. Frontend testids referenced: auth-email, auth-password, auth-submit, demo-analyst, demo-senior-reviewer, demo-admin, upload-sample-btn, job-status-*, job-view-*, nav-* (dashboard/ingest-logs/incidents/review-queue/knowledge-base/settings), logout-btn, dashboard-page, upload-page, kpi-total/critical/pending/grounding.",
+  "rca_of_the_issue": "N/A — no defects found. Two initial test failures were test-code artifacts (invalid TLD in register payload, over-length hex strings not matching SHA256 regex boundary) and were fixed in the test suite, not the app."
+}

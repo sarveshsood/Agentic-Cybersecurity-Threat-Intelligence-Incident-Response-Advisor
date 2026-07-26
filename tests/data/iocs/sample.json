@@ -1,0 +1,15 @@
+﻿{
+  "iocs": [
+    {
+      "type": "ip",
+      "value": "198.51.100.10"
+    },
+    {
+      "type": "domain",
+      "value": "malware-c2.example.net"
+    },
+    {
+      "cve": "CVE-2024-1234"
+    }
+  ]
+}

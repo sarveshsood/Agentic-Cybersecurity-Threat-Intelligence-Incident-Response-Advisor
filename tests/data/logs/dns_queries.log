@@ -1,0 +1,3 @@
+﻿2026-07-01T10:15:00Z client 10.0.0.50 query: evil.example.com IN A
+2026-07-01T10:15:01Z client 10.0.0.50 query: update.microsoft.com IN A
+2026-07-01T10:15:02Z client 10.0.0.51 query: malware-c2.example.net IN AAAA

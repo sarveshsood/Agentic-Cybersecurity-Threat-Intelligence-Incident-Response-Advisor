@@ -1,0 +1,53 @@
+{
+  "summary": "Iteration 3 validates Phase-1 SOC enhancement: multi-log + ZIP ingest, CES normalization, cross-log correlation. Extended pytest suite from 30 -> 42 tests (added TestBatchUpload with 10 tests + TestZipBombGuardConstant). All 42 pass. Playwright E2E confirms drop-zone format badges, 3-file bundle staging, batch upload run-through, per-file format/event badges in the job card ('apache·3, syslog·4, csv·3'), CorrelationPanel on IncidentDetail with corr-ip-* chips (incl. '45.155.205.199 3f · 7e'), 7-step attack chain, and full RBAC sidebar (analyst hides Review Queue + Settings, senior_reviewer shows Review Queue only, admin shows both). Legacy /api/logs/upload regression also verified in both backend and frontend flows. No regressions vs iteration_2.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/logs/upload",
+        "issue": "Legacy single-upload has no explicit file-size cap (pre-existing, iteration_1)."
+      },
+      {
+        "endpoint": "GET /api/incidents",
+        "issue": "Still no pagination (pre-existing)."
+      },
+      {
+        "endpoint": "POST /api/logs/upload-batch",
+        "issue": "Total-size cap uses MAX_UPLOAD_BYTES*2 (50MB) which is fine, but the per-file 25MB reject is validated only after full read into memory — for very large uploads this still buffers in RAM. Consider streaming/spooling. Non-blocking."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py::upload_batch — MAX_UPLOAD_BYTES=25MB enforced per file (413) and total capped at 50MB, aligning with spec. ZIP is detected via extension OR magic bytes b'PK' which is robust.",
+    "pipeline.py::_expand_zip — MAX_ZIP_MEMBERS=50 and MAX_UNCOMPRESSED_BYTES=50MB both enforced: skips over-large individual members AND breaks on cumulative overflow. Zip-bomb safe.",
+    "correlator.py — clean CES-shape agnostic correlation: entities (ip/user/host/domain/hash) are indexed and any entity in >=2 files OR >=3 events becomes a cross-link. attack_chain is built off the top anchor entity in chronological order. Verified: 3-file bundle with shared IP 45.155.205.199 produces 4 correlations and 7 chain steps (matches E1's manual test result).",
+    "correlator.py::_sort_key returns ('9999',) when timestamp is None → None entries sink to end; this is safe but consider ISO-8601 comparison stability across mixed timezone strings. Non-blocking.",
+    "CorrelationPanel.jsx imports Desktop from @phosphor-icons/react → verified icon exists in node_modules. No runtime import error.",
+    "Upload.jsx uses useCallback for submit/loadSampleBundle with correct deps; 3-file bundle creates real File objects and stages them correctly. clear-queue and staged-{idx} data-testids all present.",
+    "IncidentDetail.jsx conditionally renders <CorrelationPanel/> only when inc.correlation exists → legacy single-log incidents (no correlation object) still render cleanly. Verified indirectly (legacy pipeline delegates to batch and always produces a correlation object, but the guard is still there).",
+    "pipeline.run_batch_pipeline stores correlation under doc['correlation'] outside the strict Incident pydantic model — this works because insert_one takes a dict, but if a future refactor round-trips through Incident.model_validate the field will be dropped. Consider adding correlation to the Incident model. Non-blocking, flagged for design review."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestBatchUpload with 10 tests + TestZipBombGuardConstant with 1 test — 12 new tests total, 42 total tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (42/42)",
+    "frontend": "100% (all Phase-1 + regression flows passed)"
+  },
+  "test_credentials": "analyst@soc.example.com/Analyst123!, reviewer@soc.example.com/Reviewer123!, admin@soc.example.com/Admin123! — all seeded and working.",
+  "seed_data_creation": "Tests build sample apache/syslog/csv payloads and a ZIP archive in-memory via io.BytesIO/tmp fixtures — no on-disk seed added. Playwright uses the built-in 'Stage 3-file bundle' button which creates 3 File objects client-side.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "backend_test.py now has 42 tests across 10 classes: TestAuth (10), TestPipeline (6), TestHiTL (5), TestKPIs (1), TestSettings (3), TestKB (3), TestEnrichmentDeterminism (2), TestBatchUpload (10), TestZipBombGuardConstant (1). Batch upload fixture (batch_job / batch_incident) uploads 3 files (apache/syslog/csv) with a shared attacker IP 45.155.205.199 and waits up to 120s for the pipeline. Key testids for Phase-1 UI: file-input, drop-zone, load-sample-bundle, staged-{idx}, clear-queue, submit-batch, job-status-{id}, job-view-{id}, correlation-panel, corr-{kind}-{idx}, chain-step-{idx}. IMPORTANT: after login the app redirects to '/' (root) which renders Dashboard — do NOT wait for '**/dashboard**' URL pattern; wait for '[data-testid=\"logout-btn\"]' instead.",
+  "rca_of_the_issue": "N/A — feature-addition iteration. All new endpoints/UI behave per spec; existing single-file upload path continues to work because run_pipeline() now delegates to run_batch_pipeline() with a synthetic single-file tuple."
+}

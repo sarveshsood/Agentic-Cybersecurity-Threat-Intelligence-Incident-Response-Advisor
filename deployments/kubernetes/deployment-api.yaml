@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actira-api
+  namespace: actira
+  labels:
+    app: actira-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: actira-api
+  template:
+    metadata:
+      labels:
+        app: actira-api
+    spec:
+      containers:
+        - name: api
+          image: actira-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: actira-config
+            - secretRef:
+                name: actira-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: lancedb
+              mountPath: /app/data/lancedb
+      volumes:
+        - name: lancedb
+          emptyDir: { }
+          # For multi-replica dense RAG, use PVC or disable/shared store

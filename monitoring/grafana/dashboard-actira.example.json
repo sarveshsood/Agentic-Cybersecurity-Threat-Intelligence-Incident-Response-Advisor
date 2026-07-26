@@ -1,0 +1,27 @@
+{
+  "title": "ACTIRA (example)",
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Target up",
+      "targets": [
+        {
+          "expr": "up{job=\"actira\"}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request rate (placeholder)",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total{job=\"actira\"}[5m])"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "description": "Skeleton — map to actual /metrics series after scrape config."
+}

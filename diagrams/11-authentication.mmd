@@ -1,0 +1,20 @@
+%% ACTIRA — Authentication flow
+sequenceDiagram
+  actor U as User
+  participant UI as SPA
+  participant API as FastAPI
+  participant DB as MongoDB
+
+  U->>UI: Submit credentials
+  UI->>API: POST /api/auth/login
+  API->>DB: find user + verify bcrypt
+  alt lockout / bad password
+    API-->>UI: 401
+  else success
+    API->>API: create JWT
+    API-->>UI: Set-Cookie httpOnly + body token optional
+  end
+  UI->>API: GET /api/incidents (cookie)
+  API->>API: decode JWT + optional role rebind
+  API->>DB: load user role
+  API-->>UI: 200 or 401/403

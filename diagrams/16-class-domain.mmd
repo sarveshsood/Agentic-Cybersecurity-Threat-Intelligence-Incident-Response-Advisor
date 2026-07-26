@@ -1,0 +1,50 @@
+%% ACTIRA — Core domain classes (logical)
+classDiagram
+  class User {
+    +id
+    +email
+    +role
+    +password_hash
+  }
+  class Incident {
+    +id
+    +severity
+    +status
+    +summary
+    +iocs
+    +techniques
+    +playbook
+    +hitl_required
+  }
+  class Playbook {
+    +steps
+    +grounding_score
+    +model
+  }
+  class PlaybookStep {
+    +order
+    +phase
+    +action
+    +citation_ids
+  }
+  class IoC {
+    +type
+    +value
+    +threat_score
+  }
+  class LogJob {
+    +id
+    +status
+    +progress
+  }
+  class Settings {
+    +llm_provider
+    +thresholds
+    +secrets_encrypted
+  }
+  Incident "1" *-- "1" Playbook
+  Playbook "1" *-- "*" PlaybookStep
+  Incident "1" *-- "*" IoC
+  LogJob --> Incident : produces
+  User --> LogJob : uploads
+  User --> Incident : reviews

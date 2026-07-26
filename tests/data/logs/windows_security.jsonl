@@ -1,0 +1,2 @@
+﻿{"EventID":4625,"Computer":"DC01","TargetUserName":"admin","IpAddress":"203.0.113.50","LogonType":3,"TimeCreated":"2026-07-01T10:15:23Z"}
+{"EventID":4624,"Computer":"DC01","TargetUserName":"jdoe","IpAddress":"10.0.0.20","LogonType":10,"TimeCreated":"2026-07-01T10:18:00Z"}

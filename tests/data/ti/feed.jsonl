@@ -1,0 +1,2 @@
+﻿{"source":"threatfox","ioc":"203.0.113.50","ioc_type":"ip","threat_type":"botnet_cc","confidence":80}
+{"source":"otx","ioc":"evil.example.com","ioc_type":"domain","pulse":"demo-pulse"}

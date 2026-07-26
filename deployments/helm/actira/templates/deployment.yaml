@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: { { include "actira.fullname" . } }
+  labels:
+    app.kubernetes.io/name: actira
+spec:
+  replicas: { { .Values.replicaCount } }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: actira
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: actira
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: { { .Values.image.pullPolicy } }
+          ports:
+            - containerPort: { { .Values.service.port } }
+          env:
+            { { - range $k, $v := .Values.env } }
+            - name: { { $k } }
+              value: { { $v | quote } }
+            { { - end } }
+          envFrom:
+            - secretRef:
+                name: { { .Values.existingSecret } }
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: { { .Values.service.port } }
+          resources:
+            { { - toYaml .Values.resources | nindent 12 } }

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: actira-config
+  namespace: actira
+data:
+  DB_NAME: "soc_console"
+  ENV: "production"
+  CORS_ORIGINS: "https://actira.example.com"
+  SEED_DEMO_USERS: "false"
+  ACTIRA_VECTOR_STORE: "1"
+  ACTIRA_RETRIEVAL_MODE: "hybrid"

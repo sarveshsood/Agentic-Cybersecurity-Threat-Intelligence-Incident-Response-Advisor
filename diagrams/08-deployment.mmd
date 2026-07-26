@@ -1,0 +1,25 @@
+%% ACTIRA — Deployment options
+flowchart TB
+  subgraph LocalDev
+    LUI[npm start]
+    LAPI[uvicorn :8001]
+    LM[(Mongo local)]
+  end
+
+  subgraph Compose
+    CUI[frontend container]
+    CAPI[backend container]
+    CM[(mongo:7)]
+  end
+
+  subgraph Kubernetes
+    ING[Ingress TLS]
+    DEPAPI[Deployment api]
+    DEPW[Deployment worker optional]
+    SM[(Managed Mongo / Atlas)]
+  end
+
+  LUI --> LAPI --> LM
+  CUI --> CAPI --> CM
+  ING --> DEPAPI --> SM
+  DEPAPI --> DEPW

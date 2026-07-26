@@ -1,0 +1,71 @@
+name: Security
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  push:
+    branches: [ main, master ]
+  pull_request:
+    paths:
+      - "backend/**"
+      - "requirements-test.txt"
+      - ".github/workflows/security.yml"
+  workflow_dispatch:
+
+jobs:
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install bandit
+      - name: Bandit SAST
+        run: |
+          mkdir -p reports/security
+          bandit -r backend -x backend/tests -ll -f json -o reports/security/bandit.json || true
+          bandit -r backend -x backend/tests -ll
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: reports/security/
+          if-no-files-found: ignore
+
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - name: Dependency audit
+        run: |
+          mkdir -p reports/security
+          pip-audit -r backend/requirements.txt -f json -o reports/security/pip-audit.json || true
+          pip-audit -r backend/requirements.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: reports/security/
+          if-no-files-found: ignore
+
+  security-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install -U pip
+          pip install -r backend/requirements.txt -r requirements-test.txt
+      - run: |
+          pytest -c pytest.ini tests/security -n 0 -v --tb=short \
+            --junitxml=reports/junit-security.xml
+        env:
+          ENV: test
+          JWT_SECRET: ci-jwt-secret-not-for-production-use-32b

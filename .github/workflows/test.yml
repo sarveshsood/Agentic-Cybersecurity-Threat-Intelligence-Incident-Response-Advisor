@@ -1,0 +1,77 @@
+# Focused test matrix — unit / security / integration (optional Mongo)
+name: Test matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "unit | security | integration | all"
+        required: true
+        default: unit
+  pull_request:
+    paths:
+      - "backend/**"
+      - "tests/**"
+      - "requirements-test.txt"
+      - ".github/workflows/test.yml"
+
+jobs:
+  unit:
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'unit' || inputs.suite == 'all'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            requirements-test.txt
+      - run: |
+          pip install -U pip
+          pip install -r backend/requirements.txt -r requirements-test.txt
+      - run: |
+          cd backend && pytest tests -n 0 -q --tb=line \
+            -m "not integration and not e2e and not performance and not requires_llm"
+      - run: |
+          pytest -c pytest.ini tests -n 0 -q --tb=line \
+            -m "not integration and not e2e and not performance and not requires_mongo"
+
+  security:
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'security' || inputs.suite == 'all'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install -U pip
+          pip install -r backend/requirements.txt -r requirements-test.txt
+      - run: pytest -c pytest.ini tests/security -n 0 -v --tb=short
+
+  integration:
+    if: github.event_name == 'workflow_dispatch' && (inputs.suite == 'integration' || inputs.suite == 'all')
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install -U pip
+          pip install -r backend/requirements.txt -r requirements-test.txt
+      - name: Integration tests
+        env:
+          ACTIRA_INTEGRATION: "1"
+          MONGO_URL: mongodb://127.0.0.1:27017
+          DB_NAME: soc_console_ci_integration
+          ENV: test
+          JWT_SECRET: ci-jwt-secret-not-for-production-use-32b
+        run: pytest -c pytest.ini tests/integration -n 0 -v --tb=short

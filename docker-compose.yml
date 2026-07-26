@@ -1,0 +1,70 @@
+# ACTIRA — local infrastructure only (independent of other projects)
+# Usage:
+#   docker compose up -d          # start MongoDB
+#   docker compose down           # stop (keeps data volume)
+#   docker compose down -v        # stop and wipe data
+#
+# Backend:  uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
+# Frontend: yarn start  →  http://localhost:3000
+# Mongo:    mongodb://localhost:27017  (DB_NAME=soc_console)
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: actira-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - actira_mongo_data:/data/db
+    healthcheck:
+      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: actira-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./backend/.env
+    # A-D1: override host .env MONGO_URL=localhost — inside the container
+    # the Mongo service is reachable as hostname "mongodb".
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - DB_NAME=${DB_NAME:-soc_console}
+      - ENV=${ENV:-dev}
+      # Dual-gate demo seed (empty DB only); disable for prod-like compose
+      - SEED_DEMO_USERS=${SEED_DEMO_USERS:-true}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # A-D2: browser-reachable API URL (host machine, not docker-internal hostname)
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-http://localhost:8001}
+    container_name: actira-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  actira_mongo_data:
+    name: actira_mongo_data

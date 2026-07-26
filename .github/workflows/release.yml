@@ -1,0 +1,78 @@
+# Release validation — docker build + full offline gates
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (optional)"
+        required: false
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            requirements-test.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Python
+        run: |
+          pip install -U pip
+          pip install -r backend/requirements.txt -r requirements-test.txt
+      - name: Golden + unit
+        working-directory: backend
+        env:
+          ENV: test
+          FORCE_MOCK_TI: "true"
+          JWT_SECRET: release-jwt-secret-not-for-production-32b
+        run: |
+          pytest tests/test_golden_benchmark.py -n 0 -v
+          pytest tests -n 0 -q \
+            -m "not integration and not e2e and not performance and not requires_llm"
+      - name: OpenAPI
+        working-directory: backend
+        env:
+          MONGO_URL: mongodb://127.0.0.1:27017
+          DB_NAME: soc_console_release
+          JWT_SECRET: release-jwt-secret-not-for-production-32b
+        run: python scripts/export_openapi.py --check -o ../docs/openapi.json
+      - name: Frontend build
+        working-directory: frontend
+        env:
+          CI: true
+          REACT_APP_BACKEND_URL: http://localhost:8001
+        run: |
+          npm ci || npm install
+          npm run build
+      - name: Docker build (backend + frontend)
+        run: |
+          docker compose build backend frontend || docker build -t actira-backend ./backend
+
+  sbom:
+    runs-on: ubuntu-latest
+    needs: [ validate ]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate pip freeze SBOM-ish inventory
+        run: |
+          pip install -r backend/requirements.txt
+          mkdir -p reports/security
+          pip freeze > reports/security/pip-freeze.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-pip-freeze
+          path: reports/security/pip-freeze.txt

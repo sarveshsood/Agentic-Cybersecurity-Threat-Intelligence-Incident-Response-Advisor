@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: actira
+  namespace: actira
+  annotations:
+  # kubernetes.org/ssl-redirect: "true"
+spec:
+  # ingressClassName: nginx
+  rules:
+    - host: actira.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: actira-api
+                port:
+                  number: 8001
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: actira-api
+                port:
+                  number: 8001
+  # tls:
+  #   - hosts: [actira.example.com]
+  #     secretName: actira-tls

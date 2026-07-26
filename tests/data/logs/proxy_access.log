@@ -1,0 +1,2 @@
+﻿2026-07-01T10:15:00Z 10.0.0.40 GET http://evil.example.com/payload.exe status=200 bytes=4096
+2026-07-01T10:15:10Z 10.0.0.41 GET https://cdn.example.com/app.js status=200 bytes=2048

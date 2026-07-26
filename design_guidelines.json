@@ -1,0 +1,98 @@
+{
+  "theme": "Enterprise SOC Console (Light + Dark)",
+  "typography": {
+    "instructions": "Use Inter (500/600/700) from Google Fonts for UI; IBM Plex Mono for IoCs, IDs, metrics.",
+    "families": {
+      "heading": "'Inter', 'Segoe UI', system-ui, sans-serif",
+      "body": "'Inter', 'Segoe UI', system-ui, sans-serif",
+      "mono": "'IBM Plex Mono', 'Cascadia Code', ui-monospace, monospace"
+    },
+    "hierarchy": {
+      "display": "36px / 700",
+      "heading": "30px / 600",
+      "h1": "24px / 600",
+      "h2": "20px / 600",
+      "h3": "18px / 600",
+      "body": "16px / 500",
+      "small": "14px / 500",
+      "caption": "12px / 500"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": "#2563EB",
+      "primary_hover": "#1D4ED8",
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "sidebar": "#0F172A",
+      "sidebar_hover": "#1E293B",
+      "border": "#E2E8F0",
+      "text_primary": "#0F172A",
+      "text_secondary": "#64748B",
+      "muted": "#94A3B8",
+      "success": "#16A34A",
+      "warning": "#D97706",
+      "error": "#DC2626",
+      "critical": "#991B1B",
+      "info": "#2563EB"
+    },
+    "severity": {
+      "critical": "#991B1B",
+      "high": "#EA580C",
+      "medium": "#D97706",
+      "low": "#2563EB",
+      "informational": "#64748B"
+    },
+    "guidelines": "Single blue accent only. No purple brand, no neon cyan, no glow shadows, no AI gradients. Severity colors must stay consistent across tables, badges, charts, heatmap, and timelines. Prefer CSS variables in index.css and design-system/tokens.js."
+  },
+  "tokens": {
+    "css": "frontend/src/index.css",
+    "js": "frontend/src/design-system/tokens.js",
+    "components": "frontend/src/design-system/components.jsx",
+    "theme_provider": "frontend/src/lib/theme.jsx"
+  },
+  "visual_enhancers": {
+    "surfaces": "1px borders with subtle elevation (shadow-sm). Cards radius 12px; buttons/inputs 8px.",
+    "glow_effects": "Never use glowing shadows or neon borders.",
+    "textures": "No scanlines. Optional soft navy radial on login brand panel only."
+  },
+  "layouts": {
+    "dashboard_grid": "KPI row + charts + recent table + ATT&CK heatmap. Dense but readable.",
+    "density": "Comfortable default; tables use sticky headers and row hover.",
+    "alignment": "Left-align text, right-align numeric metrics."
+  },
+  "components": {
+    "kpi_cards": "soc-card, subtle border, token severity tones, no hover lift.",
+    "incident_table": "soc-table sticky header, SeverityBadge + StatusPill.",
+    "attack_heatmap": "Severity-scale backgrounds without glow.",
+    "citation_chips": "citation-chip / ioc-chip utility classes.",
+    "hitl_approval_gate": "warning semantic border and badge; no neon pulse.",
+    "ai_surfaces": "Recommendation panels (confidence, evidence, MITRE, SOC actions) — not chat-product chrome."
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "sizes": [
+      16,
+      20,
+      24
+    ],
+    "instruction": "Keep Phosphor only; do not mix Lucide/Heroicons. Consistent weight regular/bold."
+  },
+  "theme_modes": {
+    "light": "Default enterprise palette",
+    "dark": "Navy shell surfaces via data-theme=dark",
+    "system": "Follows prefers-color-scheme"
+  },
+  "accessibility": {
+    "contrast": "WCAG AA for text on surfaces",
+    "focus": "2px ring using --ring",
+    "motion": "Respect prefers-reduced-motion",
+    "test_ids": "Preserve existing data-testid attributes"
+  },
+  "instructions_to_main_agent": [
+    "Never reintroduce cyan/violet neon brand accents.",
+    "Use design-system tokens for charts (SEVERITY_HEX, colors.chart).",
+    "Preserve all business logic, APIs, workflows, and testids.",
+    "AI Investigator should look like analyst assist panels, not ChatGPT."
+  ]
+}
