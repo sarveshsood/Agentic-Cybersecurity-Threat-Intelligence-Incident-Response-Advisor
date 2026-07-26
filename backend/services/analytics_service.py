@@ -22,6 +22,21 @@ async def ensure_analytics_indexes(database=None) -> None:
     await col.create_index([("playbook.grounding_score", 1)])
 
 
+async def _attach_llm_usage(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Fresh LLM budget meter (cheap single-doc read; not facet-cached)."""
+    out = dict(payload)
+    try:
+        from backend.core import services as svc
+        from backend.llm_usage import usage_snapshot
+
+        settings = await svc.get_settings()
+        out["llm_usage"] = await usage_snapshot(settings)
+    except Exception as e:
+        logger.debug("llm_usage on KPIs skipped: %s", e)
+        out.setdefault("llm_usage", None)
+    return out
+
+
 async def kpis(*, force_refresh: bool = False) -> Dict[str, Any]:
     """Dashboard KPIs — one Mongo $facet instead of many count_documents."""
     cache_key = "kpis:v2"
@@ -30,12 +45,17 @@ async def kpis(*, force_refresh: bool = False) -> Dict[str, Any]:
         if hit is not None:
             out = dict(hit)
             out["cache"] = "hit"
-            return out
+            return await _attach_llm_usage(out)
 
     payload = await _kpis_compute()
     payload["cache"] = "miss"
-    cache.set(cache_key, {k: v for k, v in payload.items() if k != "cache"}, ttl=cache.kpi_ttl())
-    return payload
+    # Cache aggregates only — llm_usage is attached fresh every request.
+    cache.set(
+        cache_key,
+        {k: v for k, v in payload.items() if k not in ("cache", "llm_usage")},
+        ttl=cache.kpi_ttl(),
+    )
+    return await _attach_llm_usage(payload)
 
 
 async def _kpis_compute() -> Dict[str, Any]:

@@ -45,7 +45,8 @@ import {
     Timer,
     TrendUp,
     UploadSimple,
-    Users
+    Users,
+    Lightning,
 } from "@phosphor-icons/react";
 import {DataTable, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
 
@@ -173,6 +174,10 @@ const DASH_TIPS = {
     grounding: {title: "Average grounding", body: "Mean citation quality of generated playbooks (0–1)."},
     acceptance: {title: "Acceptance rate", body: "Share of HiTL decisions that were approved vs rejected."},
     mttr: {title: "Mean time to review", body: "Average hours from incident creation to first review decision."},
+    llm: {
+        title: "LLM token budget",
+        body: "Estimated tokens used this calendar month vs Settings monthly soft budget (0 = unlimited).",
+    },
     events: {title: "Events Processed", body: "Total raw log events ingested and analyzed."},
     ips: {title: "Unique SRC IPs", body: "Distinct source IP addresses flagged across all incidents."},
     iocs: {title: "Unique IOCs", body: "Distinct indicators of compromise extracted."},
@@ -355,6 +360,18 @@ export default function Dashboard() {
 
     const mttrLabel = kpis?.mean_mttr_hours != null ? `${kpis.mean_mttr_hours}h` : "—";
     const pendingCount = kpis?.pending_review ?? 0;
+    const llmUsage = rawKpis?.llm_usage || null;
+    const llmLabel = llmUsage
+        ? (llmUsage.unlimited
+            ? `${Number(llmUsage.tokens_used || 0).toLocaleString()}`
+            : `${llmUsage.percent_used != null ? `${llmUsage.percent_used}%` : "—"}`)
+        : "—";
+    const llmSub = llmUsage
+        ? (llmUsage.unlimited
+            ? `${llmUsage.month || "month"} · unlimited`
+            : `${Number(llmUsage.tokens_used || 0).toLocaleString()} / ${Number(llmUsage.budget || 0).toLocaleString()}`)
+        : "monthly soft budget";
+    const llmTone = llmUsage?.exhausted ? "critical" : (llmUsage?.percent_used != null && llmUsage.percent_used >= 80 ? "warning" : "default");
 
     return (
         <div data-testid="dashboard-page" className="pb-12">
@@ -454,6 +471,8 @@ export default function Dashboard() {
                          icon={CheckCircle} tone="success"/>
                 <KpiCard testid="kpi-mttr" tip={kpiTip(DASH_TIPS.mttr)} label="Mean MTTR" value={mttrLabel}
                          sub={`median ${kpis.mttr_sample_size}n`} icon={Timer} tone="default"/>
+                <KpiCard testid="kpi-llm-budget" tip={kpiTip(DASH_TIPS.llm)} label="LLM Budget"
+                         value={llmLabel} sub={llmSub} icon={Lightning} tone={llmTone} to="/settings"/>
             </div>
 
             {showExtra && (

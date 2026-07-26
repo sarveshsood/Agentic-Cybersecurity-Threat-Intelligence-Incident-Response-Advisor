@@ -110,13 +110,37 @@ async def assert_within_budget(settings: Optional[dict], db=None) -> None:
 
 
 async def usage_snapshot(settings: Optional[dict] = None, db=None) -> Dict[str, Any]:
+    """Dashboard / Settings meter for monthly estimated LLM tokens."""
     budget = budget_from_settings(settings)
     used = await get_month_usage(db)
+    calls = 0
+    last_provider = ""
+    last_model = ""
+    db = db if db is not None else _db
+    if db is not None:
+        try:
+            doc = await db.llm_usage.find_one(
+                {"id": month_id()},
+                {"_id": 0, "calls": 1, "last_provider": 1, "last_model": 1},
+            )
+            if doc:
+                calls = int(doc.get("calls") or 0)
+                last_provider = str(doc.get("last_provider") or "")
+                last_model = str(doc.get("last_model") or "")
+        except Exception as e:
+            logger.warning("llm_usage snapshot meta failed: %s", e)
+    percent_used = None
+    if budget > 0:
+        percent_used = round(min(100.0, 100.0 * used / budget), 1)
     return {
         "month": month_id(),
         "tokens_used": used,
+        "calls": calls,
         "budget": budget,
         "unlimited": budget <= 0,
         "remaining": None if budget <= 0 else max(0, budget - used),
+        "percent_used": percent_used,
         "exhausted": budget > 0 and used >= budget,
+        "last_provider": last_provider,
+        "last_model": last_model,
     }
