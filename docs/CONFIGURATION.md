@@ -64,6 +64,21 @@ MFA is expected at the IdP (Entra / Okta / Keycloak).
 
 Routes: `GET /api/auth/oidc/login` (redirect), `GET /api/auth/oidc/callback` (sets `actira_access_token` cookie).
 
+### Collaboration & productivity feature flags (H-07 / H-08)
+
+All default **off**. SPA reads `GET /api/meta/features` (also under `/api/v1`). When a flag is
+off, future collab APIs return **404** via `require_feature` — not only hide UI.
+
+| Variable | Default | Enables |
+|----------|---------|---------|
+| `FEATURE_COLLAB_ASSIGN` | off | Incident assignment API/UI |
+| `FEATURE_COLLAB_COMMENTS` | off | Incident comments |
+| `FEATURE_NOTIFICATION_CENTER` | off | In-app notification inbox |
+| `FEATURE_SAVED_FILTERS` | off | Named saved incident filters |
+| `FEATURE_PINS` | off | User favorites / pins |
+
+Truth values: `1` / `true` / `yes` / `on`. See `docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md` (PR-1).
+
 ### OpenTelemetry (optional)
 
 Soft dependency — install exporters only if you enable export:

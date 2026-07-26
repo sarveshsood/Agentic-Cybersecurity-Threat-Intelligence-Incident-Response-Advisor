@@ -3,6 +3,7 @@ import {NavLink, useLocation, useNavigate} from "react-router-dom";
 import {useAuth} from "../lib/auth";
 import {useTheme} from "../lib/theme";
 import {api} from "../lib/api";
+import {loadFeatures} from "../lib/features";
 import {
     BookBookmark,
     CaretLeft,
@@ -224,6 +225,13 @@ export default function Layout({children}) {
     useEffect(() => {
         const id = setInterval(() => setNow(new Date()), 60_000);
         return () => clearInterval(id);
+    }, []);
+
+    // H-07 PR-1: product feature flags (default all off). Load once for shell + later collab gates.
+    useEffect(() => {
+        loadFeatures().catch(() => {
+            /* defaults stay off */
+        });
     }, []);
 
     // Close mobile drawer on route change

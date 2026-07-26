@@ -1,9 +1,10 @@
-"""Meta routes — thin adapters over bootstrap health helpers."""
+"""Meta routes — thin adapters over bootstrap health helpers + feature flags."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from backend.feature_flags import collab_features
 from backend.security import require_roles
 from backend.services import bootstrap
 from backend.services import ops_service
@@ -33,6 +34,20 @@ async def version_api():
         "package": "backend",
         "entry": "backend.server:app",
     }
+
+
+@router.get(
+    "/meta/features",
+    summary="Product feature flags snapshot",
+    response_description="Booleans for H-07/H-08 collab & productivity surfaces (default all false)",
+)
+async def features_api():
+    """Public snapshot of env-gated product flags (KD-9 / H-07 PR-1).
+
+    SPA loads once at login / Layout mount. When a flag is false, collab routes
+    must return 404 via ``require_feature`` — UI hide alone is not enough.
+    """
+    return collab_features()
 
 
 @router.get("/ops/status")
