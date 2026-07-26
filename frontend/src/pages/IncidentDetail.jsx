@@ -77,18 +77,34 @@ export default function IncidentDetail() {
         setSearchParams(next, {replace: true});
     };
 
-    const load = useCallback(
-        () =>
-            api.get(`/incidents/${id}`).then((r) => {
+    const [loadError, setLoadError] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    const load = useCallback(() => {
+        setLoading(true);
+        setLoadError(null);
+        return api
+            .get(`/incidents/${id}`)
+            .then((r) => {
                 setInc(r.data);
                 pushRecentIncident({
                     id: r.data?.id || id,
                     title: r.data?.title,
                     severity: r.data?.severity,
                 });
-            }),
-        [id],
-    );
+            })
+            .catch((e) => {
+                setInc(null);
+                const status = e?.response?.status;
+                const detail = e?.response?.data?.detail || e?.userMessage || e?.message;
+                if (status === 404) {
+                    setLoadError("Incident not found (404). It may have been deleted or the ID is invalid.");
+                } else {
+                    setLoadError(detail || "Could not load incident.");
+                }
+            })
+            .finally(() => setLoading(false));
+    }, [id]);
     useEffect(() => {
         load();
     }, [load]);
@@ -155,10 +171,25 @@ export default function IncidentDetail() {
         }
     };
 
-    if (!inc) {
+    if (loading && !inc) {
         return (
             <div data-testid="incident-detail">
                 <ListState variant="loading" message="Loading incident…" testid="incident-loading"/>
+            </div>
+        );
+    }
+
+    if (loadError || !inc) {
+        return (
+            <div data-testid="incident-detail" className="space-y-4">
+                <ListState
+                    variant="error"
+                    message={loadError || "Incident unavailable"}
+                    testid="incident-load-error"
+                />
+                <Link to="/incidents" className="soc-btn-secondary !text-xs inline-flex">
+                    ← Back to incidents
+                </Link>
             </div>
         );
     }
