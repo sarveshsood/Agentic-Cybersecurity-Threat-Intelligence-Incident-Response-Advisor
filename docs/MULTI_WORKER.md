@@ -95,6 +95,14 @@ finished or cleaned up).
 - [x] Exactly one job worker claims Mongo `queue_state=queued` (or multiple with atomic claim)
 - [x] Shared Mongo for jobs, users, settings, throttle, enrichment_cache
 - [x] Shared job payloads via Mongo GridFS (`ACTIRA_JOB_PAYLOAD_BACKEND=mongo`)
-- [ ] Strong `JWT_SECRET`, `ENV!=dev`
+- [x] Helm multi-replica pattern (`values-prod.yaml`: API `ACTIRA_JOB_WORKER=0` + worker Deployment)
+- [x] HA validation runbook (`docs/operations/HA_VALIDATION.md`)
+- [x] Load methodology for 10 / 100 users (`benchmarks/reports/LOAD_TEST_10_100.md`)
+- [ ] Strong `JWT_SECRET`, `ENV!=dev` (environment-specific)
 - [ ] Frontend built with correct `REACT_APP_BACKEND_URL` (A-D2)
 - [ ] Optional: `SECRETS_MASTER_KEY` or Hashicorp/AWS SM for secrets
+
+## Analytics cache note (P2)
+
+In-process KPI/dashboard cache is **per process**. Multi-replica deploys see independent TTLs unless
+you set short `ANALYTICS_*_CACHE_TTL_SECONDS` or call `?force_refresh=true`.

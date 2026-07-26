@@ -4,7 +4,7 @@
 |----------------------|----------------------------------------------------|
 | Docker Compose       | [`../docker-compose.yml`](../docker-compose.yml)   |
 | Kubernetes manifests | [kubernetes/](kubernetes/)                         |
-| Helm chart           | [helm/actira/](helm/actira/)                       |
+| Helm chart           | [helm/actira/](helm/actira/) — use `values-prod.yaml` for multi-replica + worker |
 | Azure Container Apps | [azure/container-apps.md](azure/container-apps.md) |
 | Azure AKS            | [azure/aks.md](azure/aks.md)                       |
 | AWS ECS/EKS          | [aws/ecs-eks.md](aws/ecs-eks.md)                   |

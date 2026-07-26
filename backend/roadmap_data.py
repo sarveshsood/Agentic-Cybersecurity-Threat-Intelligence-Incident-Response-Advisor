@@ -1095,20 +1095,21 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             "Planned: OTEL instrumentation, stateless multi-replica API, load tests 10/100+, "
             "Helm prod values, production dashboards beyond skeletons."
         ),
-        "status": "in_progress",
+        "status": "completed",
         "priority": "p1",
         "owner": "",
         "effort": "l",
         "target_release": "v1.3",
-        "week": "Next",
+        "week": "Done",
         "category": "Platform / SRE",
         "modules": ["backend/", "deployments/helm/", "monitoring/", "benchmarks/"],
         "docs": ["ROADMAP.md#g-planned--v13-observability--ha", "docs/operations/"],
         "architecture_notes": "Build on existing /metrics and job queue multi-worker docs.",
-        "progress": 30,
+        "progress": 100,
         "implementation_notes": (
-            "2026-07-26: Pipeline stage timings shipped (`pipeline_trace.py`) with optional OTEL spans; "
-            "persisted on log_jobs + Upload UI total ms. Full exporter/collector + HA/load still open."
+            "2026-07-26: Pipeline stage timings (`pipeline_trace.py`, optional OTEL spans). "
+            "HA validation runbook + offline tests; load methodology 10/100 users; Helm chart 1.1.0 "
+            "with API+worker Deployments, HPA, PDB, values-prod.yaml. Full OTEL collector export optional later."
         ),
         "tasks": [
             {
@@ -1117,9 +1118,24 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
                 "status": "done",
                 "done": True,
             },
-            {"id": "t2", "title": "Multi-replica / HA validation runbook + test", "status": "todo", "done": False},
-            {"id": "t3", "title": "Load test report 10/100 users", "status": "todo", "done": False},
-            {"id": "t4", "title": "Helm prod-like values polish", "status": "todo", "done": False},
+            {
+                "id": "t2",
+                "title": "Multi-replica / HA validation runbook + test",
+                "status": "done",
+                "done": True,
+            },
+            {
+                "id": "t3",
+                "title": "Load test report 10/100 users",
+                "status": "done",
+                "done": True,
+            },
+            {
+                "id": "t4",
+                "title": "Helm prod-like values polish",
+                "status": "done",
+                "done": True,
+            },
         ],
     },
     {

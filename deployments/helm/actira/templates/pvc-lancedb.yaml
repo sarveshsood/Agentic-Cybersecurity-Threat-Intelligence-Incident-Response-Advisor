@@ -1,0 +1,14 @@
+{{- if .Values.lancedb.persistence }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "actira.fullname" . }}-lancedb
+  labels:
+    {{- include "actira.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.lancedb.size }}
+{{- end }}

@@ -1,0 +1,82 @@
+# Production-oriented overrides. Use with:
+#   helm upgrade --install actira ./deployments/helm/actira -f values-prod.yaml ...
+#
+# Requires Secret `existingSecret` with at least:
+#   MONGO_URL, JWT_SECRET
+# Optional: SECRETS_MASTER_KEY, LLM/TI keys, SMTP_*, VAULT_*
+
+replicaCount: 3
+
+image:
+  tag: "1.1.0"
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: true
+  className: nginx
+  host: actira.example.com
+  tls: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+
+env:
+  DB_NAME: soc_console
+  ENV: production
+  SEED_DEMO_USERS: "false"
+  CORS_ORIGINS: "https://actira.example.com"
+  ACTIRA_VECTOR_STORE: "1"
+  ACTIRA_JOB_PAYLOAD_BACKEND: "mongo"
+  ACTIRA_JOB_WORKER: "0"
+  # Analytics cache TTLs (seconds) — tune under multi-replica (per-process)
+  ANALYTICS_KPI_CACHE_TTL_SECONDS: "30"
+  ANALYTICS_DASHBOARD_CACHE_TTL_SECONDS: "60"
+
+jobWorker:
+  enabled: true
+  replicaCount: 1
+  env:
+    ACTIRA_JOB_WORKER: "1"
+
+existingSecret: actira-secrets
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+workerResources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 65
+
+lancedb:
+  persistence: true
+  size: 20Gi
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: actira
+              app.kubernetes.io/component: api
+          topologyKey: kubernetes.io/hostname

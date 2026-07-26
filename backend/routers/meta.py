@@ -1,10 +1,12 @@
 """Meta routes — thin adapters over bootstrap health helpers."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from backend.security import require_roles
 from backend.services import bootstrap
+from backend.services import ops_service
 
 router = APIRouter(tags=["meta"])
 
@@ -31,6 +33,12 @@ async def version_api():
         "package": "backend",
         "entry": "backend.server:app",
     }
+
+
+@router.get("/ops/status")
+async def ops_status_api(user=Depends(require_roles("admin"))):
+    """Admin Ops/Health panel — multi-replica flags, queue, timings, LLM budget."""
+    return await ops_service.ops_status()
 
 
 @router.get("/")
