@@ -46,7 +46,6 @@ import {
     TrendUp,
     UploadSimple,
     Users,
-    Lightning,
 } from "@phosphor-icons/react";
 import {DataTable, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
 
@@ -174,10 +173,6 @@ const DASH_TIPS = {
     grounding: {title: "Average grounding", body: "Mean citation quality of generated playbooks (0–1)."},
     acceptance: {title: "Acceptance rate", body: "Share of HiTL decisions that were approved vs rejected."},
     mttr: {title: "Mean time to review", body: "Average hours from incident creation to first review decision."},
-    llm: {
-        title: "LLM token budget",
-        body: "Estimated tokens used this calendar month vs Settings monthly soft budget (0 = unlimited).",
-    },
     events: {title: "Events Processed", body: "Total raw log events ingested and analyzed."},
     ips: {title: "Unique SRC IPs", body: "Distinct source IP addresses flagged across all incidents."},
     iocs: {title: "Unique IOCs", body: "Distinct indicators of compromise extracted."},
@@ -360,18 +355,6 @@ export default function Dashboard() {
 
     const mttrLabel = kpis?.mean_mttr_hours != null ? `${kpis.mean_mttr_hours}h` : "—";
     const pendingCount = kpis?.pending_review ?? 0;
-    const llmUsage = rawKpis?.llm_usage || null;
-    const llmLabel = llmUsage
-        ? (llmUsage.unlimited
-            ? `${Number(llmUsage.tokens_used || 0).toLocaleString()}`
-            : `${llmUsage.percent_used != null ? `${llmUsage.percent_used}%` : "—"}`)
-        : "—";
-    const llmSub = llmUsage
-        ? (llmUsage.unlimited
-            ? `${llmUsage.month || "month"} · unlimited`
-            : `${Number(llmUsage.tokens_used || 0).toLocaleString()} / ${Number(llmUsage.budget || 0).toLocaleString()}`)
-        : "monthly soft budget";
-    const llmTone = llmUsage?.exhausted ? "critical" : (llmUsage?.percent_used != null && llmUsage.percent_used >= 80 ? "warning" : "default");
 
     return (
         <div data-testid="dashboard-page" className="pb-12">
@@ -436,7 +419,7 @@ export default function Dashboard() {
                 </Link>
             </div>
 
-            {/* KPI Grid Row */}
+            {/* KPI Grid Row — ops metrics only; LLM budget lives under Ops / Settings */}
             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
                 <KpiCard testid="kpi-total" tip={kpiTip(DASH_TIPS.total)} label="Incidents" value={kpis.total_incidents}
                          sub="all-time" icon={ShieldCheck} tone="primary" to="/incidents"/>
@@ -471,8 +454,6 @@ export default function Dashboard() {
                          icon={CheckCircle} tone="success"/>
                 <KpiCard testid="kpi-mttr" tip={kpiTip(DASH_TIPS.mttr)} label="Mean MTTR" value={mttrLabel}
                          sub={`median ${kpis.mttr_sample_size}n`} icon={Timer} tone="default"/>
-                <KpiCard testid="kpi-llm-budget" tip={kpiTip(DASH_TIPS.llm)} label="LLM Budget"
-                         value={llmLabel} sub={llmSub} icon={Lightning} tone={llmTone} to="/settings"/>
             </div>
 
             {showExtra && (
@@ -768,113 +749,113 @@ export default function Dashboard() {
                 </>
             )}
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-                <Panel
-                    className="xl:col-span-8 bg-white shadow-sm border-slate-200"
-                    noPadding
-                    title="Recent Incidents"
-                    testid="dash-recent-panel"
-                    actions={
-                        <div className="flex items-center gap-3">
-              <span
-                  className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                Limit: {limit}
-              </span>
-                            <Tip content="Browse all incidents with filters and full-column sort">
-                                <Link to="/incidents"
-                                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
-                                    View all →
-                                </Link>
-                            </Tip>
-                        </div>
-                    }
-                >
-                    <DataTable aria-label="Recent incidents" testid="dash-recent-table">
-                        <thead className="bg-slate-50/50">
+            <Panel
+                className="bg-white shadow-sm border-slate-200 mb-6"
+                noPadding
+                title="Recent Incidents"
+                testid="dash-recent-panel"
+                actions={
+                    <div className="flex items-center gap-3">
+                        <span
+                            className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                            Limit: {limit}
+                        </span>
+                        <Tip content="Browse all incidents with filters and full-column sort">
+                            <Link to="/incidents"
+                                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                                View all →
+                            </Link>
+                        </Tip>
+                    </div>
+                }
+            >
+                <DataTable aria-label="Recent incidents" testid="dash-recent-table">
+                    <thead className="bg-slate-50/50">
+                    <tr>
+                        <SortableTh label="Title" sortKey="title" sort={sort} onSort={toggleSort}/>
+                        <SortableTh label="Severity" sortKey="severity" sort={sort} onSort={toggleSort}/>
+                        <SortableTh label="Status" sortKey="status" sort={sort} onSort={toggleSort}/>
+                        <SortableTh label="Tech" sortKey="techniques" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                        <SortableTh label="IoCs" sortKey="iocs" sort={sort} onSort={toggleSort} align="right"/>
+                        <SortableTh label="Score" sortKey="threat_score" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                        <SortableTh label="Grounding" sortKey="grounding" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                        <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={toggleSort}
+                                    align="right"/>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                    {sorted.length === 0 && (
                         <tr>
-                            <SortableTh label="Title" sortKey="title" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Severity" sortKey="severity" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Status" sortKey="status" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Tech" sortKey="techniques" sort={sort} onSort={toggleSort}
-                                        align="right"/>
-                            <SortableTh label="IoCs" sortKey="iocs" sort={sort} onSort={toggleSort} align="right"/>
-                            <SortableTh label="Score" sortKey="threat_score" sort={sort} onSort={toggleSort}
-                                        align="right"/>
-                            <SortableTh label="Grounding" sortKey="grounding" sort={sort} onSort={toggleSort}
-                                        align="right"/>
-                            <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={toggleSort}
-                                        align="right"/>
+                            <td colSpan={8} className="text-center text-slate-500 text-sm py-12">
+                                No recent incidents to display. Waiting for log ingestion.
+                            </td>
                         </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                        {sorted.length === 0 && (
-                            <tr>
-                                <td colSpan={8} className="text-center text-slate-500 text-sm py-12">
-                                    No recent incidents to display. Waiting for log ingestion.
+                    )}
+                    {sorted.map((inc) => {
+                        const titleLink = (
+                            <Link
+                                to={`/incidents/${inc.id}`}
+                                data-testid={`incident-link-${inc.id}`}
+                                className="text-[13px] font-semibold text-slate-800 hover:text-blue-600 transition-colors"
+                                title={inc.summary || inc.title}
+                            >
+                                {inc.title}
+                            </Link>
+                        );
+                        return (
+                            <tr key={inc.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-4 py-3">
+                                    {showPreviews ? (
+                                        <HoverCard openDelay={180}>
+                                            <HoverCardTrigger asChild>{titleLink}</HoverCardTrigger>
+                                            <HoverCardContent
+                                                side="right"
+                                                collisionPadding={16}
+                                                className="w-80 max-w-[min(20rem,calc(100vw-1.5rem))] bg-white border border-slate-200 shadow-xl p-4 z-[200] rounded-xl"
+                                            >
+                                                <IncidentPreview inc={inc}/>
+                                            </HoverCardContent>
+                                        </HoverCard>
+                                    ) : (
+                                        titleLink
+                                    )}
+                                    <div className="font-mono text-[10px] text-slate-400 mt-1 uppercase"
+                                         title={inc.id}>{inc.id?.slice(0, 8)}</div>
+                                </td>
+                                <td className="px-4 py-3"><SeverityBadge severity={inc.severity}/></td>
+                                <td className="px-4 py-3"><StatusPill status={inc.status}/></td>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-semibold text-blue-600">{inc.techniques?.length ?? 0}</td>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-medium text-slate-600">{inc.iocs?.length ?? 0}</td>
+                                <td className={`px-4 py-3 text-right font-mono text-[12px] font-bold ${Number(inc.threat_score) >= highThreat ? "text-red-600" : "text-blue-600"}`}>
+                                    {inc.threat_score}
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-emerald-600">{inc.playbook?.grounding_score ?? "—"}</td>
+                                <td className="px-4 py-3 text-right text-[11px] text-slate-500 font-mono">
+                                    {formatDateTime(inc.created_at, {showStandard: false})}
                                 </td>
                             </tr>
-                        )}
-                        {sorted.map((inc) => {
-                            const titleLink = (
-                                <Link
-                                    to={`/incidents/${inc.id}`}
-                                    data-testid={`incident-link-${inc.id}`}
-                                    className="text-[13px] font-semibold text-slate-800 hover:text-blue-600 transition-colors"
-                                    title={inc.summary || inc.title}
-                                >
-                                    {inc.title}
-                                </Link>
-                            );
-                            return (
-                                <tr key={inc.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-4 py-3">
-                                        {showPreviews ? (
-                                            <HoverCard openDelay={180}>
-                                                <HoverCardTrigger asChild>{titleLink}</HoverCardTrigger>
-                                                <HoverCardContent
-                                                    side="right"
-                                                    collisionPadding={16}
-                                                    className="w-80 max-w-[min(20rem,calc(100vw-1.5rem))] bg-white border border-slate-200 shadow-xl p-4 z-[200] rounded-xl"
-                                                >
-                                                    <IncidentPreview inc={inc}/>
-                                                </HoverCardContent>
-                                            </HoverCard>
-                                        ) : (
-                                            titleLink
-                                        )}
-                                        <div className="font-mono text-[10px] text-slate-400 mt-1 uppercase"
-                                             title={inc.id}>{inc.id?.slice(0, 8)}</div>
-                                    </td>
-                                    <td className="px-4 py-3"><SeverityBadge severity={inc.severity}/></td>
-                                    <td className="px-4 py-3"><StatusPill status={inc.status}/></td>
-                                    <td className="px-4 py-3 text-right font-mono text-[12px] font-semibold text-blue-600">{inc.techniques?.length ?? 0}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-[12px] font-medium text-slate-600">{inc.iocs?.length ?? 0}</td>
-                                    <td className={`px-4 py-3 text-right font-mono text-[12px] font-bold ${Number(inc.threat_score) >= highThreat ? "text-red-600" : "text-blue-600"}`}>
-                                        {inc.threat_score}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-emerald-600">{inc.playbook?.grounding_score ?? "—"}</td>
-                                    <td className="px-4 py-3 text-right text-[11px] text-slate-500 font-mono">
-                                        {formatDateTime(inc.created_at, {showStandard: false})}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        </tbody>
-                    </DataTable>
-                </Panel>
+                        );
+                    })}
+                    </tbody>
+                </DataTable>
+            </Panel>
 
-                <Panel
-                    className="xl:col-span-4 bg-white shadow-sm border-slate-200"
-                    title="MITRE ATT&CK Coverage"
-                    subtitle="by tactic (aggregated techniques)"
-                    testid="dash-heatmap-panel"
-                    actions={
-                        <HelpTip title={DASH_TIPS.heatmap.title} body={DASH_TIPS.heatmap.body} align="end"/>
-                    }
-                >
-                    <AttackHeatmap counts={kpis.attack_heatmap || {}}/>
-                </Panel>
-            </div>
+            {/* Full-width ATT&CK panel so coverage matrix has room to fit */}
+            <Panel
+                className="bg-white shadow-sm border-slate-200"
+                title="MITRE ATT&CK Coverage"
+                subtitle="Technique frequency by tactic — use Coverage matrix for the full catalog grid"
+                testid="dash-heatmap-panel"
+                bodyClassName="p-4 overflow-x-auto"
+                actions={
+                    <HelpTip title={DASH_TIPS.heatmap.title} body={DASH_TIPS.heatmap.body} align="end"/>
+                }
+            >
+                <AttackHeatmap counts={kpis.attack_heatmap || {}}/>
+            </Panel>
         </div>
     );
 }
