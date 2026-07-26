@@ -8,8 +8,11 @@
 | [../diagrams/](../diagrams/)                                                     | Architects           | Mermaid sources                       |
 | [dx/](dx/)                                                                       | Developers           | Setup, standards, PR, review          |
 | [dx/BACKEND_STRUCTURE.md](dx/BACKEND_STRUCTURE.md)                               | Developers           | v1.1 routers + `/api/v1` layout       |
+| [product/VISION.md](product/VISION.md)                                           | Product / board      | Agentic SOC Command Center vision     |
+| [product/FEATURE_INVENTORY.md](product/FEATURE_INVENTORY.md)                     | Product              | Shipped vs planned feature matrix     |
 | [product/E2E_CAPABILITY_MATRIX.md](product/E2E_CAPABILITY_MATRIX.md)             | Product / demos      | Required vs optional E2E features     |
 | [product/CAPSTONE_ENHANCEMENT_REVIEW.md](product/CAPSTONE_ENHANCEMENT_REVIEW.md) | Capstone / board     | Final UX polish scorecard             |
+| [product/INVESTIGATION_WORKSPACE_DESIGN.md](product/INVESTIGATION_WORKSPACE_DESIGN.md) | Eng / product  | v1.4 Investigation Workspace design (when published) |
 | [operations/](operations/)                                                       | SRE                  | Backup, DR, scaling, hardening        |
 | [ai-governance/](ai-governance/)                                                 | AI risk              | Prompts, eval, responsible AI         |
 | [compliance/](compliance/)                                                       | GRC                  | ISO/NIST/CIS/OWASP/… maps             |
