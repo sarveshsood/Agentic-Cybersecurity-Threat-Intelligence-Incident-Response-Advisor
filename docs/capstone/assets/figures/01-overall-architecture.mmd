@@ -1,0 +1,37 @@
+%% ACTIRA — Overall Architecture
+flowchart TB
+  subgraph Users
+    A[Analyst]
+    R[Senior Reviewer]
+    ADM[Admin]
+    SIEM[SIEM / Fluent Bit]
+  end
+
+  subgraph Edge
+    UI[React SPA :3000]
+    API[FastAPI API :8001]
+  end
+
+  subgraph DataPlane
+    MONGO[(MongoDB)]
+    LANCE[(LanceDB local)]
+    FS[Job payloads / outbox]
+  end
+
+  subgraph External
+    LLM[LLM Providers]
+    TI[Threat Intel APIs]
+    SLACK[Slack / Email]
+  end
+
+  A --> UI
+  R --> UI
+  ADM --> UI
+  UI -->|cookie JWT + CORS| API
+  SIEM -->|X-Ingest-Key| API
+  API --> MONGO
+  API --> LANCE
+  API --> FS
+  API --> LLM
+  API --> TI
+  API --> SLACK

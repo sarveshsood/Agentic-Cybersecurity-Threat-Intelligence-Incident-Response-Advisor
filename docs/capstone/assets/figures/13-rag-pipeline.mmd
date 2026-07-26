@@ -1,0 +1,12 @@
+%% ACTIRA — RAG Pipeline
+flowchart LR
+  Q[Query] --> BM25[BM25 lexical]
+  Q --> EMB[Embed query]
+  EMB --> ANN[LanceDB ANN]
+  BM25 --> RRF[RRF fusion]
+  ANN --> RRF
+  RRF --> CAND[Candidate docs]
+  CAND --> RERANK[Optional re-rank]
+  RERANK --> CTX[Context for LLM]
+  CTX --> GEN[Grounded generation]
+  GEN --> CITE[Citation allow-list filter]

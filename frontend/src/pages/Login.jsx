@@ -47,19 +47,21 @@ const FEATURES = [
     {icon: Users, title: "Human Approval Workflow", desc: "Critical actions always pass through analyst sign-off."},
 ];
 
-const STATUS_ROWS = [
-    {label: "Backend API", value: "Connected", ok: true},
-    {label: "LLM", value: "Connected", ok: true},
-    {label: "Threat Intel", value: "Connected", ok: true},
-    {label: "Vector Database", value: "Connected", ok: true},
+/** Default status tiles — live values filled from public /health (no fake "Connected"). */
+const DEFAULT_STATUS_ROWS = [
+    {key: "api", label: "Backend API", value: "Checking…", ok: null},
+    {key: "mongo", label: "MongoDB", value: "Checking…", ok: null},
+    {key: "llm", label: "LLM", value: "After sign-in", ok: null},
+    {key: "ti", label: "Threat Intel", value: "After sign-in", ok: null},
 ];
 
-const METRICS = [
-    {icon: Pulse, label: "Events Processed", value: 11152, suffix: "", decimals: 0, grouped: true},
-    {icon: ShieldCheck, label: "Incidents", value: 65, suffix: "", decimals: 0},
-    {icon: Users, label: "HITL Pending", value: 60, suffix: "", decimals: 0},
-    {icon: CheckCircle, label: "Acceptance Rate", value: 80, suffix: "%", decimals: 0},
-    {icon: Clock, label: "Mean MTTR", value: 10.86, suffix: "h", decimals: 2},
+/** Capability highlights — not live tenant metrics (dashboard is source of truth after login). */
+const CAPABILITY_TILES = [
+    {icon: Pulse, label: "Pipeline", value: "Parse → IoC → TI"},
+    {icon: ShieldCheck, label: "HiTL", value: "Critical gated"},
+    {icon: Target, label: "ATT&CK", value: "Heuristic map"},
+    {icon: Database, label: "RAG", value: "Hybrid BM25+vec"},
+    {icon: CheckCircle, label: "Eval", value: "Golden IR CI"},
 ];
 
 const TEAM_MEMBERS = [
@@ -95,47 +97,21 @@ function showDemoOperators() {
     return process.env.NODE_ENV !== "production";
 }
 
-function useCountUp(target, {decimals = 0, duration = 1200} = {}) {
-    const [value, setValue] = useState(0);
-
-    useEffect(() => {
-        let startTime;
-        let animationFrame;
-
-        const tick = (timestamp) => {
-            if (!startTime) startTime = timestamp;
-            const progress = Math.min((timestamp - startTime) / duration, 1);
-            const easeOut = 1 - Math.pow(1 - progress, 3);
-
-            setValue(target * easeOut);
-
-            if (progress < 1) {
-                animationFrame = requestAnimationFrame(tick);
-            } else {
-                setValue(target);
-            }
-        };
-
-        animationFrame = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(animationFrame);
-    }, [target, duration]);
-
-    return Number(value).toFixed(decimals);
+function statusIconClass(ok) {
+    if (ok === true) return "text-green-500";
+    if (ok === false) return "text-red-500";
+    return "text-slate-400";
 }
 
-function Metric({icon: Icon, label, value, suffix, decimals, grouped, display}) {
-    const raw = useCountUp(value, {decimals});
-    const formatted = grouped ? Number(raw).toLocaleString("en-US") : raw;
-    const text = display ? display(Math.round(Number(raw))) : `${formatted}${suffix}`;
-
+function CapabilityTile({icon: Icon, label, value}) {
     return (
-        <div className="sbp-status-tile">
+        <div className="sbp-status-tile" data-testid={`login-capability-${label.toLowerCase().replace(/\s+/g, "-")}`}>
             <div
                 className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-slate-500 font-semibold mb-2">
                 <Icon size={12} weight="bold" className="text-blue-600" aria-hidden/>
                 {label}
             </div>
-            <div className="font-mono text-slate-900 text-lg font-bold tabular-nums">{text}</div>
+            <div className="font-mono text-slate-900 text-sm font-bold">{value}</div>
         </div>
     );
 }
@@ -151,6 +127,7 @@ export default function Login() {
     const [remember, setRemember] = useState(false);
     const [ssoEnabled, setSsoEnabled] = useState(false);
     const [publicRegister, setPublicRegister] = useState(true);
+    const [statusRows, setStatusRows] = useState(DEFAULT_STATUS_ROWS);
     const demos = showDemoOperators();
 
     useEffect(() => {
@@ -174,6 +151,57 @@ export default function Login() {
                 setSsoEnabled(false);
                 setPublicRegister(true);
             });
+
+        // Live platform probe — only claim API/Mongo when /health responds.
+        // LLM / TI require signed-in Settings; never hard-code "Connected".
+        let cancelled = false;
+        api
+            .get("/health", {timeout: 8000})
+            .then((r) => {
+                if (cancelled) return;
+                const body = r.data || {};
+                const apiOk = body.status === "ok" || body.mongo === "up" || r.status === 200;
+                const mongoUp = body.mongo === "up";
+                const mongoDown = body.mongo === "down";
+                setStatusRows([
+                    {
+                        key: "api",
+                        label: "Backend API",
+                        value: apiOk ? "Reachable" : "Degraded",
+                        ok: apiOk,
+                    },
+                    {
+                        key: "mongo",
+                        label: "MongoDB",
+                        value: mongoUp ? "Up" : mongoDown ? "Down" : "Unknown",
+                        ok: mongoUp ? true : mongoDown ? false : null,
+                    },
+                    {
+                        key: "llm",
+                        label: "LLM",
+                        value: "After sign-in",
+                        ok: null,
+                    },
+                    {
+                        key: "ti",
+                        label: "Threat Intel",
+                        value: "Keys optional",
+                        ok: null,
+                    },
+                ]);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setStatusRows([
+                    {key: "api", label: "Backend API", value: "Unreachable", ok: false},
+                    {key: "mongo", label: "MongoDB", value: "Unknown", ok: null},
+                    {key: "llm", label: "LLM", value: "After sign-in", ok: null},
+                    {key: "ti", label: "Threat Intel", value: "Keys optional", ok: null},
+                ]);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
@@ -370,32 +398,42 @@ export default function Login() {
                 <div className="relative sbp-fade-up mb-10" style={{animationDelay: "0.2s"}}>
                     <div className="flex items-center gap-2 mb-4">
                         <div
-                            className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                            className="w-1.5 h-1.5 rounded-full bg-slate-400"
                             aria-hidden/>
                         <span className="text-[11px] uppercase tracking-[0.1em] text-slate-500 font-bold">
-              Live Platform Status
+              Platform status (probed)
             </span>
                     </div>
+                    <p className="text-[11px] text-slate-500 mb-3 max-w-2xl" data-testid="login-status-honesty">
+                        API/Mongo reflect a live <span className="font-mono">/health</span> check.
+                        LLM and TI are configured after sign-in — not shown as connected until verified.
+                        Live tenant KPIs appear on the Dashboard after login (demo fill is opt-in only).
+                    </p>
 
-                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
-                        {STATUS_ROWS.map(({label, value, ok}) => (
-                            <div key={label} className="sbp-status-tile">
+                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-3" data-testid="login-status-rows">
+                        {statusRows.map(({key, label, value, ok}) => (
+                            <div key={key} className="sbp-status-tile" data-testid={`login-status-${key}`}>
                                 <div
                                     className="text-[11px] uppercase tracking-[0.08em] text-slate-500 font-semibold mb-2">
                                     {label}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800">
-                                    <CheckCircle size={14} weight="fill"
-                                                 className={ok ? "text-green-500" : "text-red-500"} aria-hidden/>
+                                    {ok === true ? (
+                                        <CheckCircle size={14} weight="fill" className={statusIconClass(ok)} aria-hidden/>
+                                    ) : ok === false ? (
+                                        <Circle size={14} weight="fill" className={statusIconClass(ok)} aria-hidden/>
+                                    ) : (
+                                        <Clock size={14} weight="bold" className={statusIconClass(ok)} aria-hidden/>
+                                    )}
                                     {value}
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
-                        {METRICS.map((m) => (
-                            <Metric key={m.label} {...m} />
+                    <div className="grid grid-cols-2 xl:grid-cols-5 gap-3" data-testid="login-capability-tiles">
+                        {CAPABILITY_TILES.map((m) => (
+                            <CapabilityTile key={m.label} {...m} />
                         ))}
                     </div>
                 </div>

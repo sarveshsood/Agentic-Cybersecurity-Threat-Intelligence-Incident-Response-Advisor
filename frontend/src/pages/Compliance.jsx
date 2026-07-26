@@ -172,6 +172,24 @@ export default function Compliance() {
                 }
             />
 
+            {/* Always-visible honesty banner — alignment score is not a certification. */}
+            <div
+                className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
+                data-testid="compliance-disclaimer"
+                role="note"
+            >
+                <Warning size={18} className="text-amber-600 shrink-0 mt-0.5" weight="fill" aria-hidden/>
+                <div>
+                    <p className="font-semibold text-amber-800 dark:text-amber-200">
+                        Product alignment score — not a formal certification
+                    </p>
+                    <p className="text-muted-foreground text-[13px] mt-1 leading-relaxed">
+                        {report?.disclaimer ||
+                            "Scores map runtime product controls to ISO / SOC 2 / NIST CSF / CIS-style catalog items. They do not constitute ISO, SOC 2, or other third-party certification. Use gaps and evidence packs for pilot GRC conversations only."}
+                    </p>
+                </div>
+            </div>
+
             {error && (
                 <ListState
                     variant="error"
@@ -239,12 +257,6 @@ export default function Compliance() {
                     tone={gapCount > 0 ? "warning" : "success"}
                 />
             </div>
-
-            {report?.disclaimer && (
-                <p className="text-[11px] text-muted-foreground border border-border rounded-lg px-3 py-2 bg-muted/30" data-testid="compliance-disclaimer">
-                    {report.disclaimer}
-                </p>
-            )}
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <Panel

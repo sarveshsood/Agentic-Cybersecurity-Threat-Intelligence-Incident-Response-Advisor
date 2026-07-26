@@ -1,0 +1,10 @@
+%% ACTIRA — Human-in-the-Loop policy
+flowchart TD
+  IN[severity + grounding_score + settings] --> S{severity >= hitl_severity_min?}
+  S -->|yes| PR[pending_review HiTL]
+  S -->|no| G{grounding < threshold?}
+  G -->|yes| PR
+  G -->|no| A{grounding >= auto_approve_min?}
+  A -->|yes| AP[approved auto]
+  A -->|no| NEW[status new]
+  note1[Auto-approve never bypasses severity gate]

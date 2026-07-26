@@ -110,7 +110,7 @@ Use this outline to write the final PDF. Each section lists **required content**
 | Section | Content | Sources |
 |---------|---------|---------|
 | 7.1 Test strategy | Unit / integration / e2e / golden | TESTING.md |
-| 7.2 Test case catalog | Summary of TC-IDs | TEST_CASE_CATALOG.md |
+| 7.2 Test case catalog | Summary of TC-IDs | `appendices/A_test_case_catalog.md` |
 | 7.3 Golden IR results | Table of metrics from last run | golden-ci / local pytest |
 | 7.4 RAG / retrieval notes | Hit@k if available | retrieval_pairs |
 | 7.5 Security tests | RBAC, hardening | test_rbac, hardening |
@@ -164,14 +164,16 @@ Include capstone list refs + Lewis RAG + ATT&CK + NIST 800-61 + vendor docs (VT,
 
 ## Appendices
 
-| App | Content |
-|-----|---------|
-| A | Full test case catalog (or summary) |
-| B | OpenAPI excerpt / API list |
-| C | Sample log + incident output |
-| D | Configuration template (sanitized) |
-| E | Team roles & contributions |
-| F | Glossary |
+Full bodies under `docs/capstone/appendices/`:
+
+| App | File | Content |
+|-----|------|---------|
+| A | `appendices/A_test_case_catalog.md` | Full test case catalog |
+| B | `appendices/B_api_surface.md` | API path surface |
+| C | `appendices/C_sample_outputs.md` | Sample log + playbook output |
+| D | `appendices/D_configuration.md` | Configuration template (sanitized) |
+| E | `appendices/E_team_roles.md` | Team roles & contributions |
+| F | `appendices/F_glossary.md` | Glossary |
 
 ---
 
@@ -194,4 +196,6 @@ See `samples/demo/SCREENSHOT_CHECKLIST.md`. Minimum for report:
 
 ---
 
-*Write prose in your institute template; keep claims consistent with this outline and the board review.*
+*Full prose draft:* see **[../PROJECT_REPORT.md](../PROJECT_REPORT.md)**.  
+*Appendices A–F:* **[../appendices/](../appendices/)**.  
+Write final PDF in your institute template; keep claims consistent with this outline and the board review.

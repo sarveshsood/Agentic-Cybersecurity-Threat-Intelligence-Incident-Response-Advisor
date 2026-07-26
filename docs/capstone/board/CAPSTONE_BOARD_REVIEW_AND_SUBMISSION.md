@@ -169,16 +169,18 @@ Recent remediation improved trust and ops UX:
 - [x] Live dashboard data default  
 - [x] KPI field completeness  
 - [x] Incident load errors  
-- [ ] 5-minute demo recording  
-- [ ] Screenshot pack filled (`samples/demo/SCREENSHOT_CHECKLIST.md`)  
-- [ ] Soften Login marketing “Connected” rows or wire health  
+- [x] Soften Login marketing “Connected” rows — probe `/health`; capability tiles (not fake KPIs)  
+- [x] Compliance alignment disclaimer banner (always visible)  
+- [x] Capstone report PDF + appendices pack + formal test summary (66 pass)  
+- [x] Screenshot figure slots under `assets/screenshots/` (placeholders; overwrite with live UI)  
+- [ ] 5-minute demo recording (student-owned)  
+- [ ] Live UI screenshots overwrite placeholders  
 
 ### P1
 - Analytics error state  
 - Mobile nav drawer  
 - E2E testid alignment  
-- Compliance UI disclaimer prominence  
-- Cookie-only JWT for SPA  
+- Cookie-only JWT for SPA (largely landed; residual proxy modes)  
 
 ### P2–P3
 - Server-side pagination everywhere  
@@ -200,18 +202,18 @@ Recent remediation improved trust and ops UX:
 
 ## 9. Submission Artifacts Index
 
-| Artifact | Path |
+| Artifact | Path (all under `docs/capstone/` unless noted) |
 |----------|------|
-| This board + mapping | `docs/capstone/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md` |
-| Master test cases | `docs/capstone/TEST_CASE_CATALOG.md` |
-| Project report outline | `docs/capstone/PROJECT_REPORT_OUTLINE.md` |
-| PPT outline | `docs/capstone/PPT_OUTLINE.md` |
-| Demo script | `docs/DEMO_SCRIPT.md` |
-| Speaker notes | `samples/demo/SPEAKER_NOTES.md` |
-| Screenshot checklist | `samples/demo/SCREENSHOT_CHECKLIST.md` |
-| Architecture decks | `presentation/*.md` |
-| OpenAPI | `docs/openapi.json` |
-| Golden dataset | `backend/tests/golden/dataset.json` |
+| This board + mapping | `board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md` |
+| **Full project report** | `PROJECT_REPORT.md` |
+| **Appendices A–F** | `appendices/` |
+| **Viva PPTX (18 slides)** | `presentation/ACTIRA_Capstone_Presentation.pptx` |
+| Master test cases | `appendices/A_test_case_catalog.md` |
+| Project report outline | `outlines/PROJECT_REPORT_OUTLINE.md` |
+| PPT outline + builder | `presentation/PPT_OUTLINE.md`, `presentation/build_capstone_pptx.js` |
+| Screenshots / figures | `assets/screenshots/`, `assets/figures/` |
+| Demo script (product) | `docs/DEMO_SCRIPT.md` (outside pack; optional) |
+| Pack index | `README.md` |
 
 ---
 

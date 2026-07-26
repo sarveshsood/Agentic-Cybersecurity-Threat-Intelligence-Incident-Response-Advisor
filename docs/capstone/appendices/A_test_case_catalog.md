@@ -1,9 +1,11 @@
-# ACTIRA — Master Test Case Catalog (Capstone Submission)
+# Appendix A — Master Test Case Catalog (Capstone Submission)
 
+**Location:** `docs/capstone/appendices/A_test_case_catalog.md`  
 **Product:** ACTIRA — Agentic Cybersecurity Threat Intelligence & Incident Response Advisor  
 **Purpose:** Formal test catalog for evaluation report, viva, and regression evidence  
 **Last updated:** 2026-07-26  
-**Automation map:** pytest (`backend/tests/`), Playwright (`frontend/e2e/`), manual (M)
+**Automation map:** pytest (`backend/tests/`), Playwright (`frontend/e2e/`), manual (M)  
+**Parent report:** [`../PROJECT_REPORT.md`](../PROJECT_REPORT.md)
 
 **Legend**
 
@@ -240,16 +242,31 @@ npx playwright test e2e/smoke.spec.js
 
 ---
 
-## 15. Suggested test summary table (fill after run)
+## 15. Formal run summary (2026-07-26)
 
-| Suite | Total | Pass | Fail | Blocked | Date |
-|-------|------:|-----:|-----:|--------:|------|
-| Golden IR | | | | | |
-| Backend unit | | | | | |
-| Security | | | | | |
-| Playwright smoke | | | | | |
-| Manual P0 | | | | | |
+Command (repo root):
+
+```bash
+python -m pytest backend/tests/test_golden_benchmark.py \
+  backend/tests/test_compliance_score.py \
+  backend/tests/test_audit_intelligence.py \
+  backend/tests/test_llm_fallback_catalog.py \
+  backend/tests/test_executive_export.py \
+  backend/tests/test_rbac_matrix.py \
+  backend/tests/test_hardening.py -q
+```
+
+| Suite | Total | Pass | Fail | Blocked | Date | Notes |
+|-------|------:|-----:|-----:|--------:|------|-------|
+| Golden IR + Wave C + RBAC + Hardening (combined) | 66 | **66** | 0 | 0 | 2026-07-26 | Exit 0, ~18s |
+| Golden IR only | — | Pass | 0 | 0 | 2026-07-26 | Thresholds met (F1 0.982, recall 0.930) |
+| Compliance / audit / LLM catalog / exec export | — | Pass | 0 | 0 | 2026-07-26 | Included in 66 |
+| Security (RBAC + hardening) | — | Pass | 0 | 0 | 2026-07-26 | Included in 66 |
+| Playwright smoke | — | Not run | — | — | — | Requires live stack; run before viva if time |
+| Manual P0 UI (Dashboard live, screenshots) | — | Partial | — | — | 2026-07-26 | Code honesty fixes landed; capture screenshots in `assets/screenshots/` |
+
+**TC automation status (aggregate):** automated TC groups covered by the suites above → **Pass**. Manual/UI TC-IDs remain **Not run** until demo screenshot session.
 
 ---
 
-*Use this catalog as the Test Plan appendix in the project report. Mark Status after each formal run.*
+*Use this catalog as the Test Plan appendix in the project report. Re-run and update dates before final PDF if code changes.*
