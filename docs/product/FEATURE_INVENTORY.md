@@ -29,10 +29,10 @@
 | User profile page            | Minimal via /auth/me           |
 | Formal API key mgmt UI       | Ingest key + settings keys     |
 | Metrics dashboard            | KPIs + /metrics                |
-| **Investigation Workspace**  | **Planned (v1.4)**             |
-| AI timeline / RCA narrative  | Partial (chain + investigator) |
-| IOC entity graph             | Planned                        |
-| Case notebook                | Planned                        |
+| **Investigation Workspace**  | **In progress (v1.4)** — tabbed case hub |
+| AI timeline / RCA narrative  | Yes (workspace timeline + RCA API/UI) |
+| IOC entity graph             | Yes (SVG graph + Assets/Users) |
+| Case notebook                | Yes (notes CRUD API + UI) |
 | NL threat hunting            | Planned                        |
 | Compliance live score        | Planned                        |
 | SIEM/XDR connectors          | Future                         |

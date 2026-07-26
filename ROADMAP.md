@@ -26,7 +26,7 @@ Use this file for **management tracking**. Status legend:
 | **v1.1** | Modular API + `/api/v1` + capstone UX polish                | ✅ Done                   |
 | **v1.2** | Enterprise identity (OIDC / SSO / MFA)                      | 🔄 Scaffold (OIDC in)     |
 | **v1.3** | Observability, HA evidence, load tests                      | ✅ Mostly done (+ OTLP)   |
-| **v1.4** | Investigation Command Center (Workspace MVP)                | 📋 Design ready (implement next) |
+| **v1.4** | Investigation Command Center (Workspace MVP)                | 🔄 In progress (PR #8)            |
 | **v2.0** | Multi-tenant + commercial pilot readiness                   | 🔮 Future                 |
 
 **Product vision:** [docs/product/VISION.md](docs/product/VISION.md) — Agentic AI SOC Command Center.
@@ -210,7 +210,7 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping:
 | Wave | Version | Focus | Status |
 |------|---------|--------|--------|
 | **Foundation** | v0–v1.3 | Pipeline, RAG, HiTL, modular API, OIDC/OTEL scaffolds | ✅ / 🔄 |
-| **A** | **v1.4** | Investigation Workspace MVP (case hub, timeline, RCA, graph, notes, assistant) | 📋 Design ready — see `docs/product/INVESTIGATION_WORKSPACE_DESIGN.md` |
+| **A** | **v1.4** | Investigation Workspace MVP (case hub, timeline, RCA, graph, notes, assistant) | 🔄 Implementing — see design + PR #8 |
 | **B** | v1.5 | Advanced analytics & NL hunting; broader evidence formats | 📋 Planned |
 | **C** | v1.6 | Compliance automation + audit intelligence | 📋 Planned |
 | **D** | v1.7 | Multi-agent roster UX + executive dashboard | 📋 Planned |
