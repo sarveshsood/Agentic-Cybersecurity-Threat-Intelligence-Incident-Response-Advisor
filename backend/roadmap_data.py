@@ -1063,28 +1063,56 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "title": "v1.2 Enterprise identity — OIDC SSO / MFA / group RBAC",
         "summary": "Entra ID / Okta / Keycloak OIDC; MFA via IdP; map groups to analyst/reviewer/admin.",
         "description": (
-            "Planned: OIDC login, IdP MFA, group→role mapping, enterprise register disable, "
-            "cookie/session integration with SPA. Non-breaking for local JWT demos."
+            "Scaffold shipped: OIDC authorization-code + PKCE (`oidc_service`), public config + login/callback "
+            "routes, Login SSO CTA when enabled. Remaining: live IdP hardening, MFA (IdP), enterprise "
+            "register disable, full group RBAC validation. Non-breaking for local JWT demos."
         ),
-        "status": "planned",
+        "status": "in_progress",
         "priority": "p0",
         "owner": "",
         "effort": "l",
         "target_release": "v1.2",
-        "week": "Next",
+        "week": "Current",
         "category": "Security / Identity",
-        "modules": ["backend/auth.py", "backend/routers/auth.py", "frontend/src/lib/auth.jsx",
-                    "frontend/src/pages/Login.jsx"],
-        "docs": ["ROADMAP.md#f-planned--v12-enterprise-identity", "SECURITY.md"],
+        "modules": [
+            "backend/services/oidc_service.py",
+            "backend/routers/auth.py",
+            "backend/repositories/users.py",
+            "frontend/src/pages/Login.jsx",
+        ],
+        "docs": ["ROADMAP.md#f-v12-enterprise-identity", "SECURITY.md"],
         "architecture_notes": "Keep demo JWT seed for lab ENV; SSO for staging/production profiles.",
-        "progress": 0,
-        "implementation_notes": "",
+        "progress": 40,
+        "implementation_notes": (
+            "2026-07-26: Env-gated OIDC (OIDC_ISSUER + OIDC_CLIENT_ID); PKCE state store; "
+            "OIDC_ROLE_CLAIM / OIDC_GROUP_ROLE_MAP; session cookie via existing token response. "
+            "Offline unit tests for disabled-by-default + route registration."
+        ),
         "tasks": [
-            {"id": "t1", "title": "OIDC provider integration (authorization code + PKCE)", "status": "todo",
-             "done": False},
-            {"id": "t2", "title": "IdP group → ACTIRA role mapping", "status": "todo", "done": False},
-            {"id": "t3", "title": "MFA via IdP + enterprise register policy", "status": "todo", "done": False},
-            {"id": "t4", "title": "SPA cookie session + logout federation", "status": "todo", "done": False},
+            {
+                "id": "t1",
+                "title": "OIDC provider integration (authorization code + PKCE)",
+                "status": "done",
+                "done": True,
+            },
+            {
+                "id": "t2",
+                "title": "IdP group → ACTIRA role mapping",
+                "status": "in_progress",
+                "done": False,
+            },
+            {
+                "id": "t3",
+                "title": "MFA via IdP + enterprise register policy",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "t4",
+                "title": "SPA cookie session + logout federation",
+                "status": "in_progress",
+                "done": False,
+            },
         ],
     },
     {
@@ -1109,7 +1137,9 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "implementation_notes": (
             "2026-07-26: Pipeline stage timings (`pipeline_trace.py`, optional OTEL spans). "
             "HA validation runbook + offline tests; load methodology 10/100 users; Helm chart 1.1.0 "
-            "with API+worker Deployments, HPA, PDB, values-prod.yaml. Full OTEL collector export optional later."
+            "with API+worker Deployments, HPA, PDB, values-prod.yaml. "
+            "Also: soft-dep OTLP HTTP exporter hook (`backend/otel_setup.py`, ACTIRA_OTEL_ENABLED / "
+            "OTEL_EXPORTER_OTLP_ENDPOINT); ops status can surface OTEL config. Deep auto-instrument optional."
         ),
         "tasks": [
             {
