@@ -13,6 +13,15 @@ def _env(name: str, default: str = "") -> str:
     return (os.environ.get(name) or default).strip()
 
 
+def _otel_block() -> Dict[str, Any]:
+    try:
+        from backend.otel_setup import otel_status
+
+        return otel_status()
+    except Exception as e:
+        return {"configured": False, "error": str(e)[:200]}
+
+
 async def ops_status() -> Dict[str, Any]:
     """Snapshot of multi-replica / HA-relevant runtime flags + light Mongo stats."""
     health = await svc.health_check()
@@ -133,6 +142,7 @@ async def ops_status() -> Dict[str, Any]:
             ],
             "persisted_on": "log_jobs.stage_timings + pipeline_total_ms",
         },
+        "otel": _otel_block(),
         "queue": queue_counts,
         "llm_usage": llm_usage,
         "recent_job_timings": recent_timings,

@@ -33,6 +33,11 @@ class UserRepository:
     async def insert(self, doc: Dict[str, Any]) -> None:
         await self.col.insert_one(doc)
 
+    async def update_fields(self, user_id: str, fields: Dict[str, Any]) -> None:
+        if not fields:
+            return
+        await self.col.update_one({"id": user_id}, {"$set": fields})
+
     async def count(self) -> int:
         return await self.col.count_documents({})
 

@@ -1,7 +1,7 @@
 import {useEffect, useState} from "react";
 import {useLocation, useNavigate} from "react-router-dom";
 import {useAuth} from "../lib/auth";
-import {apiErrorMessage} from "../lib/api";
+import {api, apiErrorMessage} from "../lib/api";
 import {toast} from "sonner";
 import {
     ArrowRight,
@@ -149,6 +149,7 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [remember, setRemember] = useState(false);
+    const [ssoEnabled, setSsoEnabled] = useState(false);
     const demos = showDemoOperators();
 
     useEffect(() => {
@@ -161,6 +162,10 @@ export default function Login() {
         } catch {
             // Storage unavailable — ignore
         }
+        api
+            .get("/auth/oidc/config")
+            .then((r) => setSsoEnabled(Boolean(r.data?.enabled)))
+            .catch(() => setSsoEnabled(false));
     }, []);
 
     const redirectTo = (() => {
@@ -582,6 +587,7 @@ export default function Login() {
 
                     <button
                         data-testid="auth-submit"
+                        /* SSO sibling below */
                         disabled={loading}
                         className="sbp-btn-primary w-full py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-600/20 mt-2"
                     >

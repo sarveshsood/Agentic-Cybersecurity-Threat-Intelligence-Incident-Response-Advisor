@@ -396,3 +396,62 @@ def list_catalog() -> List[Dict[str, Any]]:
         if entry:
             out.append(entry)
     return out
+
+
+# Enterprise tactic column order (coverage matrix UI)
+ENTERPRISE_TACTIC_ORDER: List[str] = [
+    "Reconnaissance",
+    "Resource Development",
+    "Initial Access",
+    "Execution",
+    "Persistence",
+    "Privilege Escalation",
+    "Defense Evasion",
+    "Credential Access",
+    "Discovery",
+    "Lateral Movement",
+    "Collection",
+    "Command and Control",
+    "Exfiltration",
+    "Impact",
+]
+
+
+def _primary_tactic(raw: str) -> str:
+    """First tactic token; normalize C2 naming."""
+    t = (raw or "").split(",")[0].strip()
+    if t in ("Command & Control", "Command and Control"):
+        return "Command and Control"
+    return t or "Unknown"
+
+
+def matrix_layout() -> Dict[str, Any]:
+    """Full-catalog coverage matrix for UI (not full MITRE STIX — catalog subset)."""
+    by_tactic: Dict[str, List[Dict[str, str]]] = {t: [] for t in ENTERPRISE_TACTIC_ORDER}
+    extra: Dict[str, List[Dict[str, str]]] = {}
+    for tid, meta in ATTACK_CATALOG.items():
+        if meta.get("parent_id"):
+            # sub-techniques still listed under parent tactic
+            pass
+        tactic = _primary_tactic(str(meta.get("tactic") or ""))
+        cell = {
+            "id": tid,
+            "name": str(meta.get("name") or tid),
+            "parent_id": meta.get("parent_id"),
+        }
+        if tactic in by_tactic:
+            by_tactic[tactic].append(cell)
+        else:
+            extra.setdefault(tactic, []).append(cell)
+    columns = []
+    for t in ENTERPRISE_TACTIC_ORDER:
+        techs = sorted(by_tactic.get(t) or [], key=lambda x: x["id"])
+        if techs:
+            columns.append({"tactic": t, "techniques": techs})
+    for t, techs in sorted(extra.items()):
+        columns.append({"tactic": t, "techniques": sorted(techs, key=lambda x: x["id"])})
+    return {
+        "version": "catalog-coverage",
+        "note": "Matrix covers curated ACTIRA catalog, not full MITRE STIX Enterprise.",
+        "columns": columns,
+    }

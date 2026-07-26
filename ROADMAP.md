@@ -1,6 +1,6 @@
 # ACTIRA — Master Roadmap (tracking)
 
-**Last updated:** 2026-07-23  
+**Last updated:** 2026-07-26  
 **Board maturity:** Enterprise Demonstration Ready · **~89–90/100**  
 **In-app roadmap:** Admin/analyst UI **Roadmap** page (seeded from `backend/roadmap_data.py` — auto-merges new IDs on
 API start)
@@ -24,8 +24,8 @@ Use this file for **management tracking**. Status legend:
 | **v0.x** | Core product + weekly engineering (pre-board)               | ✅ Done (see in-app seed) |
 | **v1.0** | Enterprise Demonstration Ready (docs, ops, governance pack) | ✅ Done                   |
 | **v1.1** | Modular API + `/api/v1` + capstone UX polish                | ✅ Done                   |
-| **v1.2** | Enterprise identity (OIDC / SSO / MFA)                      | 📋 Planned                |
-| **v1.3** | Observability, HA evidence, load tests                      | 📋 Planned                |
+| **v1.2** | Enterprise identity (OIDC / SSO / MFA)                      | 🔄 Scaffold (OIDC in)     |
+| **v1.3** | Observability, HA evidence, load tests                      | ✅ Mostly done (+ OTLP)   |
 | **v2.0** | Multi-tenant + commercial pilot readiness                   | 🔮 Future                 |
 
 ---
@@ -38,7 +38,8 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 |-----------------------|--------------------------------------------------------------------------------|--------|
 | **Ingest & pipeline** | Multi-format parsers, batch/ZIP, job queue, correlation, hung-job resume       | ✅     |
 | **IoC & TI**          | Extract + enrich (mock/live), enrichment cache                                 | ✅     |
-| **ATT&CK**            | Heuristic mapping, catalog, heatmap                                            | ✅     |
+| **ATT&CK**            | Heuristic mapping, catalog, heatmap + full-catalog coverage matrix             | ✅     |
+| **Ingest (stretch)**  | EVTX magic detect + optional `python-evtx` parse scaffold                      | 🔄     |
 | **RAG**               | BM25, LanceDB, hybrid RRF, Cohere re-rank, LoRA train path                     | ✅     |
 | **LLM**               | Multi-provider playbooks, citations, grounding, prompt cache, investigator SSE | ✅     |
 | **HiTL**              | Severity + grounding gates, atomic review (409), RBAC                          | ✅     |
@@ -124,28 +125,28 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 
 ---
 
-## F. Planned — v1.2 Enterprise identity
+## F. v1.2 Enterprise identity
 
-| ID   | Activity                                      | Outcome             | Priority |
-|------|-----------------------------------------------|---------------------|----------|
-| F-01 | OIDC SSO (Entra ID / Okta / Keycloak)         | Enterprise login    | P0       |
-| F-02 | MFA (IdP-enforced preferred)                  | Auth strength       | P0       |
-| F-03 | IdP groups → ACTIRA roles                     | RBAC from directory | P1       |
-| F-04 | Cookie/session integration with SSO           | SPA continuity      | P1       |
-| F-05 | Disable public register in enterprise profile | Security default    | P1       |
+| ID   | Activity                                      | Outcome             | Priority | Status |
+|------|-----------------------------------------------|---------------------|----------|--------|
+| F-01 | OIDC SSO (Entra ID / Okta / Keycloak)         | Enterprise login    | P0       | 🔄 Scaffold (PKCE + routes + Login CTA; env-gated) |
+| F-02 | MFA (IdP-enforced preferred)                  | Auth strength       | P0       | 📋 Planned (via IdP) |
+| F-03 | IdP groups → ACTIRA roles                     | RBAC from directory | P1       | 🔄 Partial (`OIDC_GROUP_ROLE_MAP` / role claim) |
+| F-04 | Cookie/session integration with SSO           | SPA continuity      | P1       | 🔄 Partial (same cookie as password login) |
+| F-05 | Disable public register in enterprise profile | Security default    | P1       | 📋 Planned |
 
 ---
 
-## G. Planned — v1.3 Observability & HA
+## G. v1.3 Observability & HA
 
-| ID   | Activity                                   | Outcome                       | Priority |
-|------|--------------------------------------------|-------------------------------|----------|
-| G-01 | OpenTelemetry instrumentation              | Traces (API + pipeline + LLM) | P0       |
-| G-02 | Multi-replica / stateless validation       | HA story                      | P1       |
-| G-03 | Load tests 10 / 100+ with published report | Performance evidence          | P1       |
-| G-04 | Helm values for prod-like installs         | Ops packaging                 | P2       |
-| G-05 | Production dashboards (beyond skeletons)   | SRE visibility                | P2       |
-| G-06 | Global API rate-limit dashboard / metrics  | Abuse resistance              | P2       |
+| ID   | Activity                                   | Outcome                       | Priority | Status |
+|------|--------------------------------------------|-------------------------------|----------|--------|
+| G-01 | OpenTelemetry instrumentation              | Traces (API + pipeline + LLM) | P0       | 🔄 Stage timings + optional OTLP hook (`otel_setup.py`); deep auto-instrument later |
+| G-02 | Multi-replica / stateless validation       | HA story                      | P1       | ✅ |
+| G-03 | Load tests 10 / 100+ with published report | Performance evidence          | P1       | ✅ |
+| G-04 | Helm values for prod-like installs         | Ops packaging                 | P2       | ✅ |
+| G-05 | Production dashboards (beyond skeletons)   | SRE visibility                | P2       | 📋 Planned |
+| G-06 | Global API rate-limit dashboard / metrics  | Abuse resistance              | P2       | 📋 Planned |
 
 ---
 
@@ -194,7 +195,7 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 1. **Weekly:** move rows from Planned → Done; note PR/commit.
 2. **In-app Roadmap:** restart API after updating `roadmap_data.py` so new seed IDs auto-merge (or Admin → Sync seed).
 3. **Capstone / interview:** point to sections **B–D** (completed this program) + **J** (validation).
-4. **Next sprint:** pick **F-01 OIDC** or **E-01/E-02 tags + video**.
+4. **Next sprint:** harden **F-01–F-05 OIDC** (live IdP + MFA + register policy), deepen **G-01** spans, or **E-01/E-02** tags + video.
 
 ---
 

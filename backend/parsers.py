@@ -341,6 +341,140 @@ def _cef_sev(s: str) -> str:
         return s or "info"
 
 
+class EvtxParser(BaseParser):
+    """Windows Event Log (.evtx) — optional ``python-evtx`` / ``Evtx`` package.
+
+    When the library is missing, detection still works (magic/filename) but
+    ``parse`` returns a single placeholder CES event so the pipeline continues.
+    """
+
+    name = "evtx"
+    MAGIC = b"ElfFile\x00"
+
+    def matches(self, sample: str) -> float:
+        # Text sample path rarely hits EVTX; detect_and_parse short-circuits bytes.
+        if sample and "ElfFile" in sample[:32]:
+            return 0.95
+        return 0.0
+
+    def matches_bytes(self, raw: bytes, filename: str = "") -> float:
+        if raw[:7] == self.MAGIC or (raw[:8] == self.MAGIC):
+            return 0.99
+        if (filename or "").lower().endswith(".evtx"):
+            return 0.9
+        return 0.0
+
+    def parse(self, content: str, filename: str) -> List[Dict[str, Any]]:
+        # Text path: not useful for real EVTX
+        return [
+            _ces(
+                filename,
+                content[:500] if content else "",
+                event_type="evtx_text_fallback",
+                vendor="Microsoft",
+                product="Windows",
+                severity="info",
+            )
+        ]
+
+    def parse_bytes(self, raw: bytes, filename: str) -> List[Dict[str, Any]]:
+        events: List[Dict[str, Any]] = []
+        try:
+            from Evtx.Evtx import Evtx  # type: ignore
+        except Exception:
+            return [
+                _ces(
+                    filename,
+                    "EVTX detected but python-evtx not installed; install optional dep to parse records.",
+                    event_type="evtx_unparsed",
+                    vendor="Microsoft",
+                    product="Windows",
+                    severity="info",
+                )
+            ]
+        try:
+            # Evtx expects a path or file-like; use BytesIO via tempfile if needed
+            import tempfile
+            from pathlib import Path
+
+            with tempfile.NamedTemporaryFile(suffix=".evtx", delete=False) as tf:
+                tf.write(raw)
+                path = tf.name
+            try:
+                with Evtx(path) as log:
+                    for i, record in enumerate(log.records()):
+                        if i >= 2000:  # hard cap for large channels
+                            break
+                        try:
+                            xml = record.xml()
+                        except Exception:
+                            continue
+                        events.append(self._xml_to_ces(xml, filename))
+            finally:
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+        except Exception as e:
+            return [
+                _ces(
+                    filename,
+                    f"EVTX parse error: {type(e).__name__}: {e}"[:500],
+                    event_type="evtx_error",
+                    vendor="Microsoft",
+                    product="Windows",
+                    severity="medium",
+                )
+            ]
+        return events or [
+            _ces(
+                filename,
+                "EVTX opened but no records extracted",
+                event_type="evtx_empty",
+                vendor="Microsoft",
+                product="Windows",
+                severity="info",
+            )
+        ]
+
+    def _xml_to_ces(self, xml: str, filename: str) -> Dict[str, Any]:
+        # Lightweight tag pulls (avoid hard dependency on lxml)
+        def _tag(name: str) -> Optional[str]:
+            m = re.search(rf"<{name}[^>]*>([^<]*)</{name}>", xml or "", re.I)
+            return m.group(1).strip() if m else None
+
+        eid = _tag("EventID")
+        ts = _tag("TimeCreated") or _tag("SystemTime")
+        # TimeCreated often uses attribute SystemTime=
+        if not ts:
+            m = re.search(r'SystemTime="([^"]+)"', xml or "")
+            ts = m.group(1) if m else None
+        host = _tag("Computer")
+        user = _tag("SubjectUserName") or _tag("TargetUserName") or _tag("User")
+        proc = _tag("NewProcessName") or _tag("Image") or _tag("ProcessName")
+        cmd = _tag("CommandLine")
+        sip = _tag("IpAddress") or _tag("SourceAddress")
+        dip = _tag("DestAddress")
+        return _ces(
+            filename,
+            (xml or "")[:2000],
+            timestamp=_try_parse_ts(ts) if ts and "T" not in (ts or "") else (
+                ts if ts else None
+            ),
+            event_id=eid,
+            hostname=host,
+            username=user,
+            process=proc,
+            command_line=cmd,
+            source_ip=sip if sip and sip not in ("-", "::1") else None,
+            dest_ip=dip,
+            vendor="Microsoft",
+            product="Windows",
+            event_type=f"windows_event_{eid}" if eid else "windows_event",
+            severity="info",
+        )
+
+
 PARSERS: List[BaseParser] = [
     ApacheParser(),
     CEFParser(),
@@ -351,9 +485,17 @@ PARSERS: List[BaseParser] = [
     PlainTextParser(),
 ]
 
+_EVTX = EvtxParser()
+
 
 def detect_and_parse(content: bytes | str, filename: str) -> Tuple[str, List[Dict[str, Any]]]:
     """Detect format via confidence scoring and parse into CES events."""
+    raw: Optional[bytes] = content if isinstance(content, bytes) else None
+
+    # Binary short-circuit: Windows Event Log
+    if raw is not None and _EVTX.matches_bytes(raw, filename) >= 0.9:
+        return _EVTX.name, _EVTX.parse_bytes(raw, filename)
+
     if isinstance(content, bytes):
         try:
             text = content.decode("utf-8", errors="ignore")

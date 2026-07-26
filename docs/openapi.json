@@ -1284,6 +1284,31 @@
         ]
       }
     },
+    "/api/attack/matrix": {
+      "get": {
+        "description": "Catalog coverage matrix layout for full-grid ATT&CK UI.",
+        "operationId": "attack_matrix_api_attack_matrix_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Attack Matrix",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
     "/api/audit": {
       "get": {
         "operationId": "audit_log_api_audit_get",
@@ -1482,6 +1507,126 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/oidc/callback": {
+      "get": {
+        "description": "OIDC callback \u2014 mints ACTIRA session cookie (same as password login).",
+        "operationId": "oidc_callback_api_auth_oidc_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oidc Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/oidc/config": {
+      "get": {
+        "description": "Public: whether SSO is enabled (no secrets).",
+        "operationId": "oidc_config_api_auth_oidc_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oidc Config",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/oidc/login": {
+      "get": {
+        "description": "Start OIDC authorization-code + PKCE flow (redirect).",
+        "operationId": "oidc_login_api_auth_oidc_login_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oidc Login",
         "tags": [
           "auth"
         ]
@@ -3000,6 +3145,31 @@
         ]
       }
     },
+    "/api/ops/status": {
+      "get": {
+        "description": "Admin Ops/Health panel \u2014 multi-replica flags, queue, timings, LLM budget.",
+        "operationId": "ops_status_api_api_ops_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ops Status Api",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/ready": {
       "get": {
         "operationId": "ready_api_api_ready_get",
@@ -4398,6 +4568,31 @@
         ]
       }
     },
+    "/api/v1/attack/matrix": {
+      "get": {
+        "description": "Catalog coverage matrix layout for full-grid ATT&CK UI.",
+        "operationId": "attack_matrix_api_v1_attack_matrix_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Attack Matrix",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "operationId": "audit_log_api_v1_audit_get",
@@ -4596,6 +4791,126 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/callback": {
+      "get": {
+        "description": "OIDC callback \u2014 mints ACTIRA session cookie (same as password login).",
+        "operationId": "oidc_callback_api_v1_auth_oidc_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oidc Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/config": {
+      "get": {
+        "description": "Public: whether SSO is enabled (no secrets).",
+        "operationId": "oidc_config_api_v1_auth_oidc_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oidc Config",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/login": {
+      "get": {
+        "description": "Start OIDC authorization-code + PKCE flow (redirect).",
+        "operationId": "oidc_login_api_v1_auth_oidc_login_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oidc Login",
         "tags": [
           "auth"
         ]
@@ -6111,6 +6426,31 @@
         "summary": "Upload Batch",
         "tags": [
           "logs"
+        ]
+      }
+    },
+    "/api/v1/ops/status": {
+      "get": {
+        "description": "Admin Ops/Health panel \u2014 multi-replica flags, queue, timings, LLM budget.",
+        "operationId": "ops_status_api_api_v1_ops_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ops Status Api",
+        "tags": [
+          "meta"
         ]
       }
     },

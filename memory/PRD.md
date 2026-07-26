@@ -145,9 +145,9 @@ Local vector store + hybrid retrieval (BM25 + ANN RRF):
 ### P2 — Nice to have
 
 - LangGraph orchestration for the multi-agent pipeline
-- LangSmith / full OTEL collector exporter (pipeline stage timings + HA/load/Helm **DONE**; vendor exporter optional)
-- EVTX (Windows Event Log) binary parser
-- ATT&CK matrix full grid (not just tactic-grouped heatmap)
+- ~~LangSmith / full OTEL collector exporter~~ **partial** — pipeline stage timings + HA/load/Helm **DONE**; optional OTLP soft-dep (`otel_setup.py`) **DONE**; deep auto-instrument / LangSmith optional
+- ~~EVTX (Windows Event Log) binary parser~~ **scaffold** — magic/extension detect + optional `python-evtx` path
+- ~~ATT&CK matrix full grid (not just tactic-grouped heatmap)~~ **DONE** (`/attack/matrix` + heatmap matrix mode)
 - ~~Notifications (Slack / email) for critical/high/HiTL incidents~~ **DONE** (`notify_incident_created`)
 
 ### P3 — Future
