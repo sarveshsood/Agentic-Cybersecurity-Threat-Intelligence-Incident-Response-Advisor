@@ -1173,6 +1173,68 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         ],
     },
     {
+        "id": "rm-v1-4-investigation-workspace",
+        "title": "v1.4 Investigation Workspace — AI SOC Command Center (Wave A)",
+        "summary": "Case hub, visual timeline, RCA, entity graph, notebook, AI assistant on /incidents/:id.",
+        "description": (
+            "Design published 2026-07-26 (docs/product/INVESTIGATION_WORKSPACE_DESIGN.md). "
+            "Extend IncidentDetail into tabbed workspace; pure timeline/graph builders; atomic notes; "
+            "RCA with budget fallback; reuse investigator SSE with prompt-injection controls. "
+            "Implement via PR-1…PR-10 in design doc."
+        ),
+        "status": "planned",
+        "priority": "p0",
+        "owner": "",
+        "effort": "l",
+        "target_release": "v1.4",
+        "week": "Next",
+        "category": "Product / Investigation",
+        "modules": [
+            "backend/investigation_views.py",
+            "backend/services/workspace_service.py",
+            "backend/routers/workspace.py",
+            "frontend/src/pages/IncidentDetail.jsx",
+            "frontend/src/components/workspace/",
+        ],
+        "docs": [
+            "docs/product/VISION.md",
+            "docs/product/INVESTIGATION_WORKSPACE_DESIGN.md",
+            "ROADMAP.md#m-vision-waves-agentic-soc-command-center",
+        ],
+        "architecture_notes": "No pipeline rewrite; dual /api + /api/v1; optional workspace on incident docs.",
+        "progress": 10,
+        "implementation_notes": (
+            "2026-07-26: Vision + design consensus (0 open review issues). "
+            "Start PR-1 (timeline/graph builders) ∥ PR-2 (notes API) ∥ PR-5a (UI shell)."
+        ),
+        "tasks": [
+            {
+                "id": "t1",
+                "title": "Design doc + product vision (Wave A)",
+                "status": "done",
+                "done": True,
+            },
+            {
+                "id": "t2",
+                "title": "PR-1…PR-3 pure views + notes + timeline/graph APIs",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "t3",
+                "title": "PR-4…PR-5 workspace RCA + UI shell",
+                "status": "todo",
+                "done": False,
+            },
+            {
+                "id": "t4",
+                "title": "PR-6…PR-10 timeline/graph/notes/assistant polish + DoD",
+                "status": "todo",
+                "done": False,
+            },
+        ],
+    },
+    {
         "id": "rm-arch-p0-p3-layers-analytics",
         "title": "Architecture layers + analytics performance + cost/stage visibility",
         "summary": "P0 import stabilization; P1 services/repos; P2 KPI facet/cache; P3 LLM budget KPI + stage timings.",

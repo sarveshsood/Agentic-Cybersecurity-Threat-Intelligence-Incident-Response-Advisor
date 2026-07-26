@@ -26,7 +26,10 @@ Use this file for **management tracking**. Status legend:
 | **v1.1** | Modular API + `/api/v1` + capstone UX polish                | ✅ Done                   |
 | **v1.2** | Enterprise identity (OIDC / SSO / MFA)                      | 🔄 Scaffold (OIDC in)     |
 | **v1.3** | Observability, HA evidence, load tests                      | ✅ Mostly done (+ OTLP)   |
+| **v1.4** | Investigation Command Center (Workspace MVP)                | 📋 Design ready (implement next) |
 | **v2.0** | Multi-tenant + commercial pilot readiness                   | 🔮 Future                 |
+
+**Product vision:** [docs/product/VISION.md](docs/product/VISION.md) — Agentic AI SOC Command Center.
 
 ---
 
@@ -195,7 +198,23 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 1. **Weekly:** move rows from Planned → Done; note PR/commit.
 2. **In-app Roadmap:** restart API after updating `roadmap_data.py` so new seed IDs auto-merge (or Admin → Sync seed).
 3. **Capstone / interview:** point to sections **B–D** (completed this program) + **J** (validation).
-4. **Next sprint:** harden **F-01–F-05 OIDC** (live IdP + MFA + register policy), deepen **G-01** spans, or **E-01/E-02** tags + video.
+4. **Next sprint (product):** **v1.4 Investigation Workspace** (Wave A — timeline, RCA, entity graph, notebook, assistant).  
+5. **Parallel hardening:** live IdP for OIDC, deeper OTEL spans, optional demo tags/video (**E-01/E-02**).
+
+---
+
+## M. Vision waves (Agentic SOC Command Center)
+
+See full narrative in `docs/product/VISION.md`. Engineering mapping:
+
+| Wave | Version | Focus | Status |
+|------|---------|--------|--------|
+| **Foundation** | v0–v1.3 | Pipeline, RAG, HiTL, modular API, OIDC/OTEL scaffolds | ✅ / 🔄 |
+| **A** | **v1.4** | Investigation Workspace MVP (case hub, timeline, RCA, graph, notes, assistant) | 📋 Design ready — see `docs/product/INVESTIGATION_WORKSPACE_DESIGN.md` |
+| **B** | v1.5 | Advanced analytics & NL hunting; broader evidence formats | 📋 Planned |
+| **C** | v1.6 | Compliance automation + audit intelligence | 📋 Planned |
+| **D** | v1.7 | Multi-agent roster UX + executive dashboard | 📋 Planned |
+| **E** | v2.x | Connectors, multi-tenant, commercial scale | 🔮 Future |
 
 ---
 

@@ -1,11 +1,20 @@
 # SOC Console — Product Requirements Doc
 
+**Product vision (2026-07-26):** Evolve from *AI threat intel + playbook generator* to **Agentic AI SOC Command Center**.
+Canonical narrative: [`docs/product/VISION.md`](../docs/product/VISION.md).
+
 ## Original Problem Statement
 
 Agentic Cybersecurity Threat Intelligence & Incident Response Advisor — a multi-agent AI web app that ingests raw
 security logs, extracts and enriches IoCs, correlates them into attack narratives mapped to MITRE ATT&CK, and generates
 citation-grounded incident response playbooks with a mandatory Human-in-the-Loop (HiTL) approval gate for critical
 incidents.
+
+## Target problem statement (platform)
+
+Support the full SOC incident lifecycle (collect → detect → investigate → correlate → enrich → respond → recover →
+audit → compliance → lessons learned) for three primary personas—**Analyst**, **Reviewer/Commander**, **Admin**—with
+explainable multi-agent AI as the differentiator (why suspicious, how connected, what evidence, what next).
 
 ## User Choices (locked)
 
@@ -17,9 +26,10 @@ incidents.
 
 ## Personas
 
-- **SOC Analyst (L1/L2)** — uploads logs, triages incidents, inspects IoCs & playbooks
-- **Senior Reviewer** — approves / rejects / edits HiTL-gated incidents
-- **Admin** — manages API keys, LLM provider, thresholds
+- **SOC Analyst (L1/L2/L3)** — evidence upload, Investigation Workspace, hunting, playbooks
+- **Reviewer / Manager / Incident Commander** — HiTL queue, case briefs, risk/SLA oversight
+- **Admin / Platform Owner** — keys, LLM, thresholds, identity, health, integrations
+- **Executive (demo)** — risk / compliance / MTTD-MTTR snapshot (not a full product line)
 
 ## Architecture
 
@@ -141,6 +151,8 @@ Local vector store + hybrid retrieval (BM25 + ANN RRF):
 - Expand golden set toward human-approved production playbooks (beyond synthetic offline labels; base set curated
   2026-07-19)
 - ~~Architecture layers + analytics performance (facet/cache) + LLM budget KPI~~ **DONE** (2026-07-26, PRs #1–#2)
+- **Investigation Workspace (v1.4)** — case hub, visual timeline, RCA narrative, entity graph, notebook, assistant
+  (see `docs/product/VISION.md` + design doc)
 
 ### P2 — Nice to have
 

@@ -7,6 +7,7 @@ Canonical detailed index: **[docs/DOCUMENTATION_INDEX.md](docs/DOCUMENTATION_IND
 | Area                            | Path                                                                                                  |
 |---------------------------------|-------------------------------------------------------------------------------------------------------|
 | Master roadmap (done + planned) | [ROADMAP.md](ROADMAP.md) · in-app **Roadmap** page                                                    |
+| Product vision (Command Center) | [docs/product/VISION.md](docs/product/VISION.md)                                                      |
 | Enterprise review               | [docs/ENTERPRISE_REVIEW.md](docs/ENTERPRISE_REVIEW.md) · [ENTERPRISE_REVIEW.md](ENTERPRISE_REVIEW.md) |
 | Presentations                   | [presentation/](presentation/)                                                                        |
 | Diagrams                        | [diagrams/](diagrams/)                                                                                |
