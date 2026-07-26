@@ -19,6 +19,7 @@ import {
     BookBookmark,
     ChartBar,
     ClockCounterClockwise,
+    Crosshair,
     Flask,
     Gauge,
     GearSix,
@@ -44,6 +45,13 @@ const NAV_COMMANDS = [
         icon: ShieldWarning,
         roles: ["analyst", "senior_reviewer", "admin"],
         keywords: "cases list"
+    },
+    {
+        to: "/hunt",
+        label: "Threat Hunt",
+        icon: Crosshair,
+        roles: ["analyst", "senior_reviewer", "admin"],
+        keywords: "hunt threat powershell lateral ransomware dns"
     },
     {
         to: "/analytics",

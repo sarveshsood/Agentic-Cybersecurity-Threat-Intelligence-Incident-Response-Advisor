@@ -33,7 +33,7 @@
 | AI timeline / RCA narrative  | Yes (workspace timeline + RCA API/UI) |
 | IOC entity graph             | Yes (SVG graph + Assets/Users) |
 | Case notebook                | Yes (notes CRUD API + UI) |
-| NL threat hunting            | Planned                        |
+| NL threat hunting            | Yes (rule-based intents + `/hunt`) |
 | Compliance live score        | Planned                        |
 | SIEM/XDR connectors          | Future                         |
 | Multi-tenant                 | Future (v2.0)                  |
