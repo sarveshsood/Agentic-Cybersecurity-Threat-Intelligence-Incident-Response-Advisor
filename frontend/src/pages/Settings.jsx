@@ -39,7 +39,6 @@ import {
     getModelMeta,
     modelLabel,
     modelsByTier,
-    MODEL_CATALOG,
     PROVIDER_MODELS,
     RECOMMENDED_OPS,
     tipFromMeta,
