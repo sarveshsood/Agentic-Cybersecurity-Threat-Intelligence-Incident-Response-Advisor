@@ -3000,6 +3000,31 @@
         ]
       }
     },
+    "/api/ops/status": {
+      "get": {
+        "description": "Admin Ops/Health panel \u2014 multi-replica flags, queue, timings, LLM budget.",
+        "operationId": "ops_status_api_api_ops_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ops Status Api",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/ready": {
       "get": {
         "operationId": "ready_api_api_ready_get",
@@ -6111,6 +6136,31 @@
         "summary": "Upload Batch",
         "tags": [
           "logs"
+        ]
+      }
+    },
+    "/api/v1/ops/status": {
+      "get": {
+        "description": "Admin Ops/Health panel \u2014 multi-replica flags, queue, timings, LLM budget.",
+        "operationId": "ops_status_api_api_v1_ops_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ops Status Api",
+        "tags": [
+          "meta"
         ]
       }
     },
