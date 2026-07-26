@@ -31,6 +31,19 @@ export {
     DataTable,
 } from "./components";
 
+/** Tooltip prerequisite primitives — prefer these over ad-hoc title= attributes */
+export {
+    HelpTip,
+    Tip,
+    PaneLabel,
+    ActionTip,
+    resolveHelpTipNode,
+    hasTipContent,
+    helpTipPropsFrom,
+    warnMissingTooltip,
+    defaultTipCopy,
+} from "../components/HelpTip";
+
 export {
     IocCard,
     MitreChip,

@@ -451,10 +451,10 @@ Board score **78/100** — **Enterprise Pilot Ready (single-tenant)**. Strengths
 
 Figures live under this pack:
 
-- `assets/screenshots/01_login.png` … `12_architecture.png` (placeholder cards until live UI capture)  
-- `assets/figures/12_architecture.svg`, `data_flow.svg`, plus Mermaid sources  
+- `assets/screenshots/01_login.png` … `12_architecture.png` — **live light-theme UI captures** (Playwright: `capture_screenshots.py`)  
+- `assets/figures/12_architecture.svg` (light enterprise architecture poster), `data_flow.svg`, plus Mermaid sources  
 
-Insert as Figures 1–12 in the institute PDF if not using the auto-exported `PROJECT_REPORT.pdf`.
+Embedded as Figures 1–12 in `PROJECT_REPORT.pdf` (one figure per page for readability). Regenerate with `python docs/capstone/export_report_pdf.py`.
 
 ---
 
@@ -483,7 +483,7 @@ ACTIRA delivers a complete capstone-grade **human-gated AI IR advisor**: multi-f
 
 | Horizon | Items |
 |---------|--------|
-| Submission close | Demo video, screenshot pack, Login honesty |
+| Submission close | Demo video (student-owned); screenshot pack done (light theme) |
 | Next release | SSO JWKS, rate limits, E2E expansion, Analytics error polish |
 | v2.0 | Multi-tenant, connectors, commercial pilot |
 | v3.0 | Gated SOAR, forensics agent, formal multi-agent roster UX, RAGAS board |

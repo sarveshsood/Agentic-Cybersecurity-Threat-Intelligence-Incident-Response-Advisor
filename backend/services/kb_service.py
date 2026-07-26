@@ -162,7 +162,9 @@ async def ingest(
         "ingested_by": user.get("sub"),
         "ingested_at": datetime.now(timezone.utc).isoformat(),
     }
-    await db.kb_docs.update_one({"id": doc["id"]}, {"$set": store}, upsert=True)
+    from backend.repositories.kb import kb_repo
+
+    await kb_repo.upsert(store)
     await svc.audit(
         user, "kb.ingest", "kb_doc", doc["id"], {"title": doc.get("title"), "chars": len(body)}
     )
@@ -170,10 +172,12 @@ async def ingest(
 
 
 async def delete_custom(doc_id: str, user: dict) -> Dict[str, Any]:
+    from backend.repositories.kb import kb_repo
+
     ok = kb.remove_custom_doc(doc_id)
     if not ok:
         raise HTTPException(404, "Custom document not found")
-    await db.kb_docs.delete_one({"id": doc_id})
+    await kb_repo.delete(doc_id)
     await svc.audit(user, "kb.delete", "kb_doc", doc_id, {})
     return {"ok": True}
 

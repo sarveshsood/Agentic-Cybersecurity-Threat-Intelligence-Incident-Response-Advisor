@@ -32,6 +32,7 @@ import {AttackTechniqueChart} from "../components/AttackTechniqueChart";
 import {loadUiPrefs} from "../lib/uiPrefs";
 import {DataTable, PageHeader, useChartTheme} from "../design-system";
 import {HelpTip} from "../components/HelpTip";
+import {ListState} from "../components/ListState";
 import {toast} from "sonner";
 
 const STAT_HELP = {
@@ -245,6 +246,8 @@ export default function Analytics() {
     const SEV_COLOR = chart.severity;
     const showRetrieval = prefs.analytics_show_retrieval !== false;
     const [data, setData] = useState(null);
+    const [loadError, setLoadError] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [days, setDays] = useState(Number(prefs.analytics_default_days) || 30);
     const [retrieval, setRetrieval] = useState(null);
     const [retrievalErr, setRetrievalErr] = useState(null);
@@ -253,7 +256,19 @@ export default function Analytics() {
     const [showRetrievalPanel, setShowRetrievalPanel] = useState(showRetrieval);
 
     useEffect(() => {
-        api.get(`/analytics?window_days=${days}`).then((r) => setData(r.data));
+        setLoading(true);
+        setLoadError(null);
+        api
+            .get(`/analytics?window_days=${days}`)
+            .then((r) => {
+                setData(r.data);
+                setLoadError(null);
+            })
+            .catch((e) => {
+                setData(null);
+                setLoadError(e?.userMessage || e?.response?.data?.detail || e?.message || "Analytics unavailable");
+            })
+            .finally(() => setLoading(false));
     }, [days]);
 
     const loadRetrievalCompare = () => {
@@ -310,10 +325,33 @@ export default function Analytics() {
         }
     };
 
-    if (!data) return <div className="text-muted-foreground text-sm p-6">Loading security analytics telemetry…</div>;
+    if (loading && !data) {
+        return (
+            <div data-testid="analytics-page" className="space-y-4 p-1">
+                <ListState variant="loading" testid="analytics-loading" message="Loading security analytics…"/>
+            </div>
+        );
+    }
 
-    const t = data.totals;
+    if (loadError && !data) {
+        return (
+            <div data-testid="analytics-page" className="space-y-4 p-1">
+                <ListState variant="error" testid="analytics-load-error" message={loadError}/>
+            </div>
+        );
+    }
+
+    if (!data) {
+        return (
+            <div data-testid="analytics-page" className="space-y-4 p-1">
+                <ListState variant="empty" testid="analytics-empty" message="No analytics data for this window."/>
+            </div>
+        );
+    }
+
+    const t = data.totals || {};
     const vs = retrieval?.vector_store;
+    const vectorLive = Boolean(vs && (vs.available || vs.status === "ready" || vs.enabled || vs.backend));
     const critPct = t.incidents ? Math.round((100 * (t.critical || 0)) / t.incidents) : 0;
     const automationHealth = t.incidents ? Math.round(100 - (100 * (t.pending_review || 0)) / t.incidents) : 100;
 
@@ -333,17 +371,30 @@ export default function Analytics() {
                 }
                 subtitle={
                     <>
-                        Executive Reporting Window: Last {days} days · {t.incidents} total cases · {critPct}% critical
+                        Executive Reporting Window: Last {days} days · {t.incidents ?? 0} total cases · {critPct}% critical
                         exposure
                     </>
                 }
                 actions={
                     <div className="flex items-center gap-3 flex-wrap">
-            <span
-                className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground bg-muted/50 px-2 py-1 rounded border border-border">
-              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
-              Live Vector Stream Active
-            </span>
+                        {showRetrievalPanel && (
+                            <span
+                                className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground bg-muted/50 px-2 py-1 rounded border border-border"
+                                data-testid="analytics-vector-badge"
+                                title={
+                                    vectorLive
+                                        ? "Vector store reported ready from retrieval compare"
+                                        : "Vector status unknown or offline — badge not claiming live stream"
+                                }
+                            >
+                                <span
+                                    className={`w-1.5 h-1.5 rounded-full ${
+                                        vectorLive ? "bg-success animate-pulse" : "bg-muted-foreground"
+                                    }`}
+                                />
+                                {vectorLive ? "Vector store ready" : "Vector status pending"}
+                            </span>
+                        )}
                         <button
                             type="button"
                             onClick={exportAnalyticsReport}

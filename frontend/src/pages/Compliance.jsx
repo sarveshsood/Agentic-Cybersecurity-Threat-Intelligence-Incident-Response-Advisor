@@ -32,7 +32,7 @@ function statusBadgeClass(status) {
 export default function Compliance() {
     const [report, setReport] = useState(null);
     const [gapsPayload, setGapsPayload] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState(null);
 
@@ -112,6 +112,7 @@ export default function Compliance() {
     const gapCount = report?.gap_count ?? gapsPayload?.gap_count ?? 0;
     const gaps = gapsPayload?.gaps || report?.gaps_preview || [];
     const domains = report?.domains || [];
+    const live = report?.live_signals || gapsPayload?.live_signals || {};
 
     return (
         <div className="space-y-6 pb-12" data-testid="compliance-page">
@@ -122,7 +123,9 @@ export default function Compliance() {
                 tip={
                     <HelpTip
                         title="Compliance score"
-                        body="Weighted control checks against runtime evidence (RBAC, HiTL, audit trail, OIDC, vault, etc.). Gaps list remediations. Export the evidence pack for GRC tools."
+                        body="Weighted product-alignment checks against runtime evidence (RBAC, HiTL, audit trail, OIDC, vault, etc.). Gaps list remediations. Export the evidence pack for pilot GRC conversations."
+                        how="Not ISO / SOC 2 / NIST certification — score maps catalog controls to product capabilities only."
+                        testid="tip-compliance-page"
                     />
                 }
                 actions={
@@ -189,6 +192,88 @@ export default function Compliance() {
                     </p>
                 </div>
             </div>
+
+            {/* Live runtime signals feeding audit integrity + golden last-run evidence */}
+            {(live.audit_integrity_status || live.golden_last_ran_at !== undefined) && (
+                <div
+                    className="grid grid-cols-1 md:grid-cols-2 gap-3"
+                    data-testid="compliance-live-signals"
+                >
+                    <div className="soc-card p-3 border border-border rounded-lg text-xs space-y-1">
+                        <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                            Live · Audit integrity
+                            <HelpTip
+                                title="Live audit integrity"
+                                body="Sampled SHA-256 chain status from /audit/integrity. Mismatch or broken_chain demotes LOG-02 evidence."
+                                how="apply_live_evidence → audit_service.integrity(sample=50)."
+                                testid="tip-compliance-live-integrity"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono font-semibold text-sm" data-testid="compliance-live-integrity">
+                                {live.audit_integrity_status || "—"}
+                            </span>
+                            {live.audit_integrity_ok != null && (
+                                <span className="text-muted-foreground">
+                                    ok {live.audit_integrity_ok}
+                                    {live.audit_integrity_mismatch != null
+                                        ? ` · mismatch ${live.audit_integrity_mismatch}`
+                                        : ""}
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground m-0">
+                            Feeds LOG-02 control (fails only on mismatch / broken_chain).
+                        </p>
+                    </div>
+                    <div className="soc-card p-3 border border-border rounded-lg text-xs space-y-1">
+                        <div className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                            Live · Golden last run
+                            <HelpTip
+                                title="Live golden last run"
+                                body="Last stored golden benchmark pass/fail from Mongo. Failed last run demotes AI-02 (golden_eval_pass)."
+                                how="golden_runs id=last · summary metrics shown when present."
+                                testid="tip-compliance-live-golden"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                                className={`font-semibold text-sm ${
+                                    live.golden_last_passed === false
+                                        ? "text-error"
+                                        : live.golden_last_passed
+                                            ? "text-success"
+                                            : "text-foreground"
+                                }`}
+                                data-testid="compliance-live-golden"
+                            >
+                                {live.golden_last_passed === true
+                                    ? "PASSED"
+                                    : live.golden_last_passed === false
+                                        ? "FAILED"
+                                        : live.golden_last_ran_at
+                                            ? "recorded"
+                                            : "no stored run"}
+                            </span>
+                            {live.golden_last_ran_at && live.golden_last_ran_at !== "unavailable" && (
+                                <span className="font-mono text-muted-foreground text-[11px]">
+                                    {String(live.golden_last_ran_at).slice(0, 19)}
+                                </span>
+                            )}
+                        </div>
+                        {live.golden_last_summary && (
+                            <p className="text-[11px] text-muted-foreground m-0 font-mono">
+                                cases {live.golden_last_summary.n_cases ?? "—"} · IoC F1{" "}
+                                {live.golden_last_summary.mean_ioc_f1 ?? "—"} · tech R{" "}
+                                {live.golden_last_summary.mean_technique_recall ?? "—"}
+                            </p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground m-0">
+                            Feeds AI-02 control when a last golden run is stored.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {error && (
                 <ListState
@@ -263,6 +348,14 @@ export default function Compliance() {
                     title="Active Framework Status"
                     testid="compliance-frameworks-panel"
                     subtitle="Scores from mapped product controls"
+                    tip={
+                        <HelpTip
+                            title="Framework status"
+                            body="Per-framework alignment score (ISO / SOC 2 / NIST CSF / CIS). Status bands: Compliant ≥95, Passing ≥80, Review ≥60, else Gap."
+                            how="Weighted passed controls within each framework_id."
+                            testid="tip-compliance-frameworks"
+                        />
+                    }
                 >
                     <div className="divide-y divide-border">
                         {(report?.frameworks || []).length === 0 && (
@@ -295,6 +388,13 @@ export default function Compliance() {
                     title="Domain scores"
                     testid="compliance-domains-panel"
                     subtitle="Identity, logging, response, detect, assets, network"
+                    tip={
+                        <HelpTip
+                            title="Domain scores"
+                            body="Alignment by control domain (Identity, Logging, Response, etc.). Bars show weighted pass rate inside each domain."
+                            testid="tip-compliance-domains"
+                        />
+                    }
                 >
                     {domains.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-4">
@@ -332,6 +432,14 @@ export default function Compliance() {
                 title="Open gaps & remediation"
                 testid="compliance-gaps-panel"
                 subtitle={gapCount ? `${gapCount} control(s) need attention (priority by weight)` : "No open gaps"}
+                tip={
+                    <HelpTip
+                        title="Open gaps"
+                        body="Failed catalog controls with remediations. Higher weight = higher priority for pilot GRC conversations. Not a formal audit finding list."
+                        how="Controls whose evidence_keys are false after live demotion of audit_integrity / golden_eval_pass."
+                        testid="tip-compliance-gaps"
+                    />
+                }
                 actions={
                     gapCount > 0 ? (
                         <span className="text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">

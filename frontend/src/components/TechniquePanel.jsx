@@ -2,6 +2,7 @@ import {useEffect, useState} from "react";
 import {Link} from "react-router-dom";
 import {api} from "../lib/api";
 import {ArrowSquareOut, Crosshair, Database, LinkSimple, ShieldCheck, TreeStructure, X,} from "@phosphor-icons/react";
+import {HelpTip} from "./HelpTip";
 
 /**
  * Drill-down drawer for a single ATT&CK technique / sub-technique.
@@ -63,7 +64,14 @@ export default function TechniquePanel({technique, open, onClose}) {
                 <div
                     className="sticky top-0 z-10 flex items-start justify-between gap-3 px-4 py-3 border-b border-border bg-card/95 backdrop-blur">
                     <div className="min-w-0">
-                        <div className="soc-label mb-0.5">MITRE ATT&CK</div>
+                        <div className="soc-label mb-0.5 inline-flex items-center gap-1.5">
+                            MITRE ATT&CK
+                            <HelpTip
+                                title="Technique detail"
+                                body="Pipeline-mapped ATT&CK technique for this incident: confidence, evidence keywords, and catalog metadata when available."
+                                testid="tip-technique-panel"
+                            />
+                        </div>
                         <div className="font-mono text-primary text-sm">{technique.technique_id}</div>
                         <div className="font-semibold text-foreground text-lg leading-tight truncate">
                             {technique.name}

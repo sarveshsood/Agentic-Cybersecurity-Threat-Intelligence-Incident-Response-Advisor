@@ -1,29 +1,41 @@
 /**
- * ACTIRA Capstone viva deck — Project 4 submission.
+ * ACTIRA Capstone viva deck — Project 4 submission (light enterprise theme).
  * Run: node docs/capstone/presentation/build_capstone_pptx.js
  * Output: docs/capstone/presentation/ACTIRA_Capstone_Presentation.pptx
+ *
+ * Screenshots: docs/capstone/assets/screenshots/*.png (light theme captures)
  */
 const PptxGenJS = require("pptxgenjs");
 const path = require("path");
+const fs = require("fs");
 
-// Output stays next to this script: docs/capstone/presentation/
 const outPath = path.join(__dirname, "ACTIRA_Capstone_Presentation.pptx");
+const shotsDir = path.join(__dirname, "..", "assets", "screenshots");
 
+function shot(name) {
+  const p = path.join(shotsDir, name);
+  return fs.existsSync(p) ? p : null;
+}
+
+// Light enterprise palette (matches UI + report figures)
 const C = {
-  bg: "0B1220",
-  card: "121A2B",
-  cardAlt: "162033",
-  border: "243044",
-  text: "E8EEF7",
-  muted: "94A3B8",
-  accent: "38BDF8",
-  accent2: "22D3EE",
-  green: "34D399",
-  amber: "FBBF24",
-  red: "F87171",
+  bg: "F8FAFC",
+  card: "FFFFFF",
+  cardAlt: "F1F5F9",
+  border: "E2E8F0",
+  text: "0F172A",
+  muted: "64748B",
+  accent: "2563EB",
+  accentSoft: "DBEAFE",
+  green: "059669",
+  amber: "D97706",
+  red: "DC2626",
   white: "FFFFFF",
   navy: "0F172A",
+  headerBar: "0F172A",
 };
+
+const TOTAL = 20;
 
 const pptx = new PptxGenJS();
 pptx.defineLayout({ name: "WIDE", width: 13.333, height: 7.5 });
@@ -39,10 +51,14 @@ function bg(slide) {
   });
 }
 
-function footer(slide, n, total = 18) {
+function footer(slide, n, total = TOTAL) {
   slide.addShape(pptx.shapes.RECTANGLE, {
     x: 0, y: 7.15, w: 13.333, h: 0.35,
-    fill: { color: C.navy },
+    fill: { color: C.white },
+  });
+  slide.addShape(pptx.shapes.RECTANGLE, {
+    x: 0, y: 7.15, w: 13.333, h: 0.015,
+    fill: { color: C.border },
   });
   slide.addText("ACTIRA  ·  Capstone Project 4  ·  Confidential for evaluation", {
     x: 0.4, y: 7.18, w: 10, h: 0.28,
@@ -56,17 +72,17 @@ function footer(slide, n, total = 18) {
 
 function titleBar(slide, title, subtitle) {
   slide.addText(title, {
-    x: 0.5, y: 0.28, w: 12.3, h: 0.45,
-    fontSize: 26, bold: true, color: C.white, fontFace: "Calibri",
+    x: 0.5, y: 0.28, w: 12.3, h: 0.42,
+    fontSize: 24, bold: true, color: C.navy, fontFace: "Calibri",
   });
   if (subtitle) {
     slide.addText(subtitle, {
-      x: 0.5, y: 0.72, w: 12.3, h: 0.32,
+      x: 0.5, y: 0.7, w: 12.3, h: 0.3,
       fontSize: 13, color: C.accent, fontFace: "Calibri",
     });
   }
   slide.addShape(pptx.shapes.RECTANGLE, {
-    x: 0.5, y: 1.1, w: 2.2, h: 0.05,
+    x: 0.5, y: 1.08, w: 2.0, h: 0.045,
     fill: { color: C.accent },
   });
 }
@@ -75,8 +91,33 @@ function card(slide, x, y, w, h) {
   slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
     x, y, w, h,
     fill: { color: C.card },
-    shadow: { type: "outer", color: "000000", blur: 8, opacity: 0.25, offset: 2 },
+    line: { color: C.border, width: 1 },
+    shadow: { type: "outer", color: "0F172A", blur: 6, opacity: 0.06, offset: 1 },
     rectRadius: 0.08,
+  });
+}
+
+function addShot(slide, file, x, y, w, h) {
+  const p = shot(file);
+  if (!p) {
+    card(slide, x, y, w, h);
+    slide.addText(`[Missing ${file}]`, {
+      x, y: y + h / 2 - 0.2, w, h: 0.4,
+      fontSize: 12, color: C.muted, align: "center", fontFace: "Calibri",
+    });
+    return;
+  }
+  // Light frame
+  slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+    x: x - 0.04, y: y - 0.04, w: w + 0.08, h: h + 0.08,
+    fill: { color: C.white },
+    line: { color: C.border, width: 1 },
+    rectRadius: 0.06,
+  });
+  slide.addImage({
+    path: p,
+    x, y, w, h,
+    sizing: { type: "contain", w, h },
   });
 }
 
@@ -85,27 +126,27 @@ function card(slide, x, y, w, h) {
   const s = pptx.addSlide();
   bg(s);
   s.addShape(pptx.shapes.RECTANGLE, {
-    x: 0, y: 0, w: 0.18, h: 7.5, fill: { color: C.accent },
+    x: 0, y: 0, w: 0.16, h: 7.5, fill: { color: C.accent },
   });
   s.addText("CAPSTONE PROJECT 4", {
-    x: 0.7, y: 1.5, w: 11, h: 0.35,
-    fontSize: 14, color: C.accent, bold: true, fontFace: "Calibri",
-    charSpacing: 3,
+    x: 0.7, y: 1.45, w: 11, h: 0.35,
+    fontSize: 13, color: C.accent, bold: true, fontFace: "Calibri",
+    charSpacing: 2,
   });
   s.addText("ACTIRA", {
-    x: 0.7, y: 2.0, w: 12, h: 0.7,
-    fontSize: 48, bold: true, color: C.white, fontFace: "Calibri",
+    x: 0.7, y: 1.95, w: 12, h: 0.7,
+    fontSize: 46, bold: true, color: C.navy, fontFace: "Calibri",
   });
   s.addText("Agentic Cybersecurity Threat Intelligence\n& Incident Response Advisor", {
-    x: 0.7, y: 2.75, w: 11, h: 0.9,
-    fontSize: 22, color: C.text, fontFace: "Calibri",
+    x: 0.7, y: 2.75, w: 11, h: 0.85,
+    fontSize: 20, color: C.text, fontFace: "Calibri",
   });
   s.addText("Human-gated AI IR advisor  ·  Hybrid RAG  ·  Investigation workspace  ·  Offline golden eval", {
-    x: 0.7, y: 3.9, w: 11.5, h: 0.35,
+    x: 0.7, y: 3.85, w: 11.5, h: 0.35,
     fontSize: 13, color: C.muted, fontFace: "Calibri",
   });
   s.addText("Advanced Certification Programme in Agentic and Generative AI\nTalentSprint / IISc track  ·  26 July 2026  ·  Enterprise Pilot Ready (78/100)", {
-    x: 0.7, y: 5.5, w: 11, h: 0.7,
+    x: 0.7, y: 5.35, w: 11, h: 0.7,
     fontSize: 13, color: C.muted, fontFace: "Calibri",
   });
   footer(s, 1);
@@ -124,22 +165,22 @@ function card(slide, x, y, w, h) {
   ];
   pains.forEach((p, i) => {
     const x = 0.5 + (i % 2) * 6.3;
-    const y = 1.5 + Math.floor(i / 2) * 2.4;
-    card(s, x, y, 6.0, 2.15);
+    const y = 1.45 + Math.floor(i / 2) * 2.45;
+    card(s, x, y, 6.0, 2.2);
     s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-      x: x + 0.25, y: y + 0.35, w: 0.55, h: 0.55,
-      fill: { color: "1E3A5F" }, rectRadius: 0.08,
+      x: x + 0.25, y: y + 0.4, w: 0.55, h: 0.55,
+      fill: { color: C.accentSoft }, rectRadius: 0.08,
     });
     s.addText(String(i + 1), {
-      x: x + 0.25, y: y + 0.42, w: 0.55, h: 0.4,
+      x: x + 0.25, y: y + 0.48, w: 0.55, h: 0.4,
       fontSize: 16, bold: true, color: C.accent, align: "center", fontFace: "Calibri",
     });
     s.addText(p.t, {
-      x: x + 1.0, y: y + 0.35, w: 4.7, h: 0.45,
-      fontSize: 18, bold: true, color: C.white, fontFace: "Calibri",
+      x: x + 1.0, y: y + 0.4, w: 4.7, h: 0.45,
+      fontSize: 17, bold: true, color: C.navy, fontFace: "Calibri",
     });
     s.addText(p.d, {
-      x: x + 1.0, y: y + 0.9, w: 4.7, h: 0.9,
+      x: x + 1.0, y: y + 1.0, w: 4.7, h: 0.85,
       fontSize: 14, color: C.muted, fontFace: "Calibri",
     });
   });
@@ -151,39 +192,37 @@ function card(slide, x, y, w, h) {
   const s = pptx.addSlide();
   bg(s);
   titleBar(s, "Objectives & non-goals", "Clear scope for evaluators");
-  card(s, 0.5, 1.45, 6.2, 5.2);
+  card(s, 0.5, 1.4, 6.2, 5.25);
   s.addText("OBJECTIVES", {
-    x: 0.75, y: 1.65, w: 5.7, h: 0.35,
+    x: 0.75, y: 1.6, w: 5.7, h: 0.35,
     fontSize: 12, bold: true, color: C.green, fontFace: "Calibri", charSpacing: 1,
   });
-  const objs = [
+  [
     "Automate parse → IoC → TI → ATT&CK → RAG playbook",
     "Human-in-the-loop for critical / low-grounding cases",
     "Investigation workspace as case system of record",
     "Offline golden IR evaluation (CI gates)",
     "RBAC, vault, audit integrity, compliance alignment",
-  ];
-  objs.forEach((t, i) => {
+  ].forEach((t, i) => {
     s.addText("▸  " + t, {
-      x: 0.85, y: 2.2 + i * 0.7, w: 5.5, h: 0.6,
+      x: 0.85, y: 2.15 + i * 0.75, w: 5.5, h: 0.65,
       fontSize: 14, color: C.text, fontFace: "Calibri",
     });
   });
-  card(s, 6.95, 1.45, 5.9, 5.2);
+  card(s, 6.95, 1.4, 5.9, 5.25);
   s.addText("NON-GOALS", {
-    x: 7.2, y: 1.65, w: 5.4, h: 0.35,
+    x: 7.2, y: 1.6, w: 5.4, h: 0.35,
     fontSize: 12, bold: true, color: C.amber, fontFace: "Calibri", charSpacing: 1,
   });
-  const non = [
+  [
     "Not a Sentinel / Splunk / Falcon replacement",
     "Not multi-tenant SaaS isolation (v1)",
     "Not unsupervised SOAR execution",
     "Not formal ISO/SOC2 certification",
     "Not 500-user scale certification",
-  ];
-  non.forEach((t, i) => {
+  ].forEach((t, i) => {
     s.addText("▸  " + t, {
-      x: 7.3, y: 2.2 + i * 0.7, w: 5.3, h: 0.6,
+      x: 7.3, y: 2.15 + i * 0.75, w: 5.3, h: 0.65,
       fontSize: 14, color: C.text, fontFace: "Calibri",
     });
   });
@@ -196,8 +235,8 @@ function card(slide, x, y, w, h) {
   bg(s);
   titleBar(s, "Solution overview", "Human-gated AI IR advisor");
   s.addText("Upload logs → parse → IoC → TI → ATT&CK → hybrid RAG → playbook → HiTL → workspace → audit", {
-    x: 0.5, y: 1.4, w: 12.3, h: 0.4,
-    fontSize: 14, color: C.accent, fontFace: "Calibri",
+    x: 0.5, y: 1.35, w: 12.3, h: 0.38,
+    fontSize: 13, color: C.accent, fontFace: "Calibri",
   });
   const steps = [
     { n: "01", t: "Ingest", d: "Multi-format\nZIP + jobs" },
@@ -208,64 +247,75 @@ function card(slide, x, y, w, h) {
   ];
   steps.forEach((st, i) => {
     const x = 0.5 + i * 2.55;
-    card(s, x, 2.15, 2.4, 2.8);
+    card(s, x, 2.0, 2.4, 2.9);
     s.addText(st.n, {
-      x: x + 0.15, y: 2.35, w: 2.1, h: 0.4,
+      x: x + 0.15, y: 2.2, w: 2.1, h: 0.35,
       fontSize: 12, color: C.accent, bold: true, fontFace: "Calibri",
     });
     s.addText(st.t, {
-      x: x + 0.15, y: 2.85, w: 2.1, h: 0.45,
-      fontSize: 20, bold: true, color: C.white, fontFace: "Calibri",
+      x: x + 0.15, y: 2.7, w: 2.1, h: 0.45,
+      fontSize: 20, bold: true, color: C.navy, fontFace: "Calibri",
     });
     s.addText(st.d, {
-      x: x + 0.15, y: 3.45, w: 2.1, h: 1.1,
+      x: x + 0.15, y: 3.35, w: 2.1, h: 1.1,
       fontSize: 13, color: C.muted, fontFace: "Calibri",
     });
   });
   s.addText("Personas: Analyst  ·  Senior Reviewer  ·  Admin  ·  Executive (demo)", {
-    x: 0.5, y: 5.3, w: 12.3, h: 0.35,
+    x: 0.5, y: 5.25, w: 12.3, h: 0.35,
     fontSize: 14, color: C.text, fontFace: "Calibri",
   });
   s.addText("Positioning: complements SIEM dual-run — does not replace the platform of record.", {
-    x: 0.5, y: 5.75, w: 12.3, h: 0.35,
+    x: 0.5, y: 5.7, w: 12.3, h: 0.35,
     fontSize: 13, color: C.muted, fontFace: "Calibri",
   });
   footer(s, 4);
 }
 
-// ─── Slide 5 Architecture ────────────────────────────────────
+// ─── Slide 5 Architecture (figure) ───────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
-  titleBar(s, "Architecture", "Modular monolith · dual API · pilot-ready packaging");
-  const layers = [
-    { t: "React SPA", d: "SOC console · Workspace · Settings · Compliance", c: "1E3A5F" },
-    { t: "FastAPI  (/api  +  /api/v1)", d: "Auth · Jobs · Pipeline · Review · Hunt · LLM · Audit", c: "164E63" },
-    { t: "MongoDB  +  LanceDB", d: "Cases / users / audit  ·  Hybrid BM25 + vectors (RRF)", c: "14532D" },
-    { t: "External (optional)", d: "LLM providers  ·  AbuseIPDB / VT / TI  ·  Slack", c: "713F12" },
-  ];
-  layers.forEach((L, i) => {
-    s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-      x: 1.5, y: 1.5 + i * 1.2, w: 10.3, h: 1.0,
-      fill: { color: C.card }, rectRadius: 0.08,
-    });
-    s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
-      x: 1.5, y: 1.5 + i * 1.2, w: 0.15, h: 1.0,
-      fill: { color: C.accent }, rectRadius: 0.04,
-    });
-    s.addText(L.t, {
-      x: 1.95, y: 1.58 + i * 1.2, w: 9.5, h: 0.4,
-      fontSize: 16, bold: true, color: C.white, fontFace: "Calibri",
-    });
-    s.addText(L.d, {
-      x: 1.95, y: 2.0 + i * 1.2, w: 9.5, h: 0.35,
-      fontSize: 13, color: C.muted, fontFace: "Calibri",
-    });
-  });
+  titleBar(s, "Architecture", "Modular monolith · dual API · light enterprise UI");
+  addShot(s, "12_architecture.png", 0.55, 1.35, 12.2, 5.45);
   footer(s, 5);
 }
 
-// ─── Slide 6 AI / RAG ────────────────────────────────────────
+// ─── Slide 6 Architecture layers ─────────────────────────────
+{
+  const s = pptx.addSlide();
+  bg(s);
+  titleBar(s, "Architecture layers", "React · FastAPI · MongoDB · LanceDB");
+  const layers = [
+    { t: "React SPA", d: "SOC console · Workspace · Settings · Compliance" },
+    { t: "FastAPI  (/api  +  /api/v1)", d: "Auth · Jobs · Pipeline · Review · Hunt · LLM · Audit" },
+    { t: "MongoDB  +  LanceDB", d: "Cases / users / audit  ·  Hybrid BM25 + vectors (RRF)" },
+    { t: "External (optional)", d: "LLM providers  ·  AbuseIPDB / VT / TI  ·  Slack" },
+  ];
+  layers.forEach((L, i) => {
+    s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+      x: 1.5, y: 1.45 + i * 1.25, w: 10.3, h: 1.05,
+      fill: { color: C.card },
+      line: { color: C.border, width: 1 },
+      rectRadius: 0.08,
+    });
+    s.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+      x: 1.5, y: 1.45 + i * 1.25, w: 0.14, h: 1.05,
+      fill: { color: C.accent }, rectRadius: 0.04,
+    });
+    s.addText(L.t, {
+      x: 1.95, y: 1.55 + i * 1.25, w: 9.5, h: 0.4,
+      fontSize: 16, bold: true, color: C.navy, fontFace: "Calibri",
+    });
+    s.addText(L.d, {
+      x: 1.95, y: 1.98 + i * 1.25, w: 9.5, h: 0.35,
+      fontSize: 13, color: C.muted, fontFace: "Calibri",
+    });
+  });
+  footer(s, 6);
+}
+
+// ─── Slide 7 AI / RAG ────────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
@@ -282,29 +332,29 @@ function card(slide, x, y, w, h) {
     const col = i % 2;
     const row = Math.floor(i / 2);
     const x = 0.5 + col * 6.4;
-    const y = 1.45 + row * 1.75;
+    const y = 1.4 + row * 1.75;
     card(s, x, y, 6.15, 1.55);
     s.addText(it.t, {
       x: x + 0.3, y: y + 0.25, w: 5.5, h: 0.4,
-      fontSize: 16, bold: true, color: C.accent, fontFace: "Calibri",
+      fontSize: 15, bold: true, color: C.accent, fontFace: "Calibri",
     });
     s.addText(it.d, {
       x: x + 0.3, y: y + 0.7, w: 5.5, h: 0.6,
       fontSize: 13, color: C.muted, fontFace: "Calibri",
     });
   });
-  footer(s, 6);
+  footer(s, 7);
 }
 
-// ─── Slide 7 TI & ATT&CK ─────────────────────────────────────
+// ─── Slide 8 TI & ATT&CK ─────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
   titleBar(s, "Threat intelligence & ATT&CK", "Enrichment + technique mapping");
-  card(s, 0.5, 1.5, 6.0, 5.1);
+  card(s, 0.5, 1.45, 6.0, 5.2);
   s.addText("IoC & TI", {
-    x: 0.8, y: 1.75, w: 5.4, h: 0.4,
-    fontSize: 18, bold: true, color: C.white, fontFace: "Calibri",
+    x: 0.8, y: 1.7, w: 5.4, h: 0.4,
+    fontSize: 17, bold: true, color: C.navy, fontFace: "Calibri",
   });
   [
     "Extract IP / domain / URL / hash",
@@ -314,14 +364,14 @@ function card(slide, x, y, w, h) {
     "FORCE_MOCK_TI for deterministic tests",
   ].forEach((t, i) => {
     s.addText("●  " + t, {
-      x: 0.9, y: 2.4 + i * 0.65, w: 5.3, h: 0.55,
+      x: 0.9, y: 2.35 + i * 0.7, w: 5.3, h: 0.55,
       fontSize: 14, color: C.text, fontFace: "Calibri",
     });
   });
-  card(s, 6.8, 1.5, 6.0, 5.1);
+  card(s, 6.8, 1.45, 6.0, 5.2);
   s.addText("MITRE ATT&CK", {
-    x: 7.1, y: 1.75, w: 5.4, h: 0.4,
-    fontSize: 18, bold: true, color: C.white, fontFace: "Calibri",
+    x: 7.1, y: 1.7, w: 5.4, h: 0.4,
+    fontSize: 17, bold: true, color: C.navy, fontFace: "Calibri",
   });
   [
     "Heuristic keyword / pattern mapping",
@@ -331,42 +381,44 @@ function card(slide, x, y, w, h) {
     "Not full STIX/TAXII enterprise sync",
   ].forEach((t, i) => {
     s.addText("●  " + t, {
-      x: 7.2, y: 2.4 + i * 0.65, w: 5.3, h: 0.55,
+      x: 7.2, y: 2.35 + i * 0.7, w: 5.3, h: 0.55,
       fontSize: 14, color: C.text, fontFace: "Calibri",
     });
-  });
-  footer(s, 7);
-}
-
-// ─── Slide 8 Workspace ───────────────────────────────────────
-{
-  const s = pptx.addSlide();
-  bg(s);
-  titleBar(s, "Investigation workspace", "System of record for a single case");
-  const tabs = [
-    "Case", "Evidence", "Timeline", "Graph", "TI", "MITRE", "Notes", "Playbooks", "RCA", "AI"
-  ];
-  tabs.forEach((t, i) => {
-    const x = 0.5 + (i % 5) * 2.5;
-    const y = 1.6 + Math.floor(i / 5) * 1.5;
-    card(s, x, y, 2.35, 1.25);
-    s.addText(t, {
-      x: x + 0.1, y: y + 0.4, w: 2.15, h: 0.45,
-      fontSize: 16, bold: true, color: C.white, align: "center", fontFace: "Calibri",
-    });
-  });
-  s.addText("URL tab state (?tab=)  ·  Notes with audit  ·  SSE AI investigator  ·  Similar cases API", {
-    x: 0.5, y: 4.9, w: 12.3, h: 0.4,
-    fontSize: 14, color: C.muted, fontFace: "Calibri",
-  });
-  s.addText("Load errors and 404s surface explicit UI (no infinite spinner) — critical for analyst trust.", {
-    x: 0.5, y: 5.5, w: 12.3, h: 0.4,
-    fontSize: 14, color: C.accent, fontFace: "Calibri",
   });
   footer(s, 8);
 }
 
-// ─── Slide 9 Security ────────────────────────────────────────
+// ─── Slide 9 Workspace (screenshot) ──────────────────────────
+{
+  const s = pptx.addSlide();
+  bg(s);
+  titleBar(s, "Investigation workspace", "System of record for a single case");
+  addShot(s, "05_workspace.png", 0.5, 1.3, 8.4, 5.5);
+  card(s, 9.15, 1.3, 3.7, 5.5);
+  s.addText("Workspace tabs", {
+    x: 9.4, y: 1.55, w: 3.2, h: 0.35,
+    fontSize: 14, bold: true, color: C.accent, fontFace: "Calibri",
+  });
+  ["Case", "Evidence", "Timeline", "Graph", "TI", "MITRE", "Notes", "Playbooks", "RCA", "AI"].forEach((t, i) => {
+    s.addText("▸  " + t, {
+      x: 9.4, y: 2.05 + i * 0.4, w: 3.2, h: 0.38,
+      fontSize: 13, color: C.text, fontFace: "Calibri",
+    });
+  });
+  footer(s, 9);
+}
+
+// ─── Slide 10 Playbook + HiTL (screenshots) ──────────────────
+{
+  const s = pptx.addSlide();
+  bg(s);
+  titleBar(s, "Playbook & Human-in-the-Loop", "Citations, grounding, formal review");
+  addShot(s, "07_playbook.png", 0.4, 1.3, 6.15, 5.5);
+  addShot(s, "08_review.png", 6.75, 1.3, 6.15, 5.5);
+  footer(s, 10);
+}
+
+// ─── Slide 11 Security ───────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
@@ -383,21 +435,30 @@ function card(slide, x, y, w, h) {
     const col = i % 3;
     const row = Math.floor(i / 3);
     const x = 0.5 + col * 4.2;
-    const y = 1.5 + row * 2.5;
-    card(s, x, y, 4.0, 2.25);
+    const y = 1.4 + row * 2.55;
+    card(s, x, y, 4.0, 2.35);
     s.addText(it.t, {
       x: x + 0.25, y: y + 0.4, w: 3.5, h: 0.45,
-      fontSize: 18, bold: true, color: C.accent, fontFace: "Calibri",
+      fontSize: 17, bold: true, color: C.accent, fontFace: "Calibri",
     });
     s.addText(it.d, {
-      x: x + 0.25, y: y + 1.0, w: 3.5, h: 0.9,
+      x: x + 0.25, y: y + 1.05, w: 3.5, h: 0.95,
       fontSize: 13, color: C.muted, fontFace: "Calibri",
     });
   });
-  footer(s, 9);
+  footer(s, 11);
 }
 
-// ─── Slide 10 Testing ────────────────────────────────────────
+// ─── Slide 12 Compliance screenshot ──────────────────────────
+{
+  const s = pptx.addSlide();
+  bg(s);
+  titleBar(s, "Compliance alignment", "Product readiness score — not formal certification");
+  addShot(s, "10_compliance.png", 0.5, 1.3, 12.3, 5.5);
+  footer(s, 12);
+}
+
+// ─── Slide 13 Testing ────────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
@@ -405,10 +466,10 @@ function card(slide, x, y, w, h) {
   s.addTable(
     [
       [
-        { text: "Metric", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-        { text: "Threshold", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-        { text: "Result", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-        { text: "Status", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
+        { text: "Metric", options: { bold: true, color: C.white, fill: { color: C.accent } } },
+        { text: "Threshold", options: { bold: true, color: C.white, fill: { color: C.accent } } },
+        { text: "Result", options: { bold: true, color: C.white, fill: { color: C.accent } } },
+        { text: "Status", options: { bold: true, color: C.white, fill: { color: C.accent } } },
       ],
       ["Golden cases", "≥ 30", "37", "PASS"],
       ["Mean IoC F1", "≥ 0.85", "0.982", "PASS"],
@@ -419,7 +480,7 @@ function card(slide, x, y, w, h) {
       ["Case errors / gate failures", "0", "0 / []", "PASS"],
     ],
     {
-      x: 0.5, y: 1.4, w: 12.3, h: 4.4,
+      x: 0.5, y: 1.35, w: 12.3, h: 4.5,
       colW: [4.0, 2.5, 3.0, 2.8],
       border: [{ pt: 0.5, color: C.border }],
       fontFace: "Calibri",
@@ -427,53 +488,68 @@ function card(slide, x, y, w, h) {
       color: C.text,
       align: "center",
       valign: "middle",
+      fill: { color: C.white },
     }
   );
   s.addText("Also: unit · RBAC · pipeline isolation · Playwright smoke  ·  Live LLM quality not gated offline (honest limit)", {
     x: 0.5, y: 6.15, w: 12.3, h: 0.35,
     fontSize: 12, color: C.muted, fontFace: "Calibri",
   });
-  footer(s, 10);
+  footer(s, 13);
 }
 
-// ─── Slide 11 Demo path ──────────────────────────────────────
+// ─── Slide 14 Demo path ──────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
   titleBar(s, "5-minute demo path", "Live path — see DEMO_SCRIPT.md");
   const pathSteps = [
-    { n: "1", t: "Login", d: "Analyst / reviewer roles" },
-    { n: "2", t: "Ingest", d: "Sample log package" },
-    { n: "3", t: "Incident", d: "Open workspace" },
-    { n: "4", t: "Evidence", d: "Timeline · graph" },
-    { n: "5", t: "Playbook", d: "Citations · score" },
-    { n: "6", t: "HiTL", d: "Approve + comment" },
-    { n: "7", t: "Govern", d: "Compliance · audit" },
+    { n: "1", t: "Login", d: "Roles" },
+    { n: "2", t: "Ingest", d: "Sample logs" },
+    { n: "3", t: "Incident", d: "Workspace" },
+    { n: "4", t: "Evidence", d: "Timeline" },
+    { n: "5", t: "Playbook", d: "Grounding" },
+    { n: "6", t: "HiTL", d: "Approve" },
+    { n: "7", t: "Govern", d: "Audit" },
   ];
   pathSteps.forEach((st, i) => {
     const x = 0.4 + i * 1.85;
-    card(s, x, 2.2, 1.75, 3.2);
+    card(s, x, 1.55, 1.75, 2.6);
     s.addShape(pptx.shapes.OVAL, {
-      x: x + 0.55, y: 2.5, w: 0.65, h: 0.65,
-      fill: { color: "1E3A5F" },
+      x: x + 0.55, y: 1.8, w: 0.65, h: 0.65,
+      fill: { color: C.accentSoft },
     });
     s.addText(st.n, {
-      x: x + 0.55, y: 2.6, w: 0.65, h: 0.5,
+      x: x + 0.55, y: 1.9, w: 0.65, h: 0.5,
       fontSize: 16, bold: true, color: C.accent, align: "center", fontFace: "Calibri",
     });
     s.addText(st.t, {
-      x: x + 0.1, y: 3.4, w: 1.55, h: 0.5,
-      fontSize: 14, bold: true, color: C.white, align: "center", fontFace: "Calibri",
+      x: x + 0.1, y: 2.65, w: 1.55, h: 0.4,
+      fontSize: 13, bold: true, color: C.navy, align: "center", fontFace: "Calibri",
     });
     s.addText(st.d, {
-      x: x + 0.1, y: 4.05, w: 1.55, h: 0.9,
+      x: x + 0.1, y: 3.15, w: 1.55, h: 0.55,
       fontSize: 12, color: C.muted, align: "center", fontFace: "Calibri",
     });
   });
-  footer(s, 11);
+  // Mini gallery
+  addShot(s, "02_dashboard.png", 0.5, 4.45, 4.0, 2.35);
+  addShot(s, "04_incidents.png", 4.7, 4.45, 4.0, 2.35);
+  addShot(s, "09_hunt.png", 8.9, 4.45, 4.0, 2.35);
+  footer(s, 14);
 }
 
-// ─── Slide 12 Results ────────────────────────────────────────
+// ─── Slide 15 Dashboard + Settings ───────────────────────────
+{
+  const s = pptx.addSlide();
+  bg(s);
+  titleBar(s, "Product UI (light theme)", "Dashboard KPIs · multi-provider LLM settings");
+  addShot(s, "02_dashboard.png", 0.4, 1.3, 6.15, 5.5);
+  addShot(s, "11_settings_llm.png", 6.75, 1.3, 6.15, 5.5);
+  footer(s, 15);
+}
+
+// ─── Slide 16 Results ────────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
@@ -486,21 +562,21 @@ function card(slide, x, y, w, h) {
   ];
   kpis.forEach((k, i) => {
     const x = 0.5 + i * 3.2;
-    card(s, x, 1.5, 3.0, 2.8);
+    card(s, x, 1.45, 3.0, 2.85);
     s.addText(k.v, {
-      x: x + 0.15, y: 1.8, w: 2.7, h: 0.7,
-      fontSize: 36, bold: true, color: C.accent, align: "center", fontFace: "Calibri",
+      x: x + 0.15, y: 1.75, w: 2.7, h: 0.7,
+      fontSize: 34, bold: true, color: C.accent, align: "center", fontFace: "Calibri",
     });
     s.addText(k.u, {
-      x: x + 0.15, y: 2.5, w: 2.7, h: 0.35,
+      x: x + 0.15, y: 2.45, w: 2.7, h: 0.35,
       fontSize: 14, color: C.muted, align: "center", fontFace: "Calibri",
     });
     s.addText(k.l, {
-      x: x + 0.2, y: 3.15, w: 2.6, h: 0.8,
+      x: x + 0.2, y: 3.05, w: 2.6, h: 0.85,
       fontSize: 13, color: C.text, align: "center", fontFace: "Calibri",
     });
   });
-  card(s, 0.5, 4.55, 12.3, 1.9);
+  card(s, 0.5, 4.55, 12.3, 1.95);
   s.addText("Impact narrative", {
     x: 0.8, y: 4.75, w: 11.7, h: 0.35,
     fontSize: 14, bold: true, color: C.green, fontFace: "Calibri",
@@ -509,10 +585,10 @@ function card(slide, x, y, w, h) {
     x: 0.8, y: 5.25, w: 11.7, h: 0.9,
     fontSize: 14, color: C.text, fontFace: "Calibri",
   });
-  footer(s, 12);
+  footer(s, 16);
 }
 
-// ─── Slide 13 Challenges ─────────────────────────────────────
+// ─── Slide 17 Challenges ─────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
@@ -528,53 +604,54 @@ function card(slide, x, y, w, h) {
   s.addTable(
     [
       [
-        { text: "Challenge", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-        { text: "Mitigation", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
+        { text: "Challenge", options: { bold: true, color: C.white, fill: { color: C.accent } } },
+        { text: "Mitigation", options: { bold: true, color: C.white, fill: { color: C.accent } } },
       ],
       ...rows,
     ],
     {
-      x: 0.5, y: 1.45, w: 12.3, h: 5.2,
+      x: 0.5, y: 1.4, w: 12.3, h: 5.25,
       colW: [4.0, 8.3],
       border: [{ pt: 0.5, color: C.border }],
       fontFace: "Calibri",
       fontSize: 14,
       color: C.text,
       valign: "middle",
+      fill: { color: C.white },
     }
   );
-  footer(s, 13);
+  footer(s, 17);
 }
 
-// ─── Slide 14 Future ─────────────────────────────────────────
+// ─── Slide 18 Future ─────────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
   titleBar(s, "Future work", "From pilot to production path");
   const horiz = [
-    { t: "Next sprint", items: ["Demo video + screenshots", "Login marketing honesty", "Analytics error polish"] },
-    { t: "Next release", items: ["SSO JWKS hardening", "API rate limits", "E2E expansion"] },
+    { t: "Next sprint", items: ["Demo video polish", "Analytics error polish", "E2E expansion"] },
+    { t: "Next release", items: ["SSO JWKS hardening", "API rate limits", "Connector pilots"] },
     { t: "v2.0", items: ["Multi-tenant design", "SIEM connectors", "Commercial pilot"] },
     { t: "v3.0", items: ["Gated SOAR actions", "Forensics agent", "RAGAS board metrics"] },
   ];
   horiz.forEach((h, i) => {
     const x = 0.45 + i * 3.2;
-    card(s, x, 1.55, 3.05, 5.0);
+    card(s, x, 1.5, 3.05, 5.1);
     s.addText(h.t, {
-      x: x + 0.2, y: 1.85, w: 2.65, h: 0.5,
+      x: x + 0.2, y: 1.8, w: 2.65, h: 0.5,
       fontSize: 16, bold: true, color: C.accent, fontFace: "Calibri",
     });
     h.items.forEach((it, j) => {
       s.addText("▸  " + it, {
-        x: x + 0.2, y: 2.7 + j * 0.9, w: 2.65, h: 0.75,
+        x: x + 0.2, y: 2.7 + j * 0.95, w: 2.65, h: 0.8,
         fontSize: 13, color: C.text, fontFace: "Calibri",
       });
     });
   });
-  footer(s, 14);
+  footer(s, 18);
 }
 
-// ─── Slide 15 Conclusion ─────────────────────────────────────
+// ─── Slide 19 Conclusion ─────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
@@ -587,112 +664,35 @@ function card(slide, x, y, w, h) {
     "Ethical stance: advisory AI with human accountability for high-risk actions",
   ];
   bullets.forEach((b, i) => {
-    card(s, 0.5, 1.4 + i * 1.0, 12.3, 0.88);
+    card(s, 0.5, 1.35 + i * 1.02, 12.3, 0.9);
     s.addText((i + 1) + ".  " + b, {
-      x: 0.8, y: 1.55 + i * 1.0, w: 11.7, h: 0.6,
-      fontSize: 15, color: C.text, fontFace: "Calibri",
+      x: 0.8, y: 1.5 + i * 1.02, w: 11.7, h: 0.6,
+      fontSize: 14, color: C.text, fontFace: "Calibri",
     });
   });
-  footer(s, 15);
+  footer(s, 19);
 }
 
-// ─── Slide 16 Q&A ────────────────────────────────────────────
+// ─── Slide 20 Q&A ────────────────────────────────────────────
 {
   const s = pptx.addSlide();
   bg(s);
   s.addShape(pptx.shapes.RECTANGLE, {
-    x: 0, y: 0, w: 0.18, h: 7.5, fill: { color: C.accent },
+    x: 0, y: 0, w: 0.16, h: 7.5, fill: { color: C.accent },
   });
   s.addText("Thank you", {
-    x: 0.7, y: 2.3, w: 12, h: 0.7,
-    fontSize: 42, bold: true, color: C.white, fontFace: "Calibri",
+    x: 0.7, y: 2.2, w: 12, h: 0.7,
+    fontSize: 42, bold: true, color: C.navy, fontFace: "Calibri",
   });
   s.addText("Questions & discussion", {
-    x: 0.7, y: 3.1, w: 12, h: 0.5,
-    fontSize: 24, color: C.accent, fontFace: "Calibri",
+    x: 0.7, y: 3.0, w: 12, h: 0.5,
+    fontSize: 22, color: C.accent, fontFace: "Calibri",
   });
-  s.addText("Pack: docs/capstone/  ·  Report: PROJECT_REPORT.md  ·  Appendices: appendices/\nPPT: presentation/  ·  Board: board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md", {
-    x: 0.7, y: 4.2, w: 11.5, h: 0.9,
+  s.addText("Pack: docs/capstone/  ·  Report PDF: PROJECT_REPORT.pdf  ·  Appendices: appendices/\nPPT: presentation/  ·  Board: board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md\nScreenshots: light-theme live captures (capture_screenshots.py)", {
+    x: 0.7, y: 4.1, w: 11.5, h: 1.2,
     fontSize: 14, color: C.muted, fontFace: "Calibri",
   });
-  footer(s, 16);
-}
-
-// ─── Backup 17 Competitive ───────────────────────────────────
-{
-  const s = pptx.addSlide();
-  bg(s);
-  titleBar(s, "Backup — competitive positioning", "Do not claim SIEM replacement");
-  s.addTable(
-    [
-      [
-        { text: "Dimension", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-        { text: "ACTIRA", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-        { text: "SIEM / XDR", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-        { text: "Generic LLM", options: { bold: true, color: C.white, fill: { color: "1E3A5F" } } },
-      ],
-      ["Grounded IR playbooks", "Yes + citations", "Playbooks / SOAR", "Weak / no KB"],
-      ["HiTL gates", "First-class", "Varies", "None"],
-      ["Offline golden eval", "CI gated", "Rare for IR NLP", "No"],
-      ["Data lake / connectors", "Upload pilot", "Core strength", "N/A"],
-      ["Investigation UX", "Workspace", "Mature", "Chat only"],
-      ["Open modular stack", "Yes", "Closed suites", "SaaS only"],
-    ],
-    {
-      x: 0.4, y: 1.4, w: 12.5, h: 5.2,
-      colW: [3.2, 3.2, 3.1, 3.0],
-      border: [{ pt: 0.5, color: C.border }],
-      fontFace: "Calibri",
-      fontSize: 12,
-      color: C.text,
-      valign: "middle",
-    }
-  );
-  footer(s, 17);
-}
-
-// ─── Backup 18 Stack ─────────────────────────────────────────
-{
-  const s = pptx.addSlide();
-  bg(s);
-  titleBar(s, "Backup — tech stack & pack index", "Submission artifacts");
-  card(s, 0.5, 1.45, 6.0, 5.15);
-  s.addText("Stack", {
-    x: 0.8, y: 1.7, w: 5.4, h: 0.4,
-    fontSize: 16, bold: true, color: C.accent, fontFace: "Calibri",
-  });
-  [
-    "Python · FastAPI · Pydantic",
-    "React SPA · Recharts",
-    "MongoDB · LanceDB",
-    "Multi-provider LLMs",
-    "pytest · Playwright",
-    "Docker Compose · Helm",
-  ].forEach((t, i) => {
-    s.addText("●  " + t, {
-      x: 0.9, y: 2.3 + i * 0.55, w: 5.3, h: 0.5,
-      fontSize: 14, color: C.text, fontFace: "Calibri",
-    });
-  });
-  card(s, 6.8, 1.45, 6.0, 5.15);
-  s.addText("docs/capstone/", {
-    x: 7.1, y: 1.7, w: 5.4, h: 0.4,
-    fontSize: 16, bold: true, color: C.accent, fontFace: "Calibri",
-  });
-  [
-    "PROJECT_REPORT.md",
-    "presentation/*.pptx",
-    "appendices/A–F",
-    "board/CAPSTONE_BOARD…",
-    "outlines + PPT_OUTLINE",
-    "assets/screenshots",
-  ].forEach((t, i) => {
-    s.addText("●  " + t, {
-      x: 7.2, y: 2.3 + i * 0.55, w: 5.3, h: 0.5,
-      fontSize: 14, color: C.text, fontFace: "Calibri",
-    });
-  });
-  footer(s, 18);
+  footer(s, 20);
 }
 
 pptx.writeFile({ fileName: outPath }).then(() => {

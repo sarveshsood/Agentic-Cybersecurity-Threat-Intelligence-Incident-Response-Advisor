@@ -32,11 +32,22 @@ function readStoredTheme() {
 }
 
 function applyDomTheme(resolved) {
+    if (typeof document === "undefined") return;
     const root = document.documentElement;
     root.setAttribute("data-theme", resolved);
     root.classList.toggle("dark", resolved === "dark");
     root.classList.toggle("light", resolved === "light");
     root.style.colorScheme = resolved;
+}
+
+// Apply before first React paint so capture scripts / hard reloads do not flash
+// the CSS light defaults when the stored preference is dark.
+if (typeof window !== "undefined") {
+    try {
+        applyDomTheme(resolveTheme(readStoredTheme()));
+    } catch {
+        /* ignore */
+    }
 }
 
 export function ThemeProvider({children}) {

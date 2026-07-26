@@ -72,9 +72,9 @@ CONTROLS: List[Control] = [
         "framework": "NIST CSF",
         "domain": "Logging",
         "title": "Immutable audit trail of privileged actions",
-        "evidence_keys": ["audit_log"],
+        "evidence_keys": ["audit_log", "audit_integrity"],
         "weight": 1.5,
-        "remediation": "Protect audit collection; restrict /audit to reviewer/admin.",
+        "remediation": "Protect audit collection; restrict /audit to reviewer/admin; fix hash mismatches.",
     },
     {
         "id": "LOG-03",
@@ -211,9 +211,9 @@ CONTROLS: List[Control] = [
         "framework": "NIST CSF",
         "domain": "Response",
         "title": "Offline evaluation / golden IR path",
-        "evidence_keys": ["golden_eval"],
+        "evidence_keys": ["golden_eval", "golden_eval_pass"],
         "weight": 1.0,
-        "remediation": "Run golden CI in pipeline; expand human-approved labels over time.",
+        "remediation": "Run golden CI /admin Benchmark; expand labels over time. Last stored run must pass gates.",
     },
     {
         "id": "AI-03",

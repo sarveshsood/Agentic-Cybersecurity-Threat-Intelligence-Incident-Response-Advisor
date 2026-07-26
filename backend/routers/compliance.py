@@ -24,8 +24,8 @@ async def _settings():
 async def get_compliance_status(
     user=Depends(require_roles(*_ROLES)),
 ):
-    """Overall score, frameworks, domains, gap preview."""
-    return compliance_service.status(await _settings())
+    """Overall score, frameworks, domains, gap preview (+ live audit/golden signals)."""
+    return await compliance_service.status_live(await _settings())
 
 
 @router.get("/gaps")
@@ -33,7 +33,7 @@ async def get_compliance_gaps(
     user=Depends(require_roles(*_ROLES)),
 ):
     """Failed controls with remediation priority."""
-    return compliance_service.gaps(await _settings())
+    return await compliance_service.gaps_live(await _settings())
 
 
 @router.get("/evidence-pack")
@@ -41,7 +41,7 @@ async def get_evidence_pack(
     user=Depends(require_roles(*_ROLES)),
 ):
     """JSON evidence pack for auditors / GRC export."""
-    return compliance_service.evidence_pack(await _settings())
+    return await compliance_service.evidence_pack_live(await _settings())
 
 
 @router.get("/score")

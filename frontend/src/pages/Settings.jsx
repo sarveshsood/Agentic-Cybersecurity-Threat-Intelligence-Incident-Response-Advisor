@@ -31,6 +31,7 @@ import {
     uiPrefMatchesRecommended,
 } from "../lib/uiPrefs";
 import {HoverCard, HoverCardContent, HoverCardTrigger,} from "../components/ui/hover-card";
+import {HelpTip} from "../components/HelpTip";
 import {
     catalogFromApi,
     cloneModelCatalog,
@@ -550,6 +551,7 @@ const PROVIDER_LABELS = {
 export default function Settings() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [settings, setSettings] = useState(null);
+    const [settingsLoadMode, setSettingsLoadMode] = useState("loading"); // loading | live | fallback
     const [form, setForm] = useState({});
     const [initialForm, setInitialForm] = useState({});
     const [busy, setBusy] = useState(false);
@@ -557,6 +559,7 @@ export default function Settings() {
     const [customModelMode, setCustomModelMode] = useState(false);
     // Catalog lives in React state so provider/model UI always re-renders correctly
     const [llmCatalog, setLlmCatalog] = useState(() => cloneModelCatalog());
+    const [llmEffective, setLlmEffective] = useState(null);
     const [tiEditField, setTiEditField] = useState(null);
     const [showSlackHelp, setShowSlackHelp] = useState(false);
     const [uiPrefs, setUiPrefs] = useState(() => loadUiPrefs());
@@ -679,6 +682,7 @@ export default function Settings() {
     // that previously reset the form while the user was editing the provider).
     useEffect(() => {
         let isSubscribed = true;
+        let resolved = false;
         const fallback = {
             llm_provider: "anthropic",
             llm_model: "claude-sonnet-4-6",
@@ -698,8 +702,9 @@ export default function Settings() {
         };
 
         const safetyTimer = setTimeout(() => {
-            if (isSubscribed) {
+            if (isSubscribed && !resolved) {
                 hydrate(fallback, cloneModelCatalog());
+                setSettingsLoadMode("fallback");
             }
         }, 2500);
 
@@ -708,10 +713,25 @@ export default function Settings() {
             api.get("/settings").catch(() => null),
         ]).then(([catRes, settingsRes]) => {
             if (!isSubscribed) return;
+            resolved = true;
             clearTimeout(safetyTimer);
             const cat = catalogFromApi(catRes?.data || null);
             setLlmCatalog(cat);
-            hydrate(settingsRes?.data || fallback, cat);
+            if (settingsRes?.data) {
+                hydrate(settingsRes.data, cat);
+                setSettingsLoadMode("live");
+                if (settingsRes.data.llm_effective_provider) {
+                    setLlmEffective({
+                        provider: settingsRes.data.llm_effective_provider,
+                        model: settingsRes.data.llm_effective_model,
+                        via: settingsRes.data.llm_via_fallback,
+                        ts: settingsRes.data.llm_effective_ts,
+                    });
+                }
+            } else {
+                hydrate(fallback, cat);
+                setSettingsLoadMode("fallback");
+            }
         });
 
         return () => {
@@ -1062,9 +1082,12 @@ export default function Settings() {
                 title="Settings"
                 icon={HardDrives}
                 tip={
-                    <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            Hover <Info size={12} className="inline text-primary/80"/> for field help · secrets stay blank after load
-          </span>
+                    <HelpTip
+                        title="Settings"
+                        body="Admin configuration for LLM providers, HiTL gates, threat-intel keys, alerts, retention, and browser UI prefs. Hover (i) on fields for impact notes. Secret values stay blank after load — leave blank to keep existing."
+                        how="GET/PUT /settings · UI prefs in localStorage (actira_ui_prefs_v1). show_help_tips toggles HelpTip icons platform-wide."
+                        testid="tip-settings-page"
+                    />
                 }
                 subtitle="Admin configuration for providers, HiTL detection gates, threat intel keys, alerts, and browser UI preferences."
                 actions={
@@ -1144,15 +1167,25 @@ export default function Settings() {
                 }
             />
 
+            {settingsLoadMode === "fallback" && (
+                <AlertBanner
+                    variant="warning"
+                    title="Using offline defaults — server settings not loaded"
+                    description="GET /settings failed or timed out. Values below are browser defaults, not necessarily what is saved on the API. Fix connectivity and refresh before saving."
+                    testid="settings-fallback-banner"
+                    className="mb-4"
+                />
+            )}
+
             <ConfigHealth issues={issues} onJumpToField={jumpToField}/>
 
             <div
-                className="flex flex-wrap gap-1.5 mb-6 p-2 rounded-card border border-border bg-card shadow-sm sticky top-14 z-20 items-center"
+                className="flex flex-wrap gap-1 mb-6 p-1.5 rounded-card border border-border bg-card shadow-sm sticky top-14 z-20 items-stretch"
                 data-testid="settings-tabs"
                 role="tablist"
                 aria-label="Settings categories"
             >
-                {SETTINGS_TABS.map(({id, label, icon: Icon, iconColor, tip: tabTip}) => {
+                {SETTINGS_TABS.map(({id, label, icon: Icon, tip: tabTip}) => {
                     const active = activeTab === id;
                     const counts = tabIssueCounts[id] || {error: 0, warning: 0};
                     const badgeN = counts.error || counts.warning;
@@ -1167,18 +1200,22 @@ export default function Settings() {
                             data-testid={`tab-${id}`}
                             title={tabTip || label}
                             onClick={() => setActiveTab(id)}
-                            className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[2.5rem] ${
+                            className={`inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg text-[13px] font-medium leading-none tracking-tight transition-colors min-h-[2.375rem] ${
                                 active
                                     ? "bg-primary text-primary-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
                             }`}
                         >
-                            <Icon size={16} weight={active ? "bold" : "regular"}
-                                  className={`shrink-0 ${active ? "text-primary-foreground" : iconColor}`}/>
-                            <span className="tracking-wide">{label}</span>
+                            <Icon
+                                size={15}
+                                weight={active ? "bold" : "regular"}
+                                className={`shrink-0 ${active ? "text-primary-foreground" : "text-muted-foreground"}`}
+                                aria-hidden
+                            />
+                            <span className="whitespace-nowrap">{label}</span>
                             {badgeN > 0 && (
                                 <span
-                                    className={`min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-md text-[10px] font-mono grid place-items-center ${
+                                    className={`min-w-[1.15rem] h-[1.15rem] px-1 rounded text-[10px] font-mono font-semibold grid place-items-center leading-none ${
                                         counts.error
                                             ? active
                                                 ? "bg-white/20 text-white"
@@ -1194,8 +1231,8 @@ export default function Settings() {
                                     }
                                     data-testid={`tab-badge-${id}`}
                                 >
-                  {badgeN}
-                </span>
+                                    {badgeN}
+                                </span>
                             )}
                         </button>
                     );
@@ -1274,6 +1311,27 @@ export default function Settings() {
                                     </select>
                                 </Field>
 
+                                {llmEffective?.provider && (
+                                    <div
+                                        className="rounded-lg border theme-border px-3 py-2 text-xs mb-3"
+                                        data-testid="llm-effective-strip"
+                                    >
+                                        <span className="font-semibold text-foreground">Last effective LLM: </span>
+                                        <span className="font-mono text-primary">
+                                            {llmEffective.provider}/{llmEffective.model || "—"}
+                                        </span>
+                                        {llmEffective.via ? (
+                                            <span className="ml-2 text-[10px] uppercase font-bold text-warning">via fallback</span>
+                                        ) : (
+                                            <span className="ml-2 text-[10px] uppercase font-bold text-success">primary</span>
+                                        )}
+                                        {llmEffective.ts && (
+                                            <span className="ml-2 text-muted-foreground font-mono text-[10px]">
+                                                {llmEffective.ts}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                                 <Field
                                     key={`model-field-${activeProvider}`}
                                     label={`Model (${PROVIDER_LABELS[activeProvider] || activeProvider})`}
@@ -1282,7 +1340,7 @@ export default function Settings() {
                                     tipKey={`llm_model-${activeProvider}`}
                                     matchesRecommended={isRec(form, "llm_model") && isRec(form, "llm_provider")}
                                     warning={issueByField.llm_model}
-                                    hint={`${curatedModelIds.length} curated models · free + paid groups · custom ID allowed`}
+                                    hint={`${curatedModelIds.length} curated models · free + paid · experimental tagged · custom ID allowed`}
                                 >
                                     {!customModelMode ? (
                                         <select

@@ -46,6 +46,7 @@ def test_compute_and_verify_entry_hash():
 
 def test_normalize_audit_row_maps_ui_fields():
     from backend.services.audit_service import normalize_audit_row
+    from backend.repositories.audit import compute_entry_hash
 
     raw = {
         "id": "e2",
@@ -56,13 +57,29 @@ def test_normalize_audit_row_maps_ui_fields():
         "target_type": "incident",
         "target_id": "inc-99",
         "detail": {"notes": "needs more IoCs"},
+        "prev_hash": "",
     }
+    raw["entry_hash"] = compute_entry_hash(
+        entry_id=raw["id"],
+        ts=raw["ts"],
+        actor_id=raw["actor_id"],
+        actor_email=raw["actor_email"],
+        action=raw["action"],
+        target_type=raw["target_type"],
+        target_id=raw["target_id"],
+        detail=raw["detail"],
+        prev_hash=raw["prev_hash"],
+    )
     row = normalize_audit_row(raw)
     assert row["incident_id"] == "inc-99"
     assert row["analyst"] == "analyst@actira.local"
     assert row["comment"] == "needs more IoCs"
     assert row["timestamp"] == raw["ts"]
     assert row["action"] == "review.reject"
+    # Inspector payload fields for audit file-view style drawer
+    assert row["detail"] == raw["detail"]
+    assert row["entry_hash"] == raw["entry_hash"]
+    assert row["hash_ok"] is True
 
 
 def test_audit_routes_registered():

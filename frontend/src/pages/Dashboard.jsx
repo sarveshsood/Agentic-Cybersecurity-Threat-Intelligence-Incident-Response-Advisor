@@ -26,11 +26,6 @@ import {
     YAxis,
 } from "recharts";
 import {
-    ArrowUpRight,
-    ChartLineUp,
-    CheckCircle,
-    Clock,
-    Cpu,
     Database,
     Fingerprint,
     FolderSimpleLock,
@@ -38,16 +33,16 @@ import {
     HandTap,
     Info,
     MagnifyingGlass,
-    Pulse,
     ShieldCheck,
     ShieldWarning,
     Target,
-    Timer,
     TrendUp,
     UploadSimple,
     Users,
 } from "@phosphor-icons/react";
 import {DataTable, formatMetricValue, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
+import AgentRoster from "../components/AgentRoster";
+import ExecutiveStrip from "../components/ExecutiveStrip";
 
 /**
  * Demo KPI/incident fallbacks are OFF by default (enterprise trust).
@@ -246,13 +241,6 @@ export default function Dashboard() {
     const chart = useChartTheme();
 
     const SEV_COLOR = chart.severity || {critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#3b82f6'};
-    const STATUS_COLOR = chart.status || {
-        new: '#3b82f6',
-        in_progress: '#f59e0b',
-        pending_review: '#8b5cf6',
-        approved: '#22c55e',
-        rejected: '#ef4444'
-    };
 
     const limit = Math.max(5, Math.min(50, Number(prefs.dashboard_recent_limit) || 8));
     const showExtra = prefs.dashboard_extra_widgets !== false;
@@ -354,7 +342,8 @@ export default function Dashboard() {
                 errs.push(incRes.__err?.userMessage || incRes.__err?.message || "Incidents unavailable");
                 if (!silent) setIncidents([]);
             } else {
-                const all = Array.isArray(incRes?.data) ? incRes.data : [];
+                const raw = incRes?.data;
+                const all = Array.isArray(raw) ? raw : Array.isArray(raw?.items) ? raw.items : [];
                 // API already sorts created_at desc; keep defensive client sort for consistency
                 const recent = [...all]
                     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
@@ -386,27 +375,6 @@ export default function Dashboard() {
                 .map((e) => ({
                     severity: e.severity,
                     count: Number(e.count) || 0,
-                }));
-        }
-        return [];
-    }, [kpis]);
-
-    const statusPie = useMemo(() => {
-        if (kpis?.status_distribution?.length) {
-            const labelMap = {
-                new: "New",
-                in_progress: "In Progress",
-                pending_review: "Pending Review",
-                approved: "Approved",
-                rejected: "Rejected",
-                closed: "Closed"
-            };
-            return kpis.status_distribution
-                .filter((e) => Number(e.count) > 0)
-                .map((e) => ({
-                    ...e,
-                    count: Number(e.count) || 0,
-                    status: labelMap[e.status] || String(e.status || "").replace(/_/g, " ")
                 }));
         }
         return [];
@@ -466,16 +434,7 @@ export default function Dashboard() {
         return [];
     }, [kpis]);
 
-    const mttrLabel = kpis?.mean_mttr_hours != null && kpis.mean_mttr_hours !== ""
-        ? `${formatMetricValue(Number(kpis.mean_mttr_hours), {decimals: 2})}h`
-        : "—";
     const pendingCount = kpis?.pending_review ?? 0;
-    const acceptanceLabel = kpis?.acceptance_rate != null && kpis.acceptance_rate !== ""
-        ? `${Math.round(Number(kpis.acceptance_rate) * 100)}%`
-        : "—";
-    const groundingDisplay = kpis?.mean_grounding_score != null
-        ? formatMetricValue(Number(kpis.mean_grounding_score), {decimals: 2})
-        : "—";
 
     /** Stable chart shell — avoids Recharts layout thrash on empty data */
     const ChartEmpty = ({label = "No data yet"}) => (
@@ -492,8 +451,8 @@ export default function Dashboard() {
                 tip={<HelpTip title={DASH_TIPS.page.title} body={DASH_TIPS.page.body} testid="dash-tip-page"/>}
                 subtitle={
                     <>
-                        Live metrics from your ACTIRA tenant (API KPIs + recent incidents). Hover{" "}
-                        <Info size={11} className="inline text-primary/80"/> for metric help.
+                        Executive risk at a glance, then ops volume, then charts and recent cases.
+                        Hover <Info size={11} className="inline text-primary/80"/> for metric help.
                     </>
                 }
                 actions={
@@ -547,6 +506,14 @@ export default function Dashboard() {
                 </div>
             )}
 
+            {/* Layer 1 — leadership / risk narrative (criticals, HiTL, MTTR, AI quality) */}
+            <ExecutiveStrip
+                kpis={kpis}
+                loading={kpiLoading}
+                loadError={loadError}
+                showingDemoData={showingDemoData}
+            />
+
             <div
                 className="flex flex-wrap items-center gap-2.5 mb-6"
                 data-testid="dashboard-quick-actions"
@@ -577,16 +544,21 @@ export default function Dashboard() {
                 </Link>
             </div>
 
-            {/* KPI Grid Row — ops metrics only; LLM budget lives under Ops / Settings */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
+            {/* Layer 2 — ops volume only (no overlap with executive strip) */}
+            <div className="mb-2 flex items-center gap-1.5">
+                <span className="soc-label">Ops volume</span>
+                <HelpTip
+                    title="Ops volume"
+                    body="Ingest and enrichment volume. Risk/review/AI quality live in the executive strip above; severity breakdown is in the charts below."
+                    testid="tip-ops-volume"
+                />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 mb-6" data-testid="dashboard-ops-kpis">
                 <KpiCard loading={kpiLoading} testid="kpi-total" tip={kpiTip(DASH_TIPS.total)} label="Incidents" value={kpis.total_incidents}
                          sub="all-time" icon={ShieldCheck} tone="primary" to="/incidents"/>
-                <KpiCard loading={kpiLoading} testid="kpi-critical" tip={kpiTip(DASH_TIPS.critical)} label="Critical"
-                         value={kpis.critical_incidents} sub="severity=critical" icon={Pulse} tone="critical"
-                         to="/incidents?severity=critical"/>
-                <KpiCard loading={kpiLoading} testid="kpi-pending" tip={kpiTip(DASH_TIPS.pending)} label="HITL Pending"
-                         value={kpis.pending_review} sub="awaiting reviewer" icon={HandTap} tone="warning"
-                         to="/review"/>
+                <KpiCard loading={kpiLoading} testid="kpi-high" tip={kpiTip(DASH_TIPS.high)}
+                         label="High severity" value={kpis.high_incidents} sub="severity=high" icon={TrendUp}
+                         tone="warning" to="/incidents?severity=high"/>
                 <KpiCard loading={kpiLoading} testid="kpi-events" tip={kpiTip(DASH_TIPS.events)} label="Events Processed"
                          value={kpis.events_processed} sub="ingested logs" icon={Database} tone="primary"/>
                 <KpiCard loading={kpiLoading} testid="kpi-ips" tip={kpiTip(DASH_TIPS.ips)} label="Unique SRC IPs" value={kpis.unique_src_ips}
@@ -594,34 +566,16 @@ export default function Dashboard() {
                 <KpiCard loading={kpiLoading} testid="kpi-iocs" tip={kpiTip(DASH_TIPS.iocs)} label="Unique IOCs" value={kpis.unique_iocs}
                          sub="extracted indicators" icon={Target} tone="primary"/>
                 <KpiCard loading={kpiLoading} testid="kpi-high-threat" tip={kpiTip(DASH_TIPS.high_threat)} label="High Threat IOCs"
-                         value={kpis.high_threat_iocs} sub="score > 70" icon={ShieldWarning} tone="critical"/>
-
-                <KpiCard loading={kpiLoading} testid="kpi-high" tip={kpiTip(DASH_TIPS.high)}
-                         label="High" value={kpis.high_incidents} sub="severity=high" icon={TrendUp}
-                         tone="warning" to="/incidents?severity=high"/>
-                <KpiCard loading={kpiLoading} testid="kpi-medium" tip={kpiTip(DASH_TIPS.medium)}
-                         label="Medium" value={kpis.medium_incidents} sub="severity=medium"
-                         icon={ChartLineUp} tone="default" to="/incidents?severity=medium"/>
-                <KpiCard loading={kpiLoading} testid="kpi-low" tip={kpiTip(DASH_TIPS.low)}
-                         label="Low" value={kpis.low_incidents} sub="severity=low" icon={ArrowUpRight}
-                         tone="default" to="/incidents?severity=low"/>
+                         value={kpis.high_threat_iocs} sub={`score ≥ ${highThreat}`} icon={ShieldWarning} tone="critical"/>
                 <KpiCard loading={kpiLoading} testid="kpi-multi" tip={kpiTip(DASH_TIPS.multi)} label="Multi-File"
-                         value={kpis.multi_file_incidents} sub="complex incidents" icon={FolderSimpleLock}
+                         value={kpis.multi_file_incidents} sub="complex packages" icon={FolderSimpleLock}
                          tone="default"/>
-                <KpiCard loading={kpiLoading} testid="kpi-grounding" tip={kpiTip(DASH_TIPS.grounding)} label="Mean Grounding"
-                         value={groundingDisplay} sub="citation rate" icon={Cpu} tone="success"/>
-                <KpiCard loading={kpiLoading} testid="kpi-acceptance" tip={kpiTip(DASH_TIPS.acceptance)} label="Acceptance Rate"
-                         value={acceptanceLabel} sub={`${formatMetricValue(kpis.approved ?? 0)} approved`}
-                         icon={CheckCircle} tone="success"/>
-                <KpiCard loading={kpiLoading} testid="kpi-mttr" tip={kpiTip(DASH_TIPS.mttr)} label="Mean MTTR" value={mttrLabel}
-                         sub={kpis.mttr_sample_size ? `n=${formatMetricValue(kpis.mttr_sample_size)}` : "no reviews yet"}
-                         icon={Timer} tone="default"/>
             </div>
 
             {showExtra && !loading && (
                 <>
-                    {/* Top 4 Mix & Health Grid with strict height alignment */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6 items-stretch">
+                    {/* Layer 3 — distributions (severity + IoC only; lifecycle lives in workload) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
                         <div
                             className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-sev-mix">
@@ -662,43 +616,6 @@ export default function Dashboard() {
 
                         <div
                             className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
-                            data-testid="dash-status-mix">
-                            <div>
-                                <div className="flex items-center gap-1.5 mb-3">
-                                    <div
-                                        className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                                        <Users size={14} className="text-blue-600"/> Status mix
-                                    </div>
-                                    <HelpTip title={DASH_TIPS.status_mix.title} body={DASH_TIPS.status_mix.body}/>
-                                </div>
-                            </div>
-                            <div className="flex-1 flex items-center justify-center min-h-[160px]">
-                                {statusPie.length === 0 ? (
-                                    <ChartEmpty label="No status data yet"/>
-                                ) : (
-                                <ResponsiveContainer width="100%" height={160} debounce={50}>
-                                    <BarChart data={statusPie} margin={{left: -25, right: 0, top: 0, bottom: 0}}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                        <XAxis dataKey="status" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
-                                               tickLine={false} interval={0}/>
-                                        <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
-                                               allowDecimals={false}/>
-                                        <ReTooltip cursor={{fill: '#f8fafc'}}
-                                                   contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
-                                        <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={45} isAnimationActive={false}>
-                                            {statusPie.map((e) => {
-                                                const rawKey = e.status.toLowerCase().replace(/ /g, "_");
-                                                return <Cell key={e.status} fill={STATUS_COLOR[rawKey] || '#94a3b8'}/>;
-                                            })}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                                )}
-                            </div>
-                        </div>
-
-                        <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-ioc-types">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
@@ -728,49 +645,11 @@ export default function Dashboard() {
                                 )}
                             </div>
                         </div>
-
-                        <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between"
-                            data-testid="dash-soc-health">
-                            <div>
-                                <div
-                                    className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 mb-3">
-                                    <Clock size={14} className="text-blue-600"/> SOC health
-                                    <HelpTip title="SOC health"
-                                             body="Operational signals from KPI totals. High-threat uses Settings UI threshold."/>
-                                </div>
-                            </div>
-                            <div className="space-y-2.5 text-[12px] flex-1 flex flex-col justify-center">
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                                    <span className="text-slate-500 font-medium" title="Pending HiTL / total">Queue pressure</span>
-                                    <span
-                                        className="font-mono text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded">
-                    {kpis.pending_review} <span className="text-amber-600/50">/</span> {kpis.total_incidents}
-                  </span>
-                                </div>
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                                    <span className="text-slate-500 font-medium">Critical share</span>
-                                    <span className="font-mono text-red-600 font-bold">
-                    {kpis.total_incidents > 0 ? Math.round((100 * kpis.critical_incidents) / kpis.total_incidents) : 0}%
-                  </span>
-                                </div>
-                                <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
-                                    <span className="text-slate-500 font-medium">HiTL acceptance</span>
-                                    <span className="font-mono text-emerald-600 font-bold">
-                    {Math.round(kpis.acceptance_rate * 100)}%
-                  </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-slate-500 font-medium">Mean MTTR</span>
-                                    <span className="font-mono text-blue-600 font-bold">{mttrLabel}</span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
-                    {/* Middle Row: Analyst Workload & Top ATT&CK Techniques */}
+                    {/* Layer 3b — queue lifecycle + ATT&CK (single status chart) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
-                        {/* Analyst Workload */}
+                        {/* Analyst Workload — sole lifecycle status view */}
                         <div
                             className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm h-[380px] flex flex-col overflow-hidden"
                             data-testid="dash-workload"
@@ -778,11 +657,12 @@ export default function Dashboard() {
                             <div className="flex items-center gap-2 mb-4">
                                 <Users size={16} className="text-blue-600"/>
                                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    Analyst Workload
+                                    Analyst queue (by status)
                                 </div>
                                 <HelpTip
-                                    title="Analyst workload"
-                                    body="Open queue by lifecycle stage. Proxy for analyst backlog."
+                                    title="Analyst queue"
+                                    body="Open backlog by IR lifecycle stage. This is the only status breakdown on the dashboard (status mix chart was removed as duplicate)."
+                                    how="Uses the same status distribution as KPI status_distribution."
                                 />
                             </div>
 
@@ -943,6 +823,13 @@ export default function Dashboard() {
                 noPadding
                 title="Recent Incidents"
                 testid="dash-recent-panel"
+                tip={
+                    <HelpTip
+                        title="Recent incidents"
+                        body="Latest cases from the pipeline. Open a row for the investigation workspace. Severity and status badges match the Incidents list."
+                        testid="tip-dash-recent"
+                    />
+                }
                 actions={
                     <div className="flex items-center gap-3">
                         <span
@@ -1038,10 +925,17 @@ export default function Dashboard() {
 
             {/* Full-width ATT&CK panel so coverage matrix has room to fit */}
             <Panel
-                className="bg-white shadow-sm border-slate-200"
+                className="bg-white shadow-sm border-slate-200 mb-6"
                 title="MITRE ATT&CK Coverage"
                 subtitle="Technique frequency by tactic — use Coverage matrix for the full catalog grid"
                 testid="dash-heatmap-panel"
+                tip={
+                    <HelpTip
+                        title="ATT&CK coverage heatmap"
+                        body="How often each technique appears across incidents in the selected window. Density is frequency, not true enterprise coverage of the full ATT&CK catalog."
+                        testid="tip-dash-heatmap"
+                    />
+                }
                 bodyClassName="p-4 overflow-x-auto"
                 actions={
                     <HelpTip title={DASH_TIPS.heatmap.title} body={DASH_TIPS.heatmap.body} align="end"/>
@@ -1049,6 +943,25 @@ export default function Dashboard() {
             >
                 <AttackHeatmap counts={kpis.attack_heatmap || {}}/>
             </Panel>
+
+            {/* Layer 4 — product narrative (collapsed by default; not ops metrics) */}
+            <details className="soc-card mb-2 group" data-testid="agent-roster-details">
+                <summary
+                    className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-foreground hover:bg-[var(--shell-chip)]/50 rounded-xl"
+                >
+                    <span className="inline-flex items-center gap-2">
+                        How ACTIRA investigates
+                        <span className="text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
+                            agent roster · pipeline stages
+                        </span>
+                    </span>
+                    <span className="text-[11px] text-muted-foreground font-medium group-open:hidden">Show</span>
+                    <span className="text-[11px] text-muted-foreground font-medium hidden group-open:inline">Hide</span>
+                </summary>
+                <div className="px-2 pb-3">
+                    <AgentRoster compact className="!border-0 !shadow-none !bg-transparent"/>
+                </div>
+            </details>
         </div>
     );
 }

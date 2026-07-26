@@ -22,6 +22,10 @@ Or see [docs/dx/LOCAL_DEVELOPMENT.md](docs/dx/LOCAL_DEVELOPMENT.md).
 4. Open PR using the template
 5. Address review checklist items
 
+**UI rule:** tooltips / HelpTips are a **prerequisite** — use design-system
+`tipTitle`/`tipBody`, `PaneLabel`, or `DsButton tooltip=` so help is wired by default.
+See [docs/dx/TOOLTIP_PREREQUISITE.md](docs/dx/TOOLTIP_PREREQUISITE.md).
+
 Details: [docs/dx/GIT_WORKFLOW.md](docs/dx/GIT_WORKFLOW.md), [docs/dx/PR_GUIDELINES.md](docs/dx/PR_GUIDELINES.md).
 
 ## Code of conduct

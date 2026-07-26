@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
-import {useLocation, useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router-dom";
 import {useAuth} from "../lib/auth";
+import {useTheme} from "../lib/theme";
 import {api, apiErrorMessage} from "../lib/api";
 import {toast} from "sonner";
 import {
@@ -10,6 +11,7 @@ import {
     Clock,
     Cpu,
     Database,
+    Desktop,
     Eye,
     EyeSlash,
     FileText,
@@ -17,9 +19,11 @@ import {
     Globe,
     Key,
     MagnifyingGlass,
+    Moon,
     Pulse,
     Robot,
     ShieldCheck,
+    Sun,
     Target,
     User,
     Users,
@@ -103,9 +107,21 @@ function statusIconClass(ok) {
     return "text-slate-400";
 }
 
+const CAPABILITY_TIPS = {
+    Pipeline: "Ingest path: parse → IoC extract → threat intel enrich → ATT&CK → playbook.",
+    HiTL: "Human-in-the-loop: critical / low-grounding cases require senior review.",
+    "ATT&CK": "Heuristic MITRE ATT&CK technique mapping from logs and keywords.",
+    RAG: "Hybrid BM25 + vector retrieval grounds playbook citations in the KB.",
+    Eval: "Offline golden IR suite (CI gates) for quality regression checks.",
+};
+
 function CapabilityTile({icon: Icon, label, value}) {
     return (
-        <div className="sbp-status-tile" data-testid={`login-capability-${label.toLowerCase().replace(/\s+/g, "-")}`}>
+        <div
+            className="sbp-status-tile"
+            data-testid={`login-capability-${label.toLowerCase().replace(/\s+/g, "-")}`}
+            title={CAPABILITY_TIPS[label] || label}
+        >
             <div
                 className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-slate-500 font-semibold mb-2">
                 <Icon size={12} weight="bold" className="text-blue-600" aria-hidden/>
@@ -118,8 +134,8 @@ function CapabilityTile({icon: Icon, label, value}) {
 
 export default function Login() {
     const {login, register} = useAuth();
+    const {theme, resolvedTheme, toggle: toggleTheme} = useTheme();
     const nav = useNavigate();
-    const location = useLocation();
     const [mode, setMode] = useState("login");
     const [form, setForm] = useState({email: "", password: "", name: ""});
     const [loading, setLoading] = useState(false);
@@ -129,6 +145,7 @@ export default function Login() {
     const [publicRegister, setPublicRegister] = useState(true);
     const [statusRows, setStatusRows] = useState(DEFAULT_STATUS_ROWS);
     const demos = showDemoOperators();
+    const ThemeIcon = theme === "light" ? Sun : theme === "system" ? Desktop : Moon;
 
     useEffect(() => {
         try {
@@ -210,13 +227,8 @@ export default function Login() {
         }
     }, [publicRegister, mode]);
 
-    const redirectTo = (() => {
-        const from = location.state?.from;
-        if (from?.pathname && from.pathname !== "/login") {
-            return `${from.pathname}${from.search || ""}${from.hash || ""}`;
-        }
-        return "/";
-    })();
+    // Always land on main dashboard after auth (ignore deep-link return paths).
+    const redirectTo = "/";
 
     const submit = async (e) => {
         e.preventDefault();
@@ -254,7 +266,7 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen grid lg:grid-cols-5 bg-white text-slate-900">
+        <div className="min-h-screen grid lg:grid-cols-5 theme-shell text-[var(--shell-text)]" data-testid="login-page">
             <style>{`
         @keyframes sbp-drift {
           0%, 100% { transform: translate(0, 0); }
@@ -268,53 +280,56 @@ export default function Login() {
         .sbp-orb { animation: sbp-drift 12s ease-in-out infinite; }
         
         .sbp-status-tile {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
+          background: var(--shell-card);
+          border: 1px solid var(--shell-border);
           border-radius: 0.75rem;
           padding: 1rem;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
           transition: border-color 0.2s ease, box-shadow 0.2s ease;
+          color: var(--shell-text);
         }
-        .sbp-status-tile:hover { 
-          border-color: #93c5fd; 
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
+        .sbp-status-tile:hover {
+          border-color: hsl(var(--primary) / 0.45);
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08);
         }
         
         .sbp-feature-card {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          background: var(--shell-card);
+          border: 1px solid var(--shell-border);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
           transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+          color: var(--shell-text);
         }
         .sbp-feature-card:hover {
           transform: translateY(-2px);
-          border-color: #93c5fd;
-          box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+          border-color: hsl(var(--primary) / 0.45);
+          box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08);
         }
         
         .sbp-glass-card {
-          background: rgba(255, 255, 255, 0.98);
-          border: 1px solid #e2e8f0;
+          background: var(--shell-card);
+          border: 1px solid var(--shell-border);
           backdrop-filter: blur(20px);
-          box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.12);
+          color: var(--shell-text);
         }
         
         .sbp-input {
-          background: #ffffff;
-          border: 1px solid #cbd5e1;
-          color: #0f172a;
+          background: var(--shell-bg);
+          border: 1px solid var(--shell-border);
+          color: var(--shell-text);
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .sbp-input::placeholder { color: #94a3b8; }
+        .sbp-input::placeholder { color: hsl(var(--muted-foreground)); }
         .sbp-input:focus {
           outline: none;
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+          border-color: hsl(var(--primary));
+          box-shadow: 0 0 0 3px hsl(var(--primary) / 0.2);
         }
         
         .sbp-btn-primary {
-          background: linear-gradient(135deg, #2563EB, #1E40AF);
-          color: #ffffff;
+          background: linear-gradient(135deg, hsl(var(--primary)), var(--primary-hover));
+          color: hsl(var(--primary-foreground));
           transition: filter 0.15s ease, transform 0.1s ease;
         }
         .sbp-btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
@@ -330,7 +345,9 @@ export default function Login() {
 
             {/* LEFT HERO SECTION */}
             <div
-                className="hidden lg:flex lg:col-span-3 flex-col justify-between p-10 xl:p-16 relative overflow-y-auto max-h-screen scrollbar-thin bg-slate-50/50 border-r border-slate-200">
+                className="hidden lg:flex lg:col-span-3 flex-col justify-between p-10 xl:p-16 relative overflow-y-auto max-h-screen scrollbar-thin border-r theme-border"
+                style={{background: "color-mix(in srgb, var(--shell-bg) 92%, hsl(var(--primary)) 8%)"}}
+            >
                 <div
                     className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(37,99,235,0.08),_transparent_55%)] -z-10"/>
                 <div
@@ -489,9 +506,11 @@ export default function Login() {
 
             {/* RIGHT AUTH CARD SECTION */}
             <div
-                className="lg:col-span-2 flex items-center justify-center p-6 py-12 lg:p-12 relative bg-white lg:bg-transparent">
+                className="lg:col-span-2 flex items-center justify-center p-6 py-12 lg:p-12 relative"
+                style={{background: "var(--shell-bg)"}}
+            >
                 <div
-                    className="absolute inset-0 lg:hidden bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.05),_transparent_60%)] pointer-events-none"
+                    className="absolute inset-0 lg:hidden bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)_/_0.08),_transparent_60%)] pointer-events-none"
                     aria-hidden/>
 
                 <form
@@ -503,15 +522,27 @@ export default function Login() {
                     <div className="flex items-center justify-between mb-8">
                         <div className="flex items-center gap-2">
                             <div
-                                className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 grid place-items-center lg:hidden">
-                                <Circle weight="fill" size={14} className="text-blue-600" aria-hidden/>
+                                className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 grid place-items-center lg:hidden">
+                                <Circle weight="fill" size={14} className="text-primary" aria-hidden/>
                             </div>
-                            <span className="font-bold tracking-tight text-slate-900 lg:hidden">{BRAND.shortName}</span>
+                            <span className="font-bold tracking-tight text-[var(--shell-text)] lg:hidden">{BRAND.shortName}</span>
                         </div>
-                        <span
-                            className="text-[10px] font-mono uppercase tracking-[0.08em] text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3 py-1 font-semibold">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                data-testid="login-theme-toggle"
+                                onClick={() => toggleTheme()}
+                                className="p-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary transition-colors"
+                                title={`Theme: ${theme} (${resolvedTheme}) — click to cycle`}
+                                aria-label={`Theme ${theme}. Click to change`}
+                            >
+                                <ThemeIcon size={16} weight="bold"/>
+                            </button>
+                            <span
+                                className="text-[10px] font-mono uppercase tracking-[0.08em] text-muted-foreground theme-chip border theme-border rounded-full px-3 py-1 font-semibold">
               v2 Enterprise Demo
             </span>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2 mb-1.5">
@@ -639,7 +670,7 @@ export default function Login() {
 
                     <button
                         data-testid="auth-submit"
-                        /* SSO sibling below */
+                        type="submit"
                         disabled={loading}
                         className="sbp-btn-primary w-full py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-600/20 mt-2"
                     >

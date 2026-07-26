@@ -21,6 +21,10 @@ async def list_incidents(
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    include_meta: bool = Query(
+        False,
+        description="When true, return {items,total,skip,limit} for server-side pagination",
+    ),
     user=Depends(get_current_user),
 ):
     return await incident_service.list_incidents(
@@ -29,6 +33,7 @@ async def list_incidents(
         technique=technique,
         skip=skip,
         limit=limit,
+        include_meta=include_meta,
     )
 
 

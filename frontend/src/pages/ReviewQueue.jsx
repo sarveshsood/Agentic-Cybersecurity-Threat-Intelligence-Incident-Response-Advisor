@@ -105,16 +105,15 @@ export default function ReviewQueue() {
     const initialSort = parseSortSpec(prefs.review_default_sort) || {key: "threat_score", dir: "desc"};
     const {sorted, sort, toggleSort} = useSortableData(items, initialSort, ACCESSORS);
 
+    // Backend accepts skip/limit only; filters + pagination are client-side.
+    // Load a wide window once so triage filters see the full pending set (cap 200).
     const loadQueue = useCallback(() => {
         setLoading(true);
         api
             .get("/review/queue", {
                 params: {
-                    page,
-                    pageSize,
-                    severity: severity || undefined,
-                    minThreat: minThreat > 0 ? minThreat : undefined,
-                    q: q.trim() || undefined,
+                    skip: 0,
+                    limit: 200,
                 },
             })
             .then((r) => {
@@ -127,7 +126,7 @@ export default function ReviewQueue() {
                 setLoadError(e?.userMessage || e?.response?.data?.detail || "Could not load review queue");
             })
             .finally(() => setLoading(false));
-    }, [page, pageSize, severity, minThreat, q]);
+    }, []);
 
     useEffect(() => {
         loadQueue();
@@ -438,6 +437,14 @@ export default function ReviewQueue() {
 
             <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
                 <div className="flex flex-wrap items-center gap-2 text-xs max-w-full" data-testid="review-filter-bar">
+                    <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Triage filters</span>
+                        <HelpTip
+                            title="Review filters"
+                            body="Narrow pending_review cases by severity, technique, threat score, grounding ceiling, and IoC/technique counts. Bulk approve/reject still requires a justification."
+                            testid="tip-review-filters"
+                        />
+                    </div>
                     <div className="relative min-w-[10rem] flex-1 sm:flex-none sm:w-52">
                         <MagnifyingGlass size={12}
                                          className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"/>

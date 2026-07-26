@@ -7,6 +7,7 @@
 | [../presentation/](../presentation/)                                             | CXO / demos          | Pitch & deep-dive decks               |
 | [../diagrams/](../diagrams/)                                                     | Architects           | Mermaid sources                       |
 | [dx/](dx/)                                                                       | Developers           | Setup, standards, PR, review          |
+| [dx/TOOLTIP_PREREQUISITE.md](dx/TOOLTIP_PREREQUISITE.md)                         | Frontend / agents    | Mandatory HelpTip/Tip defaults        |
 | [dx/BACKEND_STRUCTURE.md](dx/BACKEND_STRUCTURE.md)                               | Developers           | v1.1 routers + `/api/v1` layout       |
 | [product/VISION.md](product/VISION.md)                                           | Product / board      | Agentic SOC Command Center vision     |
 | [product/FEATURE_INVENTORY.md](product/FEATURE_INVENTORY.md)                     | Product              | Shipped vs planned feature matrix     |

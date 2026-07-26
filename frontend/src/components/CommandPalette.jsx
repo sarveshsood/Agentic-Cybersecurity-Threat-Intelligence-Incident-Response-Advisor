@@ -20,16 +20,19 @@ import {
     ChartBar,
     ClockCounterClockwise,
     Crosshair,
+    FileText,
     Flask,
     Gauge,
     GearSix,
     Heartbeat,
     ListChecks,
     MapTrifold,
+    ShieldCheck,
     ShieldWarning,
     UploadSimple,
 } from "@phosphor-icons/react";
 
+/** Same order as Layout left rail (operate → analyze → govern → admin). */
 const NAV_COMMANDS = [
     {to: "/", label: "Dashboard", icon: Gauge, roles: ["analyst", "senior_reviewer", "admin"], keywords: "home kpi"},
     {
@@ -37,49 +40,63 @@ const NAV_COMMANDS = [
         label: "Ingest Logs",
         icon: UploadSimple,
         roles: ["analyst", "senior_reviewer", "admin"],
-        keywords: "upload pipeline"
+        keywords: "upload pipeline",
     },
     {
         to: "/incidents",
         label: "Incidents",
         icon: ShieldWarning,
         roles: ["analyst", "senior_reviewer", "admin"],
-        keywords: "cases list"
-    },
-    {
-        to: "/hunt",
-        label: "Threat Hunt",
-        icon: Crosshair,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        keywords: "hunt threat powershell lateral ransomware dns"
-    },
-    {
-        to: "/analytics",
-        label: "Analytics",
-        icon: ChartBar,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        keywords: "charts eda"
+        keywords: "cases list",
     },
     {
         to: "/review",
         label: "Review Queue",
         icon: ListChecks,
         roles: ["senior_reviewer", "admin"],
-        keywords: "hitl approve"
+        keywords: "hitl approve",
+    },
+    {
+        to: "/hunt",
+        label: "Threat Hunt",
+        icon: Crosshair,
+        roles: ["analyst", "senior_reviewer", "admin"],
+        keywords: "hunt threat powershell lateral ransomware dns",
+    },
+    {
+        to: "/analytics",
+        label: "Analytics",
+        icon: ChartBar,
+        roles: ["analyst", "senior_reviewer", "admin"],
+        keywords: "charts eda",
     },
     {
         to: "/knowledge",
         label: "Knowledge Base",
         icon: BookBookmark,
         roles: ["analyst", "senior_reviewer", "admin"],
-        keywords: "kb search mitre"
+        keywords: "kb search mitre",
+    },
+    {
+        to: "/audit",
+        label: "Audit Trail",
+        icon: FileText,
+        roles: ["senior_reviewer", "admin"],
+        keywords: "audit log compliance hash integrity",
+    },
+    {
+        to: "/compliance",
+        label: "Compliance",
+        icon: ShieldCheck,
+        roles: ["senior_reviewer", "admin"],
+        keywords: "iso soc2 nist gaps evidence governance",
     },
     {
         to: "/roadmap",
         label: "Roadmap",
         icon: MapTrifold,
         roles: ["analyst", "senior_reviewer", "admin"],
-        keywords: "product"
+        keywords: "product",
     },
     {to: "/benchmark", label: "Golden Eval", icon: Flask, roles: ["admin"], keywords: "benchmark quality"},
     {
@@ -87,7 +104,7 @@ const NAV_COMMANDS = [
         label: "Ops & Health",
         icon: Heartbeat,
         roles: ["admin"],
-        keywords: "ops health ha multi-replica queue timings"
+        keywords: "ops health ha multi-replica queue timings",
     },
     {to: "/settings", label: "Settings", icon: GearSix, roles: ["admin"], keywords: "llm keys config"},
 ];

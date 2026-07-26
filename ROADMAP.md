@@ -1,9 +1,10 @@
 # ACTIRA — Master Roadmap (tracking)
 
-**Last updated:** 2026-07-26  
-**Board maturity:** Enterprise Demonstration Ready · **~89–90/100**  
-**In-app roadmap:** Admin/analyst UI **Roadmap** page (seeded from `backend/roadmap_data.py` — auto-merges new IDs on
-API start)
+**Last updated:** 2026-07-27  
+**Demo packaging maturity:** Enterprise Demonstration Ready · **~89–90/100**  
+**Production pilot maturity:** Enterprise Pilot Ready · **~76/100** (see board report)  
+**In-app roadmap:** Admin/analyst UI **Roadmap** page (seeded from `backend/roadmap_data.py` — auto-merges new IDs
+and promotes seed-`completed` cards on API start)
 
 Use this file for **management tracking**. Status legend:
 
@@ -19,17 +20,18 @@ Use this file for **management tracking**. Status legend:
 
 ## Version summary
 
-| Version  | Theme                                                       | Status                    |
-|----------|-------------------------------------------------------------|---------------------------|
-| **v0.x** | Core product + weekly engineering (pre-board)               | ✅ Done (see in-app seed) |
-| **v1.0** | Enterprise Demonstration Ready (docs, ops, governance pack) | ✅ Done                   |
-| **v1.1** | Modular API + `/api/v1` + capstone UX polish                | ✅ Done                   |
-| **v1.2** | Enterprise identity (OIDC / SSO / MFA)                      | 🔄 Scaffold (OIDC in)     |
-| **v1.3** | Observability, HA evidence, load tests                      | ✅ Mostly done (+ OTLP)   |
-| **v1.4** | Investigation Command Center (Workspace MVP)                | ✅ Done (PR #8)                   |
-| **v1.5** | NL hunting + analytics depth                                | ✅ Hunt + parsers + behavior      |
-| **v1.6** | Compliance automation + audit intelligence                  | 🔄 Score shipped; intelligence + LLM resilience in progress |
-| **v2.0** | Multi-tenant + commercial pilot readiness                   | 🔮 Future                 |
+| Version  | Theme                                                       | Status |
+|----------|-------------------------------------------------------------|--------|
+| **v0.x** | Core product + weekly engineering (pre-board)               | ✅ Done (in-app seed) |
+| **v1.0** | Enterprise Demonstration Ready (docs, ops, governance pack) | ✅ Done |
+| **v1.1** | Modular API + `/api/v1` + capstone UX polish + arch layers  | ✅ Done |
+| **v1.2** | Enterprise identity (OIDC / SSO / MFA)                      | 🔄 Scaffold (~60%; JWKS/prod hardening open) |
+| **v1.3** | Observability, HA evidence, load tests, Helm 1.1            | ✅ Done (dashboards stretch → planned) |
+| **v1.4** | Investigation Command Center (Workspace MVP)                | ✅ Done (PR #8) |
+| **v1.5** | NL hunting + behavioral analytics + broader parsers         | ✅ Done |
+| **v1.6** | Compliance automation + audit intelligence + LLM resilience | ✅ Done |
+| **v1.7** | Multi-agent roster UX + executive dashboard + tech polish   | 🔄 ~90% (Settings mega-split stretch) |
+| **v2.0** | Multi-tenant + connectors + commercial pilot readiness      | 🔮 Future |
 
 **Product vision:** [docs/product/VISION.md](docs/product/VISION.md) — Agentic AI SOC Command Center.
 
@@ -146,12 +148,75 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 
 | ID   | Activity                                   | Outcome                       | Priority | Status |
 |------|--------------------------------------------|-------------------------------|----------|--------|
-| G-01 | OpenTelemetry instrumentation              | Traces (API + pipeline + LLM) | P0       | 🔄 Stage timings + optional OTLP hook (`otel_setup.py`); deep auto-instrument later |
+| G-01 | OpenTelemetry instrumentation              | Stage timings + OTLP soft-dep | P0       | ✅ Core done; deep auto-instrument → **T-05** |
 | G-02 | Multi-replica / stateless validation       | HA story                      | P1       | ✅ |
 | G-03 | Load tests 10 / 100+ with published report | Performance evidence          | P1       | ✅ |
 | G-04 | Helm values for prod-like installs         | Ops packaging                 | P2       | ✅ |
-| G-05 | Production dashboards (beyond skeletons)   | SRE visibility                | P2       | 📋 Planned |
-| G-06 | Global API rate-limit dashboard / metrics  | Abuse resistance              | P2       | 📋 Planned |
+| G-05 | Production dashboards (beyond skeletons)   | SRE visibility                | P2       | 📋 → **T-05** (no duplicate row) |
+| G-06 | Global API rate-limit dashboard / metrics  | Abuse resistance              | P2       | 📋 → **T-02** (no duplicate row) |
+
+---
+
+## G2. Completed — v1.4 Investigation Workspace (Wave A)
+
+| ID    | Activity                         | Outcome                                      | Status |
+|-------|----------------------------------|----------------------------------------------|--------|
+| W4-01 | Workspace design + vision        | `INVESTIGATION_WORKSPACE_DESIGN.md`          | ✅     |
+| W4-02 | Timeline / graph / notes APIs    | Pure builders + HTTP surface                 | ✅     |
+| W4-03 | RCA narrative                    | Budget-aware RCA with fallback               | ✅     |
+| W4-04 | Tabbed case hub UI               | Timeline, graph, notebook, assistant tabs    | ✅     |
+| W4-05 | Prompt-injection framing         | Untrusted-note controls on assistant         | ✅     |
+
+In-app seed: `rm-v1-4-investigation-workspace`.
+
+---
+
+## G3. Completed — v1.5 NL hunting & parsers (Wave B)
+
+| ID    | Activity                              | Outcome                                   | Status |
+|-------|---------------------------------------|-------------------------------------------|--------|
+| W5-01 | NL threat hunting                     | Rule-based intents + Hunt page            | ✅     |
+| W5-02 | Behavioral analytics                  | Beacon, login burst, multi-host, LOLBin, DNS | ✅  |
+| W5-03 | Broader parsers                       | Suricata EVE / Zeek / Defender / Sysmon   | ✅     |
+| W5-04 | Workspace behavior surface            | `BehaviorPanel`                           | ✅     |
+
+In-app seed: `rm-v1-5-hunt-behavior-parsers`.
+
+---
+
+## G4. Completed — v1.6 Compliance & audit intelligence (Wave C)
+
+| ID    | Activity                                      | Outcome                         | Status |
+|-------|-----------------------------------------------|---------------------------------|--------|
+| W6-01 | Compliance score / gaps / evidence pack       | Runtime product-alignment score | ✅     |
+| W6-02 | Audit intelligence + integrity chain          | Summary + SHA-256 chain         | ✅     |
+| W6-03 | Executive export + free/paid LLM catalog      | Board export + multi-provider   | ✅     |
+| W6-04 | Cross-provider fallback + LLM resilience      | Retries + chain + last-effective| ✅     |
+| W6-05 | Merge DoD + OpenAPI + certification messaging | Score ≠ ISO/SOC2 cert (UI+API)  | ✅     |
+
+In-app seed: `rm-v1-6-compliance-audit-llm` (completed). Capstone pack: `rm-capstone-deliverables` ✅.
+
+**W6-04 details:** retriable vs permanent error classification; primary retries; settings-gated
+cross-provider fallback order; `record_effective_llm` / Settings “last effective” strip;
+offline tests in `test_llm_fallback_catalog.py`.
+
+**W6-05 details:** Compliance API/UI disclaimer (alignment ≠ certification); executive export
+carries the same disclaimer; OpenAPI snapshot refreshed; FEATURE_INVENTORY + roadmap seeds
+aligned; DoD closed for Wave C merge.
+
+---
+
+## G5. Completed — architecture layers & board (2026-07-26)
+
+| ID    | Activity                                         | Status |
+|-------|--------------------------------------------------|--------|
+| A-P0  | Import stabilization + ready/version probes      | ✅     |
+| A-P1  | Services / repositories layering                 | ✅     |
+| A-P2  | Analytics `$facet` KPIs + TTL cache + indexes    | ✅     |
+| A-P3  | Dashboard LLM budget KPI + pipeline stage timings| ✅     |
+| A-BR  | 360° Enterprise Review Board report (pilot 76)   | ✅     |
+
+In-app seeds: `rm-arch-p0-p3-layers-analytics`, `rm-enterprise-board-2026-07-26`.
 
 ---
 
@@ -163,10 +228,28 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 | H-02 | Per-tenant settings & secrets                   | Safe multi-org                           | P0       |
 | H-03 | Scale + pen-test evidence pack                  | Sales diligence                          | P1       |
 | H-04 | SOAR actions (separate human approval)          | Close-loop IR                            | P2       |
-| H-05 | Multi-incident fan-out (1 upload → N incidents) | Optional product; **not** current design | P3       |
-| H-06 | Native SIEM stream connectors                   | Ingest breadth                           | P3       |
-| H-07 | In-app notification center / comments / assign  | Collaboration                            | P2       |
-| H-08 | Saved filters / workspaces / pins               | Analyst productivity                     | P2       |
+| H-05 | Multi-incident fan-out (1 upload → N incidents) | Optional product; **not** current design — see **N-05** | P3 · 🔮 |
+| H-06 | Native SIEM stream connectors                   | Ingest breadth                           | P3 · 🔮 |
+| H-07 | In-app notification center / comments / assign  | Collaboration                            | P2 · 🔮 v2 |
+| H-08 | Saved filters / workspaces / pins               | Analyst productivity                     | P2 · 🔮 v2 |
+
+---
+
+## T. Further technical enhancements (shipped 2026-07-26 — deduped)
+
+Single backlog for post-Wave-C engineering. **Do not re-list** OIDC (see §F) or multi-tenant (see §H).  
+In-app seeds: `rm-next-trust-qa`, `rm-next-platform-hardening`, `rm-v1-7-agent-roster-exec`  
+(old `rm-tech-*` IDs are retired fragments).
+
+| ID   | Activity | Outcome | Priority | Status |
+|------|----------|---------|----------|--------|
+| T-01 | **Trust UX** — DEMO banners, hard error states, login tokens, mobile nav, palette Audit/Compliance | Never mask empty/fail as healthy | P0 | ✅ |
+| T-02 | **API scale & edge security** — server-side incident pagination, global rate limit + metrics, CSP/HSTS | Internet-ready pilot | P1 | ✅ |
+| T-03 | **QA depth** — repair smoke testids; Playwright for workspace / hunt / compliance / audit | CI truth for new surfaces | P1 | ✅ |
+| T-04 | **Wave D product** — multi-agent roster UX + executive risk dashboard | Persona command surfaces | P1 | ✅ |
+| T-05 | **Prod observability** — Grafana dashboards, deeper OTEL spans, richer Ops Health | SRE beyond skeletons | P2 | ✅ |
+| T-06 | **Backend layering** — repos for jobs/KB/roadmap, Settings split, remove bkp facades | Maintainability | P2 | ✅ (~95%; Settings mega-split stretch) |
+| T-07 | **AI catalog honesty** — experimental model tags, effective provider after fallback | No speculative oversell | P2 | ✅ |
 
 ---
 
@@ -197,26 +280,26 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 
 ## K. How to use this for management
 
-1. **Weekly:** move rows from Planned → Done; note PR/commit.
-2. **In-app Roadmap:** restart API after updating `roadmap_data.py` so new seed IDs auto-merge (or Admin → Sync seed).
-3. **Capstone / interview:** point to sections **B–D** (completed this program) + **J** (validation).
-4. **Next sprint (product):** **v1.4 Investigation Workspace** (Wave A — timeline, RCA, entity graph, notebook, assistant).  
-5. **Parallel hardening:** live IdP for OIDC, deeper OTEL spans, optional demo tags/video (**E-01/E-02**).
+1. **Weekly:** move rows from Planned → Done; note PR/commit; keep **one** owner card per initiative in the in-app seed (no parallel “same work” cards).
+2. **In-app Roadmap:** restart API after updating `roadmap_data.py` so new seed IDs auto-merge and seed-`completed` items promote (or Admin → **Sync seed** with force).
+3. **Capstone / interview:** sections **B–D** (program pack) + **G2–G5** (workspace/hunt/compliance/arch) + **J** (validation) + capstone pack under `docs/capstone/`.
+4. **Next product sprint:** optional Settings mega-page split polish (**§T** / v1.7); OIDC JWKS (**§F**); v2 design (**§H** — H-07/H-08 collab, not multi-incident fan-out).
+5. **Parallel tracks:** optional tags/video (**§E**); multi-incident fan-out remains **N-05** non-goal for v1.x.
 
 ---
 
 ## M. Vision waves (Agentic SOC Command Center)
 
-See full narrative in `docs/product/VISION.md`. Engineering mapping:
+See full narrative in `docs/product/VISION.md`. Engineering mapping (canonical — version table above mirrors this):
 
 | Wave | Version | Focus | Status |
 |------|---------|--------|--------|
-| **Foundation** | v0–v1.3 | Pipeline, RAG, HiTL, modular API, OIDC/OTEL scaffolds | ✅ / 🔄 |
-| **A** | **v1.4** | Investigation Workspace MVP (case hub, timeline, RCA, graph, notes, assistant) | ✅ Merged (PR #8) |
-| **B** | v1.5 | Advanced analytics & NL hunting; broader evidence formats | ✅ Hunt + behavior + parsers |
-| **C** | v1.6 | Compliance automation + audit intelligence | 🔄 Score/gaps/evidence + audit intelligence + executive export |
-| **D** | v1.7 | Multi-agent roster UX + executive dashboard | 📋 Planned |
-| **E** | v2.x | Connectors, multi-tenant, commercial scale | 🔮 Future |
+| **Foundation** | v0–v1.3 | Pipeline, RAG, HiTL, modular API, OIDC/OTEL scaffolds | ✅ / 🔄 OIDC |
+| **A** | **v1.4** | Investigation Workspace MVP (case hub, timeline, RCA, graph, notes, assistant) | ✅ Done |
+| **B** | **v1.5** | NL hunting, behavioral analytics, broader parsers | ✅ Done |
+| **C** | **v1.6** | Compliance automation, audit intelligence, LLM catalog/fallback | ✅ Done |
+| **D** | **v1.7** | Multi-agent roster UX + executive dashboard + tech polish (**§T**) | 🔄 ~90% |
+| **E** | **v2.x** | Connectors, multi-tenant, commercial scale | 🔮 Future |
 
 ---
 
@@ -225,8 +308,11 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping:
 | Artifact                | Path                                          |
 |-------------------------|-----------------------------------------------|
 | In-app seed             | `backend/roadmap_data.py`                     |
-| Enterprise board report | `docs/ENTERPRISE_REVIEW.md`                   |
+| Enterprise board (demo) | `docs/ENTERPRISE_REVIEW.md`                   |
+| Enterprise board (pilot lens) | `docs/ENTERPRISE_REVIEW_BOARD_2026-07-26.md` |
+| Capstone pack           | `docs/capstone/`                              |
 | Capstone UX review      | `docs/product/CAPSTONE_ENHANCEMENT_REVIEW.md` |
+| Feature inventory       | `docs/product/FEATURE_INVENTORY.md`           |
 | E2E capability truth    | `docs/product/E2E_CAPABILITY_MATRIX.md`       |
 | Backend structure       | `docs/dx/BACKEND_STRUCTURE.md`                |
 | Release notes           | `RELEASE_NOTES.md`                            |

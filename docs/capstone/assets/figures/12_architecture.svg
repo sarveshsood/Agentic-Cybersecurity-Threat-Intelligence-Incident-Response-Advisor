@@ -1,47 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
-  <rect width="1200" height="720" fill="#0B1220"/>
-  <text x="48" y="48" fill="#E8EEF7" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">ACTIRA — Overall Architecture</text>
-  <text x="48" y="78" fill="#38BDF8" font-family="Segoe UI, Arial, sans-serif" font-size="14">Capstone figure · modular monolith · single-tenant pilot</text>
+  <rect width="1200" height="720" fill="#F8FAFC"/>
+  <text x="48" y="48" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">ACTIRA — Overall Architecture</text>
+  <text x="48" y="78" fill="#2563EB" font-family="Segoe UI, Arial, sans-serif" font-size="14">Capstone figure · modular monolith · single-tenant pilot</text>
 
   <!-- Users -->
-  <rect x="48" y="120" width="220" height="200" rx="12" fill="#121A2B" stroke="#243044"/>
-  <text x="68" y="150" fill="#38BDF8" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">USERS</text>
-  <text x="68" y="185" fill="#E8EEF7" font-size="15" font-family="Segoe UI, Arial, sans-serif">Analyst</text>
-  <text x="68" y="215" fill="#E8EEF7" font-size="15" font-family="Segoe UI, Arial, sans-serif">Senior Reviewer</text>
-  <text x="68" y="245" fill="#E8EEF7" font-size="15" font-family="Segoe UI, Arial, sans-serif">Admin</text>
-  <text x="68" y="275" fill="#94A3B8" font-size="13" font-family="Segoe UI, Arial, sans-serif">SIEM / Fluent Bit</text>
+  <rect x="48" y="120" width="220" height="200" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="68" y="150" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">USERS</text>
+  <text x="68" y="185" fill="#0F172A" font-size="15" font-family="Segoe UI, Arial, sans-serif">Analyst</text>
+  <text x="68" y="215" fill="#0F172A" font-size="15" font-family="Segoe UI, Arial, sans-serif">Senior Reviewer</text>
+  <text x="68" y="245" fill="#0F172A" font-size="15" font-family="Segoe UI, Arial, sans-serif">Admin</text>
+  <text x="68" y="275" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">SIEM / Fluent Bit</text>
 
   <!-- Edge -->
-  <rect x="320" y="120" width="280" height="200" rx="12" fill="#121A2B" stroke="#243044"/>
-  <text x="340" y="150" fill="#38BDF8" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">EDGE</text>
-  <rect x="340" y="170" width="240" height="50" rx="8" fill="#1E3A5F"/>
-  <text x="360" y="200" fill="#E8EEF7" font-size="15" font-family="Segoe UI, Arial, sans-serif">React SPA :3000</text>
-  <rect x="340" y="235" width="240" height="50" rx="8" fill="#164E63"/>
-  <text x="360" y="265" fill="#E8EEF7" font-size="15" font-family="Segoe UI, Arial, sans-serif">FastAPI :8001  /api · /api/v1</text>
+  <rect x="320" y="120" width="280" height="200" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="340" y="150" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">EDGE</text>
+  <rect x="340" y="170" width="240" height="50" rx="8" fill="#DBEAFE"/>
+  <text x="360" y="200" fill="#0F172A" font-size="15" font-family="Segoe UI, Arial, sans-serif">React SPA :3000</text>
+  <rect x="340" y="235" width="240" height="50" rx="8" fill="#CFFAFE"/>
+  <text x="360" y="265" fill="#0F172A" font-size="15" font-family="Segoe UI, Arial, sans-serif">FastAPI :8001  /api · /api/v1</text>
 
   <!-- Data -->
-  <rect x="660" y="120" width="250" height="200" rx="12" fill="#121A2B" stroke="#243044"/>
-  <text x="680" y="150" fill="#38BDF8" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">DATA PLANE</text>
-  <text x="680" y="195" fill="#E8EEF7" font-size="15" font-family="Segoe UI, Arial, sans-serif">MongoDB (cases, users, audit)</text>
-  <text x="680" y="230" fill="#E8EEF7" font-size="15" font-family="Segoe UI, Arial, sans-serif">LanceDB (hybrid RAG)</text>
-  <text x="680" y="265" fill="#94A3B8" font-size="14" font-family="Segoe UI, Arial, sans-serif">Job payloads / outbox</text>
+  <rect x="660" y="120" width="250" height="200" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="680" y="150" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">DATA PLANE</text>
+  <text x="680" y="195" fill="#0F172A" font-size="15" font-family="Segoe UI, Arial, sans-serif">MongoDB (cases, users, audit)</text>
+  <text x="680" y="230" fill="#0F172A" font-size="15" font-family="Segoe UI, Arial, sans-serif">LanceDB (hybrid RAG)</text>
+  <text x="680" y="265" fill="#64748B" font-size="14" font-family="Segoe UI, Arial, sans-serif">Job payloads / outbox</text>
 
   <!-- External -->
-  <rect x="960" y="120" width="192" height="200" rx="12" fill="#121A2B" stroke="#243044"/>
-  <text x="980" y="150" fill="#38BDF8" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">EXTERNAL</text>
-  <text x="980" y="195" fill="#E8EEF7" font-size="14" font-family="Segoe UI, Arial, sans-serif">LLM providers</text>
-  <text x="980" y="230" fill="#E8EEF7" font-size="14" font-family="Segoe UI, Arial, sans-serif">TI APIs</text>
-  <text x="980" y="265" fill="#94A3B8" font-size="13" font-family="Segoe UI, Arial, sans-serif">Slack / Email</text>
+  <rect x="960" y="120" width="192" height="200" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="980" y="150" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">EXTERNAL</text>
+  <text x="980" y="195" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">LLM providers</text>
+  <text x="980" y="230" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">TI APIs</text>
+  <text x="980" y="265" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">Slack / Email</text>
 
   <!-- Flow -->
-  <rect x="48" y="360" width="1104" height="120" rx="12" fill="#121A2B" stroke="#243044"/>
-  <text x="68" y="395" fill="#38BDF8" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">IR PIPELINE</text>
-  <text x="68" y="435" fill="#E8EEF7" font-size="16" font-family="Segoe UI, Arial, sans-serif">Upload → Parse → IoC → TI → ATT&amp;CK → Hybrid RAG → Playbook → HiTL → Workspace → Audit / Compliance</text>
+  <rect x="48" y="360" width="1104" height="120" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="68" y="395" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">IR PIPELINE</text>
+  <text x="68" y="435" fill="#0F172A" font-size="16" font-family="Segoe UI, Arial, sans-serif">Upload → Parse → IoC → TI → ATT&amp;CK → Hybrid RAG → Playbook → HiTL → Workspace → Audit / Compliance</text>
 
   <!-- Notes -->
-  <rect x="48" y="510" width="1104" height="160" rx="12" fill="#121A2B" stroke="#243044"/>
-  <text x="68" y="550" fill="#34D399" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">NOTES FOR EVALUATORS</text>
-  <text x="68" y="585" fill="#94A3B8" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Complements SIEM/XDR — does not replace Sentinel, Splunk ES, Falcon, or XSIAM</text>
-  <text x="68" y="615" fill="#94A3B8" font-size="14" font-family="Segoe UI, Arial, sans-serif">• LLM/TI optional; template playbooks + mock TI support offline golden evaluation</text>
-  <text x="68" y="645" fill="#94A3B8" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Editable Mermaid sources: 01-overall-architecture.mmd … 14-hitl.mmd in this folder</text>
+  <rect x="48" y="510" width="1104" height="160" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="68" y="550" fill="#059669" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">NOTES FOR EVALUATORS</text>
+  <text x="68" y="585" fill="#64748B" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Complements SIEM/XDR — does not replace Sentinel, Splunk ES, Falcon, or XSIAM</text>
+  <text x="68" y="615" fill="#64748B" font-size="14" font-family="Segoe UI, Arial, sans-serif">• LLM/TI optional; template playbooks + mock TI support offline golden evaluation</text>
+  <text x="68" y="645" fill="#64748B" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Editable Mermaid sources: 01-overall-architecture.mmd … 14-hitl.mmd in this folder</text>
 </svg>

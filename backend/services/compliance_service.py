@@ -56,6 +56,8 @@ def collect_evidence(settings: Optional[dict] = None) -> Dict[str, bool]:
         "register_policy": register_gated,
         "multi_format_ingest": True,
         "audit_log": True,
+        # Optimistic defaults for offline unit tests; live path may demote these
+        "audit_integrity": True,
         "job_status": True,
         "otel_or_metrics": otel or True,  # /metrics always present; boost otel when on
         "hitl": True,
@@ -71,8 +73,57 @@ def collect_evidence(settings: Optional[dict] = None) -> Dict[str, bool]:
         "ops_health": True,
         "llm_redact": llm_redact or env in ("dev", "test"),
         "golden_eval": True,
+        "golden_eval_pass": True,  # demoted when last stored run failed
         "llm_budget": budget > 0 or env in ("dev", "test"),
     }
+
+
+async def apply_live_evidence(evidence: Dict[str, bool]) -> Dict[str, Any]:
+    """Enrich evidence flags from Mongo audit integrity + last golden run.
+
+    Returns a small `live_signals` dict for UI/export (does not affect missing keys).
+    """
+    live: Dict[str, Any] = {}
+    try:
+        from backend.services import audit_service
+
+        integ = await audit_service.integrity(sample=50)
+        status = str(integ.get("status") or "")
+        live["audit_integrity_status"] = status
+        live["audit_integrity_ok"] = integ.get("ok")
+        live["audit_integrity_mismatch"] = integ.get("mismatch")
+        # Fail only on clear tamper signals — partial/legacy still "has audit trail"
+        evidence["audit_integrity"] = status not in ("mismatch", "broken_chain")
+        evidence["audit_log"] = True
+    except Exception:
+        live["audit_integrity_status"] = "unavailable"
+
+    try:
+        from backend.database import db
+
+        stored = await db.golden_runs.find_one(
+            {"id": "last"},
+            {"_id": 0, "passed": 1, "ran_at": 1, "summary": 1, "failures": 1},
+        )
+        if stored is not None:
+            live["golden_last_ran_at"] = stored.get("ran_at")
+            if "passed" in stored:
+                evidence["golden_eval_pass"] = bool(stored.get("passed"))
+                live["golden_last_passed"] = bool(stored.get("passed"))
+            summary = stored.get("summary") if isinstance(stored.get("summary"), dict) else {}
+            live["golden_last_summary"] = {
+                "n_cases": summary.get("n_cases"),
+                "mean_ioc_f1": summary.get("mean_ioc_f1"),
+                "mean_technique_recall": summary.get("mean_technique_recall"),
+            }
+            if stored.get("failures"):
+                live["golden_last_failures"] = stored.get("failures")
+        else:
+            live["golden_last_ran_at"] = None
+    except Exception:
+        live["golden_last_ran_at"] = "unavailable"
+
+    return live
 
 
 def _eval_control(control: dict, evidence: Dict[str, bool]) -> Dict[str, Any]:
@@ -92,8 +143,11 @@ def _eval_control(control: dict, evidence: Dict[str, bool]) -> Dict[str, Any]:
     }
 
 
-def evaluate(settings: Optional[dict] = None) -> Dict[str, Any]:
-    evidence = collect_evidence(settings)
+def _evaluate_from_evidence(
+    evidence: Dict[str, bool],
+    *,
+    live_signals: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     results = [_eval_control(c, evidence) for c in CONTROLS]
 
     def _score(items: List[dict]) -> float:
@@ -157,7 +211,7 @@ def evaluate(settings: Optional[dict] = None) -> Dict[str, Any]:
         else "Critical gaps"
     )
 
-    return {
+    out = {
         "score": overall,
         "readiness": readiness,
         "frameworks": fw_rows,
@@ -167,16 +221,35 @@ def evaluate(settings: Optional[dict] = None) -> Dict[str, Any]:
         "gap_count": len(gaps),
         "evidence": evidence,
         "disclaimer": (
-            "Alignment score for ACTIRA product capabilities — not a formal "
-            "ISO/SOC2/NIST certification."
+            "Product-alignment score for ACTIRA runtime controls mapped to ISO / "
+            "SOC 2 / NIST CSF / CIS-style catalog items — not a formal ISO, SOC 2, "
+            "NIST, CIS, or other third-party certification. Gaps and evidence packs "
+            "support pilot GRC conversations only; engage an accredited auditor for "
+            "certification."
         ),
         "last_audit": datetime.now(timezone.utc).isoformat(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+    if live_signals is not None:
+        out["live_signals"] = live_signals
+    return out
+
+
+def evaluate(settings: Optional[dict] = None) -> Dict[str, Any]:
+    """Sync evaluate (offline-friendly; optimistic integrity/golden flags)."""
+    evidence = collect_evidence(settings)
+    return _evaluate_from_evidence(evidence)
+
+
+async def evaluate_live(settings: Optional[dict] = None) -> Dict[str, Any]:
+    """Evaluate with live audit integrity + golden last-run signals."""
+    evidence = collect_evidence(settings)
+    live = await apply_live_evidence(evidence)
+    return _evaluate_from_evidence(evidence, live_signals=live)
 
 
 def status(settings: Optional[dict] = None) -> Dict[str, Any]:
-    """Backward-compatible status payload + domains/gaps summary."""
+    """Backward-compatible status payload + domains/gaps summary (sync)."""
     full = evaluate(settings)
     return {
         "score": full["score"],
@@ -187,6 +260,21 @@ def status(settings: Optional[dict] = None) -> Dict[str, Any]:
         "readiness": full["readiness"],
         "disclaimer": full["disclaimer"],
         "last_audit": full["last_audit"],
+    }
+
+
+async def status_live(settings: Optional[dict] = None) -> Dict[str, Any]:
+    full = await evaluate_live(settings)
+    return {
+        "score": full["score"],
+        "frameworks": full["frameworks"],
+        "domains": full["domains"],
+        "gap_count": full["gap_count"],
+        "gaps_preview": full["gaps"][:5],
+        "readiness": full["readiness"],
+        "disclaimer": full["disclaimer"],
+        "last_audit": full["last_audit"],
+        "live_signals": full.get("live_signals") or {},
     }
 
 
@@ -211,9 +299,40 @@ def gaps(settings: Optional[dict] = None) -> Dict[str, Any]:
     }
 
 
+async def gaps_live(settings: Optional[dict] = None) -> Dict[str, Any]:
+    full = await evaluate_live(settings)
+    return {
+        "score": full["score"],
+        "gap_count": full["gap_count"],
+        "gaps": full["gaps"],
+        "remediation_priority": [
+            {
+                "id": g["id"],
+                "title": g["title"],
+                "framework": g["framework"],
+                "remediation": g["remediation"],
+                "weight": g["weight"],
+            }
+            for g in full["gaps"]
+        ],
+        "disclaimer": full["disclaimer"],
+        "generated_at": full["generated_at"],
+        "live_signals": full.get("live_signals") or {},
+    }
+
+
 def evidence_pack(settings: Optional[dict] = None) -> Dict[str, Any]:
-    """Machine-readable evidence pack for auditors (JSON)."""
+    """Machine-readable evidence pack for auditors (JSON) — sync baseline."""
     full = evaluate(settings)
+    return _evidence_pack_from_full(full)
+
+
+async def evidence_pack_live(settings: Optional[dict] = None) -> Dict[str, Any]:
+    full = await evaluate_live(settings)
+    return _evidence_pack_from_full(full)
+
+
+def _evidence_pack_from_full(full: Dict[str, Any]) -> Dict[str, Any]:
     artifacts = [
         {"path": "docs/compliance/ISO27001_MAPPING.md", "type": "mapping"},
         {"path": "docs/compliance/NIST_CSF_2.md", "type": "mapping"},
@@ -224,7 +343,9 @@ def evidence_pack(settings: Optional[dict] = None) -> Dict[str, Any]:
         {"path": "SECURITY.md", "type": "policy"},
         {"path": "backend/tests/", "type": "automated_tests"},
         {"path": "GET /api/audit", "type": "runtime_audit_api"},
+        {"path": "GET /api/audit/integrity", "type": "runtime_integrity"},
         {"path": "GET /api/compliance/status", "type": "runtime_score"},
+        {"path": "GET /api/eval/golden-benchmark", "type": "golden_eval"},
         {"path": "Investigation Workspace notes/RCA", "type": "case_evidence"},
     ]
     return {
@@ -238,6 +359,7 @@ def evidence_pack(settings: Optional[dict] = None) -> Dict[str, Any]:
         "control_results": full["controls"],
         "open_gaps": full["gaps"],
         "evidence_flags": full["evidence"],
+        "live_signals": full.get("live_signals") or {},
         "artifacts": artifacts,
         "export_hint": "Download this JSON for GRC tools; pair with docs/compliance/* mappings.",
     }
@@ -255,7 +377,7 @@ def score_only(settings: Optional[dict] = None) -> Dict[str, Any]:
 
 async def executive_export(settings: Optional[dict] = None) -> Dict[str, Any]:
     """Board-ready snapshot: compliance + audit volume + open risk signals."""
-    full = evaluate(settings)
+    full = await evaluate_live(settings)
     top_gaps = [
         {
             "id": g["id"],

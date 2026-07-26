@@ -130,11 +130,19 @@ Existing long-form decks: `presentation/01-*.md` … `08-*.md` — this outline 
 
 ## Design tips
 
-- Dark enterprise theme (consistent with app)  
-- Prefer architecture + screenshots over walls of text  
+- **Light enterprise theme** (matches product UI + screenshot pack)  
+- Prefer architecture + live screenshots over walls of text  
 - Never claim “we replace SIEM”  
 - Label mock TI / template playbook if shown  
 
 ## Export
 
-Build slides in PowerPoint/Google Slides from this outline; optional source material in `presentation/*.md`.
+```bash
+# Rebuild PPTX (embeds light-theme captures from assets/screenshots/)
+node docs/capstone/presentation/build_capstone_pptx.js
+
+# Rebuild report PDF (one figure/page, readable typography)
+python docs/capstone/export_report_pdf.py
+```
+
+Optional long-form source material: `presentation/*.md` (repo root presentation pack).

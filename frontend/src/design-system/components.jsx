@@ -2,12 +2,20 @@
  * ACTIRA design-system primitives.
  * Prefer these over ad-hoc card/badge markup for new UI.
  * Tokens live in tokens.js + index.css CSS variables.
+ *
+ * Tooltip prerequisite (default): PageHeader, Panel, KpiCard, SectionLabel, and
+ * DsButton auto-wire HelpTip / Tip from structured props. See
+ * docs/dx/TOOLTIP_PREREQUISITE.md and frontend/src/lib/tooltipPrerequisite.js.
  */
 import {cn} from "../lib/utils";
 import {Link} from "react-router-dom";
 import {iconSize} from "./tokens";
+import {Tip, resolveHelpTipNode} from "../components/HelpTip";
+import {warnMissingTooltip} from "../lib/tooltipPrerequisite";
 
-/** Enterprise button — maps to soc-btn-* utility classes */
+/** Enterprise button — maps to soc-btn-* utility classes.
+ * Pass `tooltip` so Tip wraps the control by default (prerequisite for actions).
+ */
 export function DsButton({
                              variant = "primary",
                              size = "md",
@@ -16,6 +24,8 @@ export function DsButton({
                              disabled,
                              type = "button",
                              children,
+                             tooltip,
+                             requireTooltip = false,
                              ...props
                          }) {
     const variants = {
@@ -30,20 +40,36 @@ export function DsButton({
         md: "",
         lg: "text-sm px-5 py-2.5 h-11",
     };
-    return (
+    if (requireTooltip && !(tooltip && String(tooltip).trim())) {
+        const label =
+            typeof children === "string" || typeof children === "number"
+                ? String(children)
+                : "button";
+        warnMissingTooltip(
+            "DsButton",
+            label,
+            'Pass tooltip="…" (short verb phrase) — tooltips are a UX prerequisite.',
+        );
+    }
+    const btn = (
         <button
             type={type}
             disabled={disabled || loading}
             className={cn(variants[variant] || variants.primary, sizes[size], className)}
             aria-busy={loading || undefined}
+            title={tooltip || props.title}
             {...props}
         >
             {loading ? "Working…" : children}
         </button>
     );
+    if (tooltip && String(tooltip).trim()) {
+        return <Tip content={tooltip}>{btn}</Tip>;
+    }
+    return btn;
 }
 
-/** Form field wrapper with label + hint + error */
+/** Form field wrapper with label + optional HelpTip + hint + error */
 export function FormField({
                               label,
                               htmlFor,
@@ -52,13 +78,32 @@ export function FormField({
                               required,
                               children,
                               className,
+                              tipTitle,
+                              tipBody,
+                              how,
+                              tipTestId,
+                              tip,
+                              requireTip = false,
                           }) {
+    const help = resolveHelpTipNode({
+        tip,
+        tipTitle: tipTitle || (requireTip ? label : undefined),
+        tipBody,
+        how,
+        tipTestId,
+        surface: "FormField",
+        label: label || htmlFor || "field",
+        requireTip: requireTip && Boolean(label),
+    });
     return (
         <div className={cn("space-y-1.5", className)}>
             {label ? (
-                <label htmlFor={htmlFor} className="soc-label block">
-                    {label}
-                    {required ? <span className="text-error ml-0.5" aria-hidden>*</span> : null}
+                <label htmlFor={htmlFor} className="soc-label inline-flex items-center gap-1.5">
+                    <span>
+                        {label}
+                        {required ? <span className="text-error ml-0.5" aria-hidden>*</span> : null}
+                    </span>
+                    {help}
                 </label>
             ) : null}
             {children}
@@ -103,12 +148,40 @@ export function SkeletonBlock({className, lines = 1}) {
     );
 }
 
-/** Section micro-label */
-export function SectionLabel({children, className, icon: Icon}) {
+/**
+ * Section micro-label with HelpTip by default (tooltip prerequisite).
+ * Pass tipTitle + tipBody (or tip=) — same contract as PaneLabel.
+ */
+export function SectionLabel({
+                                 children,
+                                 className,
+                                 icon: Icon,
+                                 tip,
+                                 tipTitle,
+                                 tipBody,
+                                 how,
+                                 tipTestId,
+                                 requireTip = true,
+                             }) {
+    const label =
+        typeof children === "string" || typeof children === "number"
+            ? String(children)
+            : tipTitle || "section";
+    const help = resolveHelpTipNode({
+        tip,
+        tipTitle,
+        tipBody,
+        how,
+        tipTestId,
+        surface: "SectionLabel",
+        label,
+        requireTip,
+    });
     return (
         <div className={cn("soc-label flex items-center gap-1.5", className)}>
             {Icon ? <Icon size={iconSize.sm} aria-hidden/> : null}
-            {children}
+            <span className="leading-none">{children}</span>
+            {help}
         </div>
     );
 }
@@ -147,18 +220,36 @@ export function DataTable({
     );
 }
 
-/** Page title block — use on every authenticated page */
+/**
+ * Page title block — use on every authenticated page.
+ * Tooltip prerequisite: pass tip= or tipTitle+tipBody (HelpTip auto-built).
+ */
 export function PageHeader({
                                title,
                                subtitle,
                                actions,
                                icon: Icon,
                                tip,
+                               tipTitle,
+                               tipBody,
+                               how,
+                               tipTestId,
+                               requireTip = true,
                                breadcrumb,
                                className,
                                testid,
                                children,
                            }) {
+    const resolvedTip = resolveHelpTipNode({
+        tip,
+        tipTitle,
+        tipBody,
+        how,
+        tipTestId,
+        surface: "PageHeader",
+        label: title,
+        requireTip,
+    });
     return (
         <header
             className={cn("page-header flex flex-wrap items-start justify-between gap-4", className)}
@@ -173,7 +264,7 @@ export function PageHeader({
                 <div className="flex items-center gap-2 min-w-0">
                     {Icon ? <Icon size={22} className="text-primary shrink-0" aria-hidden/> : null}
                     <h1 className="page-title truncate">{title}</h1>
-                    {tip}
+                    {resolvedTip}
                 </div>
                 {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
                 {children}
@@ -185,12 +276,21 @@ export function PageHeader({
     );
 }
 
-/** Surface panel / card */
+/**
+ * Surface panel / card.
+ * Tooltip prerequisite: pass tip= or tipTitle+tipBody when title is set.
+ */
 export function Panel({
                           title,
                           subtitle,
                           icon: Icon,
                           actions,
+                          tip,
+                          tipTitle,
+                          tipBody,
+                          how,
+                          tipTestId,
+                          requireTip = true,
                           children,
                           className,
                           bodyClassName,
@@ -198,18 +298,35 @@ export function Panel({
                           testid,
                           noPadding,
                       }) {
+    const resolvedTip = resolveHelpTipNode({
+        tip,
+        tipTitle,
+        tipBody,
+        how,
+        tipTestId,
+        surface: "Panel",
+        label: title,
+        requireTip: requireTip && Boolean(title),
+    });
     return (
         <section
             className={cn("soc-panel overflow-hidden", className)}
             data-section={sectionKey}
             data-testid={testid}
         >
-            {(title || actions) && (
+            {(title || actions || resolvedTip) && (
                 <div className="flex items-start justify-between gap-3 px-4 py-3 border-b theme-border">
                     <div className="min-w-0 flex items-start gap-2">
                         {Icon ? <Icon size={18} className="text-primary mt-0.5 shrink-0" aria-hidden/> : null}
                         <div className="min-w-0">
-                            {title ? <h2 className="text-sm font-semibold tracking-tight truncate">{title}</h2> : null}
+                            {title ? (
+                                <h2 className="text-sm font-semibold tracking-tight flex items-center gap-1.5 min-w-0">
+                                    <span className="truncate">{title}</span>
+                                    {resolvedTip}
+                                </h2>
+                            ) : resolvedTip ? (
+                                <div className="flex items-center gap-1.5">{resolvedTip}</div>
+                            ) : null}
                             {subtitle ? <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p> : null}
                         </div>
                     </div>
@@ -242,7 +359,10 @@ export function formatMetricValue(value, {decimals} = {}) {
     return value.toLocaleString(undefined, {maximumFractionDigits: 2});
 }
 
-/** KPI / metric card — compact enterprise summary */
+/**
+ * KPI / metric card — compact enterprise summary.
+ * Tooltip prerequisite: pass tip= or tipTitle+tipBody (auto HelpTip).
+ */
 export function KpiCard({
                             label,
                             value,
@@ -251,6 +371,11 @@ export function KpiCard({
                             tone = "default",
                             to,
                             tip,
+                            tipTitle,
+                            tipBody,
+                            how,
+                            tipTestId,
+                            requireTip = true,
                             testid,
                             className,
                             trend,
@@ -276,6 +401,16 @@ export function KpiCard({
     }[tone] || "text-primary";
 
     const display = loading ? "…" : formatMetricValue(value, {decimals});
+    const resolvedTip = resolveHelpTipNode({
+        tip,
+        tipTitle,
+        tipBody,
+        how,
+        tipTestId,
+        surface: "KpiCard",
+        label,
+        requireTip,
+    });
 
     const body = (
         <div
@@ -298,7 +433,7 @@ export function KpiCard({
                         />
                     ) : null}
                     <span className="truncate">{label}</span>
-                    {tip}
+                    {resolvedTip}
                 </div>
             </div>
             <div

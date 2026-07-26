@@ -153,26 +153,113 @@ def is_known_model(provider: str, model: str) -> bool:
     return model in (PROVIDER_MODELS.get(provider) or [])
 
 
+def _is_experimental_model(model_id: str, role: str = "") -> bool:
+    """Heuristic honesty tag for preview / codename / unconfirmed model IDs."""
+    mid = (model_id or "").lower()
+    markers = (
+        "preview",
+        "terra",
+        "sol",
+        "luna",
+        "gpt-5.6",
+        "gemini-3.",
+        "compound",
+        "experimental",
+    )
+    if any(m in mid for m in markers):
+        return True
+    if role in ("agent",) and "compound" in mid:
+        return True
+    return False
+
+
+def _catalog_with_honesty() -> Dict[str, list]:
+    """Annotate catalog rows with experimental flags (does not mutate MODEL_CATALOG)."""
+    out: Dict[str, list] = {}
+    for provider, models in MODEL_CATALOG.items():
+        rows = []
+        for m in models:
+            row = dict(m)
+            exp = bool(row.get("experimental")) or _is_experimental_model(
+                str(row.get("id") or ""), str(row.get("role") or "")
+            )
+            row["experimental"] = exp
+            if exp and "experimental" not in (row.get("label") or "").lower():
+                label = row.get("label") or row.get("id") or ""
+                if "preview" not in label.lower() and "experimental" not in label.lower():
+                    row["label"] = f"{label} · experimental"
+            rows.append(row)
+        out[provider] = rows
+    return out
+
+
+# Last successful LLM route (process-local) for Settings / shell honesty.
+_last_effective: Dict[str, Any] = {
+    "provider": None,
+    "model": None,
+    "configured_provider": None,
+    "configured_model": None,
+    "via_fallback": False,
+    "ts": None,
+}
+
+
+def record_effective_llm(
+    *,
+    configured_provider: str,
+    configured_model: str,
+    effective_provider: str,
+    effective_model: str,
+) -> None:
+    """Remember last successful provider/model (including cross-provider fallback)."""
+    from datetime import datetime, timezone
+
+    via = (effective_provider or "").lower() != (configured_provider or "").lower() or (
+        (effective_model or "") != (configured_model or "")
+    )
+    _last_effective.update(
+        {
+            "provider": effective_provider,
+            "model": effective_model,
+            "configured_provider": configured_provider,
+            "configured_model": configured_model,
+            "via_fallback": via,
+            "ts": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
+def last_effective_llm() -> Dict[str, Any]:
+    return dict(_last_effective)
+
+
 def llm_catalog() -> Dict[str, Any]:
     """Public catalog for Settings UI / validation (includes free vs paid tiers)."""
+    annotated = _catalog_with_honesty()
     free_by_provider = {
         p: [m["id"] for m in models if m.get("tier") == "free"]
-        for p, models in MODEL_CATALOG.items()
+        for p, models in annotated.items()
     }
     paid_by_provider = {
         p: [m["id"] for m in models if m.get("tier") != "free"]
-        for p, models in MODEL_CATALOG.items()
+        for p, models in annotated.items()
+    }
+    experimental_by_provider = {
+        p: [m["id"] for m in models if m.get("experimental")]
+        for p, models in annotated.items()
     }
     return {
         "default_provider": DEFAULT_PROVIDER,
         "default_model": DEFAULT_MODEL,
         "providers": list(PROVIDER_MODELS.keys()),
         "models": {p: list(ms) for p, ms in PROVIDER_MODELS.items()},
-        "catalog": {p: list(models) for p, models in MODEL_CATALOG.items()},
+        "catalog": annotated,
         "free_models": free_by_provider,
         "paid_models": paid_by_provider,
+        "experimental_models": experimental_by_provider,
         "defaults": {p: (ms[0] if ms else "") for p, ms in PROVIDER_MODELS.items()},
         "fallback_order": list(FALLBACK_PROVIDER_ORDER),
+        "last_effective": last_effective_llm(),
         "notes": {
             "free": (
                 "Free-tier models (Groq developer tier, Gemini free quota) are "
@@ -185,6 +272,10 @@ def llm_catalog() -> Dict[str, Any]:
             "fallback": (
                 "On primary failure, ACTIRA retries retriable errors then walks "
                 "other providers that have API keys configured."
+            ),
+            "experimental": (
+                "Models tagged experimental are preview, codename, or not fully "
+                "validated against production IR workloads — use with caution."
             ),
         },
     }
@@ -438,6 +529,15 @@ async def call_llm(
     model = (model or default_model_for_provider(provider)).strip()
 
     async def _meter(text: str, eff_p: str, eff_m: str) -> Tuple[str, str, str]:
+        try:
+            record_effective_llm(
+                configured_provider=provider,
+                configured_model=model,
+                effective_provider=eff_p,
+                effective_model=eff_m,
+            )
+        except Exception:
+            pass
         if record_usage and estimate_tokens:
             try:
                 n = estimate_tokens(system, user, text or "")

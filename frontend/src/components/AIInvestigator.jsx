@@ -3,6 +3,7 @@ import {api, API, getStoredToken} from "../lib/api";
 import {toast} from "sonner";
 import {Lightbulb, PaperPlaneRight, Question, Robot, Warning} from "@phosphor-icons/react";
 import {Popover, PopoverContent, PopoverTrigger} from "./ui/popover";
+import {HelpTip} from "./HelpTip";
 
 function ConfidenceBar({value}) {
     const pct = Math.round((value || 0) * 100);
@@ -297,7 +298,15 @@ export default function AIInvestigator({incidentId, severity}) {
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Robot size={16} weight="regular" className="text-primary" aria-hidden/>
-                    <div className="soc-label">Analyst assist</div>
+                    <div className="soc-label inline-flex items-center gap-1.5">
+                        Analyst assist
+                        <HelpTip
+                            title="Analyst assist"
+                            body="Streaming Q&A over this incident’s evidence (SSE). Recommendations are assistive — verify before HiTL approve. Uses configured LLM + retrieval when available."
+                            how="POST investigator stream · grounded to case context + KB hits."
+                            testid="tip-ai-investigator"
+                        />
+                    </div>
                     <span
                         className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground px-1.5 py-0.5 rounded-md bg-muted border border-border">
             recommendation
@@ -310,8 +319,10 @@ export default function AIInvestigator({incidentId, severity}) {
           </span>
                 </div>
                 <button
+                    type="button"
                     onClick={() => setExpanded(!expanded)}
                     className="text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                    title={expanded ? "Collapse analyst assist panel" : "Expand analyst assist panel"}
                 >
                     {expanded ? "collapse" : "expand"}
                 </button>

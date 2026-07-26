@@ -12,4 +12,6 @@
 - [ ] CI green
 - [ ] No new critical Bandit findings
 - [ ] Docs synced
-- [ ] Demo path not broken  
+- [ ] Demo path not broken
+- [ ] **Tooltips / HelpTips** on any new UI surface (page, panel, KPI, primary actions) —
+      see [TOOLTIP_PREREQUISITE.md](TOOLTIP_PREREQUISITE.md)

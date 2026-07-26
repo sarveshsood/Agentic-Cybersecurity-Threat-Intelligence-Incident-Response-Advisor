@@ -2287,7 +2287,7 @@
     },
     "/api/compliance/status": {
       "get": {
-        "description": "Overall score, frameworks, domains, gap preview.",
+        "description": "Overall score, frameworks, domains, gap preview (+ live audit/golden signals).",
         "operationId": "get_compliance_status_api_compliance_status_get",
         "responses": {
           "200": {
@@ -2673,6 +2673,18 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "When true, return {items,total,skip,limit} for server-side pagination",
+            "in": "query",
+            "name": "include_meta",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "When true, return {items,total,skip,limit} for server-side pagination",
+              "title": "Include Meta",
+              "type": "boolean"
             }
           }
         ],
@@ -4753,8 +4765,8 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 200,
+              "default": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -6715,7 +6727,7 @@
     },
     "/api/v1/compliance/status": {
       "get": {
-        "description": "Overall score, frameworks, domains, gap preview.",
+        "description": "Overall score, frameworks, domains, gap preview (+ live audit/golden signals).",
         "operationId": "get_compliance_status_api_v1_compliance_status_get",
         "responses": {
           "200": {
@@ -7101,6 +7113,18 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "When true, return {items,total,skip,limit} for server-side pagination",
+            "in": "query",
+            "name": "include_meta",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "When true, return {items,total,skip,limit} for server-side pagination",
+              "title": "Include Meta",
+              "type": "boolean"
             }
           }
         ],
@@ -9181,8 +9205,8 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 200,
+              "default": 200,
+              "maximum": 500,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"

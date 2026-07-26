@@ -10,7 +10,7 @@ docs/capstone/
 ├── README.md
 ├── appendices/                   # A–F complete
 ├── assets/
-│   ├── screenshots/              # 01–12 figures (placeholders → live capture)
+│   ├── screenshots/              # 01–12 core + 13 audit + 14 golden
 │   └── figures/                  # SVG + Mermaid architecture
 ├── board/
 ├── outlines/
@@ -25,7 +25,7 @@ docs/capstone/
 | Artifact | Path |
 |----------|------|
 | **Project report (MD)** | [PROJECT_REPORT.md](./PROJECT_REPORT.md) |
-| **Project report (PDF)** | [PROJECT_REPORT.pdf](./PROJECT_REPORT.pdf) |
+| **Project report (PDF)** | [PROJECT_REPORT.pdf](./PROJECT_REPORT.pdf) — detailed (~60 pp: chapters + architecture + figures + appendices A–F) |
 | **Appendices A–F** | [appendices/](./appendices/) |
 | **Viva PPTX** | [presentation/ACTIRA_Capstone_Presentation.pptx](./presentation/ACTIRA_Capstone_Presentation.pptx) |
 | **Board review** | [board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md](./board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md) |
@@ -36,10 +36,13 @@ docs/capstone/
 ## Commands
 
 ```bash
-# Regenerate PDF
+# Capture light-theme screenshots (backend :8001, frontend :3000)
+python docs/capstone/capture_screenshots.py
+
+# Regenerate PDF (readable layout + figures)
 python docs/capstone/export_report_pdf.py
 
-# Regenerate PPTX (requires pptxgenjs)
+# Regenerate PPTX (light theme + embedded screenshots; requires pptxgenjs)
 node docs/capstone/presentation/build_capstone_pptx.js
 
 # Re-run formal test pack
@@ -60,9 +63,9 @@ python -m pytest backend/tests/test_golden_benchmark.py \
 - [x] Formal automated test summary (66 pass)
 - [x] Team names in Appendix E (Group 1)
 - [x] Architecture figures (SVG + Mermaid)
-- [x] Screenshot figure slots (placeholders — replace with live captures)
-- [x] Report PDF export
+- [x] Live light-theme screenshots (01–14: core + audit inspect + golden eval)
+- [x] Report PDF export (readable typography, one figure/page)
+- [x] Viva PPTX light theme + embedded captures
 - [x] Login honesty + Compliance disclaimer (product code)
-- [ ] Live UI screenshots overwrite placeholders
 - [ ] 5-minute demo video (student-owned)
 - [ ] Mentor name / signatures if institute requires

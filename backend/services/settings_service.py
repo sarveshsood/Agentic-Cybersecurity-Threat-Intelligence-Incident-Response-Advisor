@@ -121,6 +121,19 @@ async def public_settings_payload() -> Dict[str, Any]:
         payload["secrets_vault"] = vault_status()
     except Exception:
         payload["secrets_vault"] = {"enabled": False}
+    try:
+        from backend.llm_provider import last_effective_llm
+
+        eff = last_effective_llm()
+        payload["llm_effective_provider"] = eff.get("provider")
+        payload["llm_effective_model"] = eff.get("model")
+        payload["llm_via_fallback"] = bool(eff.get("via_fallback"))
+        payload["llm_effective_ts"] = eff.get("ts")
+    except Exception:
+        payload["llm_effective_provider"] = None
+        payload["llm_effective_model"] = None
+        payload["llm_via_fallback"] = False
+        payload["llm_effective_ts"] = None
     for secret_key in SECRET_SETTINGS_FIELDS:
         payload.pop(secret_key, None)
     return payload

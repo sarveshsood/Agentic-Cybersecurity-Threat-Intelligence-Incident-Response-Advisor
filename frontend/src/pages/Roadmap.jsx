@@ -712,24 +712,6 @@ export default function Roadmap() {
         }
     };
 
-    const deleteItem = async () => {
-        // Log the exact ID being targeted
-        console.log("Deleting roadmap item with ID:", item.id);
-
-        if (!window.confirm(`Are you sure you want to delete "${item.title}"?`)) return;
-        setBusy(true);
-        try {
-            await api.delete(`/roadmap/${item.id}`);
-            toast.success("Roadmap item deleted");
-            onDelete?.(item.id);
-            onRefresh?.();
-        } catch (e) {
-            toast.error(e?.response?.data?.detail || "Delete failed");
-        } finally {
-            setBusy(false);
-        }
-    };
-
     const handleUploadClick = () => {
         fileInputRef.current?.click();
     };
@@ -951,6 +933,13 @@ export default function Roadmap() {
                                 icon={Icon}
                                 tone={tone}
                                 className="p-3"
+                                tip={
+                                    <HelpTip
+                                        title={meta.label}
+                                        body={`Roadmap items in “${meta.label}”. Click the card to filter the list to this status.`}
+                                        testid={`tip-roadmap-${key}`}
+                                    />
+                                }
                             />
                         </button>
                     );

@@ -11,10 +11,11 @@ export default function Forbidden() {
 
     // Audit Telemetry: Log frontend authorization breach to backend SIEM/Audit stream
     useEffect(() => {
-        api.post("/api/audit/telemetry", {
+        // baseURL already includes /api — do not prefix again
+        api.post("/audit/telemetry", {
             event: "unauthorized_page_access",
             attempted_path: location.pathname,
-            user_id: user?.id,
+            user_id: user?.id || user?.sub,
             user_role: user?.role || "anonymous",
             timestamp: new Date().toISOString(),
         }).catch(() => {

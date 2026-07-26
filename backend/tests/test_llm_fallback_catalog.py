@@ -100,3 +100,75 @@ async def test_call_llm_missing_keys_raises():
             api_keys={"openai": "", "anthropic": "", "gemini": "", "groq": ""},
             use_prompt_cache=False,
         )
+
+
+@pytest.mark.asyncio
+async def test_call_llm_cross_provider_fallback_and_effective(monkeypatch):
+    """Primary retriable failure → next key-bearing provider succeeds; record via_fallback."""
+    from backend import llm_provider as lp
+
+    calls: list[str] = []
+
+    async def fake_dispatch(provider, model, system, user, keys, json_mode, **kwargs):
+        calls.append(provider)
+        if provider == "openai":
+            raise RuntimeError("503 service unavailable")
+        return f"ok-from-{provider}", provider, model
+
+    monkeypatch.setattr(lp, "_dispatch_provider", fake_dispatch)
+    # Reset last-effective between tests
+    lp._last_effective.update(
+        {
+            "provider": None,
+            "model": None,
+            "configured_provider": None,
+            "configured_model": None,
+            "via_fallback": False,
+            "ts": None,
+        }
+    )
+
+    text, eff_p, eff_m = await lp.call_llm(
+        system="s",
+        user="u",
+        provider="openai",
+        model="gpt-4o-mini",
+        settings={
+            "llm_fallback_enabled": True,
+            "llm_fallback_provider": "anthropic",
+        },
+        api_keys={
+            "openai": "sk-test-o",
+            "anthropic": "sk-test-a",
+            "gemini": "",
+            "groq": "",
+        },
+        use_prompt_cache=False,
+    )
+
+    assert text == "ok-from-anthropic"
+    assert eff_p == "anthropic"
+    assert calls[0] == "openai"
+    assert "anthropic" in calls
+    last = lp.last_effective_llm()
+    assert last["provider"] == "anthropic"
+    assert last["configured_provider"] == "openai"
+    assert last["via_fallback"] is True
+
+
+def test_catalog_exposes_fallback_order_and_experimental():
+    from backend.llm_provider import llm_catalog, record_effective_llm, last_effective_llm
+
+    cat = llm_catalog()
+    assert cat["fallback_order"]
+    assert "notes" in cat and "fallback" in cat["notes"]
+    # experimental tags present for honesty (preview / codename models)
+    exp = cat.get("experimental_models") or {}
+    assert any(exp.get(p) for p in ("openai", "anthropic", "gemini", "groq"))
+    record_effective_llm(
+        configured_provider="openai",
+        configured_model="gpt-4o",
+        effective_provider="openai",
+        effective_model="gpt-4o",
+    )
+    assert last_effective_llm()["via_fallback"] is False

@@ -72,7 +72,7 @@ export default function Knowledge() {
         chart.chart.slate,
         chart.primary,
     ];
-    const [q, setQ] = useState("brute force ssh");
+    const [q, setQ] = useState("");
     const [mode, setMode] = useState(prefs.kb_default_mode || "hybrid");
     const [results, setResults] = useState([]);
     const [status, setStatus] = useState(null);

@@ -6,6 +6,7 @@
 | Local development        | [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)         |
 | Debugging                | [DEBUGGING.md](DEBUGGING.md)                         |
 | Coding standards         | [CODING_STANDARDS.md](CODING_STANDARDS.md)           |
+| **Tooltip prerequisite** | [TOOLTIP_PREREQUISITE.md](TOOLTIP_PREREQUISITE.md)   |
 | Branching strategy       | [BRANCHING.md](BRANCHING.md)                         |
 | Git workflow             | [GIT_WORKFLOW.md](GIT_WORKFLOW.md)                   |
 | PR guidelines            | [PR_GUIDELINES.md](PR_GUIDELINES.md)                 |

@@ -199,12 +199,13 @@ export function catalogFromApi(payload) {
             if (!Array.isArray(rows) || !rows.length) continue;
             base[p] = rows.map((r) =>
                 typeof r === "string"
-                    ? {id: r, tier: "paid", role: "mid", label: r}
+                    ? {id: r, tier: "paid", role: "mid", label: r, experimental: false}
                     : {
                         id: r.id || String(r),
                         tier: r.tier || "paid",
                         role: r.role || "mid",
                         label: r.label || r.id || String(r),
+                        experimental: Boolean(r.experimental),
                     },
             );
         }
@@ -262,8 +263,9 @@ export function modelLabel(catalogOrProvider, modelId, maybeId) {
     }
     const row = (catalog[provider] || []).find((m) => m.id === id);
     if (!row) return `${id} · custom`;
-    const badge = row.tier === "free" ? " · free" : " · paid";
-    return `${row.label || row.id}${badge}`;
+    const tierBadge = row.tier === "free" ? " · free" : " · paid";
+    const expBadge = row.experimental ? " · experimental" : "";
+    return `${row.label || row.id}${tierBadge}${expBadge}`;
 }
 
 /** Models grouped by free/paid for optgroups. */

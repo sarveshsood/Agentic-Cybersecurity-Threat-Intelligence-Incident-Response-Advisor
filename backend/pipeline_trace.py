@@ -15,15 +15,37 @@ logger = logging.getLogger("actira.pipeline_trace")
 
 
 def _otel_start(name: str, attributes: Optional[Dict[str, Any]] = None):
-    """Best-effort OTEL span; returns context manager or None."""
-    try:
-        from opentelemetry import trace  # type: ignore
+    """Best-effort OTEL span; returns context manager or None.
 
-        tracer = trace.get_tracer("actira.pipeline")
-        span = tracer.start_as_current_span(name)
-        if attributes:
-            # enter later via context manager protocol
-            cm = span
+    Prefers ``backend.otel_setup.get_tracer`` (centralized) then raw SDK.
+    """
+    try:
+        from backend.otel_setup import get_tracer
+
+        tracer = get_tracer("actira.pipeline")
+        cm = tracer.start_as_current_span(name)
+
+        class _AttrSpan:
+            def __enter__(self):
+                s = cm.__enter__()
+                try:
+                    for k, v in (attributes or {}).items():
+                        if v is not None:
+                            s.set_attribute(str(k), v)
+                except Exception:
+                    pass
+                return s
+
+            def __exit__(self, *exc):
+                return cm.__exit__(*exc)
+
+        return _AttrSpan()
+    except Exception:
+        try:
+            from opentelemetry import trace  # type: ignore
+
+            tracer = trace.get_tracer("actira.pipeline")
+            cm = tracer.start_as_current_span(name)
 
             class _AttrSpan:
                 def __enter__(self):
@@ -40,9 +62,8 @@ def _otel_start(name: str, attributes: Optional[Dict[str, Any]] = None):
                     return cm.__exit__(*exc)
 
             return _AttrSpan()
-        return span
-    except Exception:
-        return None
+        except Exception:
+            return None
 
 
 class PipelineTrace:

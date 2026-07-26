@@ -2,9 +2,18 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {api, apiErrorMessage} from "../lib/api";
 import {toast} from "sonner";
-import {Archive, ArrowClockwise, FileArrowUp, Files, WarningCircle, X} from "@phosphor-icons/react";
+import {
+    Archive,
+    ArrowClockwise,
+    ClipboardText,
+    FileArrowUp,
+    Files,
+    Funnel,
+    WarningCircle,
+    X,
+} from "@phosphor-icons/react";
 import {PageHeader} from "../design-system";
-import {HelpTip} from "../components/HelpTip";
+import {HelpTip, Tip} from "../components/HelpTip";
 
 const STEPS = [
     ["queued", "Queued"],
@@ -14,6 +23,12 @@ const STEPS = [
     ["enriching", "Enriching"],
     ["generating", "Playbook"],
     ["done", "Complete"],
+];
+
+/** Formats the pipeline auto-detects (honest product claim — not every SIEM format). */
+const SUPPORTED_FORMATS = [
+    "apache", "nginx", "syslog", "json", "csv", "cef", "leef",
+    "cloudtrail", "suricata", "zeek", "sysmon", "defender", "evtx*", "zip",
 ];
 
 const SAMPLE_APACHE = `45.155.205.199 - - [01/Feb/2026:09:12:44 +0000] "GET /wp-admin HTTP/1.1" 403 512
@@ -30,8 +45,34 @@ const SAMPLE_CSV = `timestamp,action,src_ip,dst_ip,dst_port,protocol
 2026-02-01T09:14:12,BLOCK,45.155.205.199,10.0.0.5,4444,tcp
 2026-02-01T09:15:00,ALLOW,10.0.0.5,185.220.101.44,443,tcp
 `;
+const SAMPLE_SSH = `Jan 15 10:01:02 bastion sshd[1201]: Failed password for root from 203.0.113.10 port 51222 ssh2
+Jan 15 10:01:05 bastion sshd[1202]: Failed password for admin from 203.0.113.10 port 51224 ssh2
+Jan 15 10:01:09 bastion sshd[1203]: Failed password for ubuntu from 203.0.113.10 port 51230 ssh2
+Jan 15 10:02:11 bastion sshd[1210]: Failed password for root from 203.0.113.10 port 51301 ssh2
+Jan 15 10:03:44 bastion sshd[1222]: Accepted password for deploy from 203.0.113.10 port 52011 ssh2
+`;
+const SAMPLE_SURICATA = `{"timestamp":"2026-02-01T09:15:01.000000+0000","event_type":"alert","src_ip":"45.155.205.199","dest_ip":"10.0.0.5","dest_port":4444,"proto":"TCP","alert":{"signature":"ET TROJAN Possible C2","category":"A Network Trojan was Detected","severity":1}}
+{"timestamp":"2026-02-01T09:15:02.000000+0000","event_type":"alert","src_ip":"45.155.205.199","dest_ip":"10.0.0.5","dest_port":4444,"proto":"TCP","alert":{"signature":"ET SCAN Potential SSH Scan","category":"Attempted Information Leak","severity":2}}
+`;
+
+const SAMPLE_TEMPLATES = [
+    {id: "bundle", label: "3-file IR bundle", kind: "bundle"},
+    {id: "apache", label: "Apache access", kind: "file", name: "apache.log", content: SAMPLE_APACHE},
+    {id: "syslog", label: "Syslog (dropper)", kind: "file", name: "syslog.log", content: SAMPLE_SYSLOG},
+    {id: "ssh", label: "SSH brute force", kind: "file", name: "ssh_bruteforce.log", content: SAMPLE_SSH},
+    {id: "csv", label: "Firewall CSV", kind: "file", name: "firewall.csv", content: SAMPLE_CSV, type: "text/csv"},
+    {id: "suricata", label: "Suricata EVE JSON", kind: "file", name: "suricata_eve.json", content: SAMPLE_SURICATA, type: "application/json"},
+];
+
+const JOB_FILTERS = [
+    {id: "all", label: "All"},
+    {id: "active", label: "Active"},
+    {id: "done", label: "Done"},
+    {id: "failed", label: "Failed"},
+];
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB limit per file
+const ACCEPT_ATTR = ".log,.txt,.json,.jsonl,.csv,.zip,.gz,.cef,.evtx,text/plain,application/json,text/csv,application/zip";
 
 function fmtSize(n) {
     if (n < 1024) return `${n} B`;
@@ -39,11 +80,27 @@ function fmtSize(n) {
     return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function makeFile(name, content, type = "text/plain") {
+    return new File([new Blob([content], {type})], name, {type});
+}
+
+function jobMatchesFilter(job, filter) {
+    if (filter === "all") return true;
+    if (filter === "done") return job.status === "done";
+    if (filter === "failed") return job.status === "failed";
+    if (filter === "active") return job.status !== "done" && job.status !== "failed";
+    return true;
+}
+
 export default function Upload() {
     const [jobs, setJobs] = useState([]);
     const [queue, setQueue] = useState([]); // pending files
     const [dragOver, setDragOver] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [jobFilter, setJobFilter] = useState("all");
+    const [pasteOpen, setPasteOpen] = useState(false);
+    const [pasteName, setPasteName] = useState("pasted.log");
+    const [pasteBody, setPasteBody] = useState("");
     const inputRef = useRef(null);
     const nav = useNavigate();
     const prevStatusRef = useRef({});
@@ -143,18 +200,57 @@ export default function Upload() {
         }
     }, [queue, refresh]);
 
-    const loadSampleBundle = useCallback(() => {
-        const mk = (name, content, type = "text/plain") =>
-            new File([new Blob([content], {type})], name, {type});
-        setQueue([
-            mk("apache.log", SAMPLE_APACHE),
-            mk("syslog.log", SAMPLE_SYSLOG),
-            mk("firewall.csv", SAMPLE_CSV, "text/csv"),
-        ]);
-        toast.info("3-file incident bundle staged — click Run pipeline");
+    const stageTemplate = useCallback((templateId) => {
+        const t = SAMPLE_TEMPLATES.find((x) => x.id === templateId);
+        if (!t) return;
+        if (t.kind === "bundle") {
+            setQueue([
+                makeFile("apache.log", SAMPLE_APACHE),
+                makeFile("syslog.log", SAMPLE_SYSLOG),
+                makeFile("firewall.csv", SAMPLE_CSV, "text/csv"),
+            ]);
+            toast.info("3-file incident bundle staged — click Run pipeline");
+            return;
+        }
+        const file = makeFile(t.name, t.content, t.type || "text/plain");
+        setQueue((prev) => {
+            const next = [...prev, file].slice(0, 20);
+            return next;
+        });
+        toast.info(`Staged ${t.name} — click Run pipeline when ready`);
     }, []);
 
+    const stagePaste = useCallback(() => {
+        const body = pasteBody.trim();
+        if (!body) {
+            toast.error("Paste some log text first");
+            return;
+        }
+        const name = (pasteName || "pasted.log").trim() || "pasted.log";
+        const file = makeFile(name, body + (body.endsWith("\n") ? "" : "\n"));
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            toast.error("Pasted content exceeds the 25 MB limit");
+            return;
+        }
+        setQueue((prev) => [...prev, file].slice(0, 20));
+        setPasteBody("");
+        toast.success(`Staged ${name} from paste`);
+    }, [pasteBody, pasteName]);
+
     const totalQueueSize = useMemo(() => queue.reduce((acc, f) => acc + f.size, 0), [queue]);
+    const filteredJobs = useMemo(
+        () => jobs.filter((j) => jobMatchesFilter(j, jobFilter)),
+        [jobs, jobFilter],
+    );
+    const jobCounts = useMemo(() => {
+        const c = {all: jobs.length, active: 0, done: 0, failed: 0};
+        for (const j of jobs) {
+            if (j.status === "done") c.done += 1;
+            else if (j.status === "failed") c.failed += 1;
+            else c.active += 1;
+        }
+        return c;
+    }, [jobs]);
 
     return (
         <div data-testid="upload-page" className="space-y-6">
@@ -162,25 +258,54 @@ export default function Upload() {
                 testid="upload-header"
                 title="Ingest Logs"
                 icon={FileArrowUp}
-                subtitle="Drop a single log, multiple logs, or an incident-package ZIP. Formats auto-detected (Apache, Nginx, Syslog, JSON, CSV, CEF, LEEF, CloudTrail). Events normalize into CES and correlate into a single incident."
+                subtitle="Drop logs, multi-file packages, or ZIPs. Format is auto-detected; events normalize to CES and correlate into one incident per job (not multi-tenant SIEM fan-out)."
                 tip={
                     <HelpTip
                         title="Log ingest"
                         body="Upload evidence packages. Multi-file ZIPs are expanded safely (zip-bomb limits). Events normalize into CES, correlate into one incident, then run IoC → TI → ATT&CK → playbook."
-                        how="POST /logs (or batch). Jobs appear below with status until the pipeline finishes."
+                        how="POST /logs/upload-batch (multipart). Jobs poll via GET /logs/jobs. API stream ingest: POST /logs/ingest (+ optional X-Ingest-Key)."
                         testid="tip-upload-page"
                     />
                 }
                 actions={
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <label className="sr-only" htmlFor="sample-template">Sample template</label>
+                        <select
+                            id="sample-template"
+                            data-testid="sample-template-select"
+                            className="soc-btn-secondary !text-xs !h-9 !py-0 max-w-[11rem]"
+                            defaultValue=""
+                            onChange={(e) => {
+                                const v = e.target.value;
+                                if (v) stageTemplate(v);
+                                e.target.value = "";
+                            }}
+                        >
+                            <option value="" disabled>
+                                Stage sample…
+                            </option>
+                            {SAMPLE_TEMPLATES.map((t) => (
+                                <option key={t.id} value={t.id}>{t.label}</option>
+                            ))}
+                        </select>
                         <button
                             type="button"
-                            onClick={loadSampleBundle}
+                            onClick={() => stageTemplate("bundle")}
                             className="soc-btn-secondary !text-xs !h-9 inline-flex items-center gap-1.5"
                             data-testid="load-sample-bundle-header"
                         >
                             <Files size={14}/>
-                            Stage 3-File Bundle
+                            3-file bundle
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPasteOpen((v) => !v)}
+                            className="soc-btn-secondary !text-xs !h-9 inline-flex items-center gap-1.5"
+                            data-testid="paste-log-toggle"
+                            aria-expanded={pasteOpen}
+                        >
+                            <ClipboardText size={14}/>
+                            Paste log
                         </button>
                         <button
                             type="button"
@@ -221,7 +346,11 @@ export default function Upload() {
                             ref={inputRef}
                             className="hidden"
                             data-testid="file-input"
-                            onChange={(e) => addFiles(e.target.files)}
+                            accept={ACCEPT_ATTR}
+                            onChange={(e) => {
+                                addFiles(e.target.files);
+                                e.target.value = "";
+                            }}
                         />
                         <div className="flex items-start gap-3">
                             <FileArrowUp size={36} className="text-primary shrink-0 animate-bounce"/>
@@ -235,23 +364,90 @@ export default function Upload() {
                             </div>
                         </div>
                         <div
-                            className="mt-5 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">apache</span>
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">syslog</span>
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">json</span>
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">csv</span>
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">cef</span>
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">leef</span>
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">cloudtrail</span>
-                            <span className="px-2 py-0.5 rounded border border-border bg-background">zip</span>
+                            className="mt-5 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground"
+                            data-testid="supported-formats"
+                        >
+                            {SUPPORTED_FORMATS.map((f) => (
+                                <Tip
+                                    key={f}
+                                    content={
+                                        f === "evtx*"
+                                            ? "Windows EVTX: magic detect + optional python-evtx scaffold (not full Windows log coverage)."
+                                            : `Auto-detect confidence scoring for ${f}`
+                                    }
+                                >
+                                    <span className="px-2 py-0.5 rounded border border-border bg-background cursor-help">
+                                        {f}
+                                    </span>
+                                </Tip>
+                            ))}
                         </div>
                     </div>
+
+                    {pasteOpen && (
+                        <div className="soc-card p-4 space-y-3" data-testid="paste-log-panel">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="soc-label inline-flex items-center gap-1.5">
+                                    Paste log text
+                                    <HelpTip
+                                        title="Paste to stage"
+                                        body="Stage ad-hoc log text without saving a file on disk. Filename extension can help detection (e.g. .json, .csv, .log)."
+                                        testid="tip-paste-log"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    className="text-[11px] text-muted-foreground hover:text-foreground"
+                                    onClick={() => setPasteOpen(false)}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2 items-center">
+                                <label className="text-[11px] text-muted-foreground" htmlFor="paste-filename">
+                                    Filename
+                                </label>
+                                <input
+                                    id="paste-filename"
+                                    data-testid="paste-filename"
+                                    className="soc-mono text-xs px-2 py-1.5 rounded border border-border bg-background min-w-[10rem]"
+                                    value={pasteName}
+                                    onChange={(e) => setPasteName(e.target.value)}
+                                    placeholder="pasted.log"
+                                />
+                            </div>
+                            <textarea
+                                data-testid="paste-log-body"
+                                className="w-full min-h-[120px] text-xs font-mono rounded-lg border border-border bg-background p-3 resize-y"
+                                placeholder="Paste Apache, syslog, Suricata JSONL, CSV…"
+                                value={pasteBody}
+                                onChange={(e) => setPasteBody(e.target.value)}
+                            />
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    data-testid="paste-stage-btn"
+                                    onClick={stagePaste}
+                                    className="text-xs px-3.5 py-1.5 bg-primary text-primary-foreground font-semibold rounded"
+                                >
+                                    Stage paste →
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {queue.length > 0 && (
                         <div className="soc-card p-4 border-primary/30 bg-primary/[0.02]">
                             <div className="flex items-center justify-between mb-3">
                                 <div>
-                                    <div className="soc-label">Staged Files ({queue.length}/20)</div>
+                                    <div className="soc-label inline-flex items-center gap-1.5">
+                                        Staged Files ({queue.length}/20)
+                                        <HelpTip
+                                            title="Staged files"
+                                            body="Client-side queue before upload. Max 20 files / 25 MB each. ZIP packages expand server-side with zip-bomb limits."
+                                            testid="tip-upload-staged"
+                                        />
+                                    </div>
                                     <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
                                         Total payload: {fmtSize(totalQueueSize)}
                                     </div>
@@ -309,7 +505,14 @@ export default function Upload() {
                     )}
 
                     <div className="soc-card p-4 text-xs text-muted-foreground leading-relaxed">
-                        <div className="soc-label mb-2 text-foreground">Pipeline Execution Flow</div>
+                        <div className="soc-label mb-2 text-foreground inline-flex items-center gap-1.5">
+                            Pipeline Execution Flow
+                            <HelpTip
+                                title="Pipeline stages"
+                                body="What happens after Run pipeline: normalize → correlate → enrich IoCs → ATT&CK → playbook → HiTL routing. Timings appear under Ops Health."
+                                testid="tip-upload-pipeline"
+                            />
+                        </div>
                         <ol className="space-y-1.5 font-mono text-[11px]">
                             <li className="flex items-center gap-2"><span
                                 className="text-primary font-bold">1.</span> Format detection per file → CES
@@ -338,21 +541,63 @@ export default function Upload() {
                 </div>
 
                 <div className="lg:col-span-3 soc-card p-0 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/20">
-                        <div className="soc-label">Recent Jobs Queue</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">auto-refresh · 3s interval</div>
+                    <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2 bg-muted/20">
+                        <div className="soc-label inline-flex items-center gap-1.5">
+                            Recent Jobs Queue
+                            <HelpTip
+                                title="Job queue"
+                                body="Async ingest jobs for this tenant: queued → running → done/failed. Open the incident when done. Retry only if durable payload still exists."
+                                how="GET /logs/jobs (or jobs list) · polled ~3s while this page is open."
+                                testid="tip-upload-jobs"
+                            />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div
+                                className="flex items-center gap-1"
+                                data-testid="job-filter-bar"
+                                role="group"
+                                aria-label="Filter jobs"
+                            >
+                                <Funnel size={12} className="text-muted-foreground" aria-hidden/>
+                                {JOB_FILTERS.map((f) => (
+                                    <button
+                                        key={f.id}
+                                        type="button"
+                                        data-testid={`job-filter-${f.id}`}
+                                        onClick={() => setJobFilter(f.id)}
+                                        className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded border transition-colors ${
+                                            jobFilter === f.id
+                                                ? "border-primary/40 bg-primary/10 text-primary"
+                                                : "border-border text-muted-foreground hover:text-foreground"
+                                        }`}
+                                    >
+                                        {f.label}
+                                        <span className="ml-1 font-mono opacity-70">{jobCounts[f.id] ?? 0}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono">auto-refresh · 3s</div>
+                        </div>
                     </div>
                     <div className="divide-y divide-border">
                         {jobs.length === 0 && (
                             <div className="text-center text-muted-foreground text-xs py-14 space-y-2">
                                 <Files size={32} className="mx-auto opacity-40 text-muted-foreground"/>
                                 <div>No ingestion jobs recorded yet</div>
-                                <div className="text-[11px] text-muted-foreground/80">Drop files or stage the sample
-                                    bundle to initiate evaluation.
+                                <div className="text-[11px] text-muted-foreground/80">
+                                    Drop files, paste a log, or stage a sample template to start.
                                 </div>
                             </div>
                         )}
-                        {jobs.map((j) => {
+                        {jobs.length > 0 && filteredJobs.length === 0 && (
+                            <div
+                                className="text-center text-muted-foreground text-xs py-10"
+                                data-testid="jobs-filter-empty"
+                            >
+                                No jobs match filter “{jobFilter}”.
+                            </div>
+                        )}
+                        {filteredJobs.map((j) => {
                             const idx = STEPS.findIndex(([k]) => k === j.status);
                             const isFail = j.status === "failed";
                             const canResume =

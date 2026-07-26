@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState} from "react";
 import {api} from "../../lib/api";
 import {formatDateTime} from "../../lib/uiPrefs";
 import {Clock} from "@phosphor-icons/react";
+import {Tip} from "../HelpTip";
 
 const SEV_CLASS = {
     critical: "border-error/50 bg-error-soft text-error",
@@ -84,35 +85,43 @@ export default function InvestigationTimeline({
         <div className="soc-card p-4 space-y-4" data-testid="investigation-timeline">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <div className="soc-label">Investigation timeline</div>
+                    <div className="soc-label inline-flex items-center gap-1.5">
+                        Event stream
+                    </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
                         Source: {data.source} · {data.stats?.returned ?? events.length} events
                         {filterEntity ? ` · filter: ${filterEntity}` : ""}
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <select
-                        className="text-xs border border-border rounded px-2 py-1 bg-background"
-                        value={kind}
-                        onChange={(e) => setKind(e.target.value)}
-                        data-testid="timeline-filter-kind"
-                    >
-                        <option value="">All kinds</option>
-                        <option value="attack_chain">Attack chain</option>
-                        <option value="ces">CES</option>
-                        <option value="pipeline">Pipeline</option>
-                    </select>
-                    <select
-                        className="text-xs border border-border rounded px-2 py-1 bg-background max-w-[160px]"
-                        value={sourceFile}
-                        onChange={(e) => setSourceFile(e.target.value)}
-                        data-testid="timeline-filter-file"
-                    >
-                        <option value="">All files</option>
-                        {files.map((f) => (
-                            <option key={f} value={f}>{f}</option>
-                        ))}
-                    </select>
+                    <Tip content="Filter timeline events by kind (attack chain, CES, pipeline)">
+                        <select
+                            className="text-xs border border-border rounded px-2 py-1 bg-background"
+                            value={kind}
+                            onChange={(e) => setKind(e.target.value)}
+                            title="Filter timeline events by kind"
+                            data-testid="timeline-filter-kind"
+                        >
+                            <option value="">All kinds</option>
+                            <option value="attack_chain">Attack chain</option>
+                            <option value="ces">CES</option>
+                            <option value="pipeline">Pipeline</option>
+                        </select>
+                    </Tip>
+                    <Tip content="Filter events to a single source file from the package">
+                        <select
+                            className="text-xs border border-border rounded px-2 py-1 bg-background max-w-[160px]"
+                            value={sourceFile}
+                            onChange={(e) => setSourceFile(e.target.value)}
+                            title="Filter timeline by source file"
+                            data-testid="timeline-filter-file"
+                        >
+                            <option value="">All files</option>
+                            {files.map((f) => (
+                                <option key={f} value={f}>{f}</option>
+                            ))}
+                        </select>
+                    </Tip>
                 </div>
             </div>
 
