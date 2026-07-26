@@ -16,6 +16,7 @@ import EntityGraph, {EntityTypeTable} from "../components/workspace/EntityGraph"
 import NotesNotebook, {RecommendationsPanel} from "../components/workspace/NotesNotebook";
 import BehaviorPanel from "../components/workspace/BehaviorPanel";
 import {PageHeader} from "../design-system";
+import {HelpTip} from "../components/HelpTip";
 import {pushRecentIncident} from "../lib/recentActivity";
 import {formatDateTime} from "../lib/uiPrefs";
 
@@ -234,6 +235,13 @@ export default function IncidentDetail() {
             <PageHeader
                 testid="incident-detail-header"
                 title={inc.title}
+                tip={
+                    <HelpTip
+                        title="Investigation Workspace"
+                        body="Case hub for one incident: evidence, timeline, entities, TI, ATT&CK, notes, RCA, and playbooks. Use tabs below to switch views. HiTL approve/reject appears when review is required."
+                        testid="tip-workspace-page"
+                    />
+                }
                 breadcrumb={
                     <>
                         <Link to="/incidents" className="hover:text-primary">Incidents</Link>
@@ -268,13 +276,28 @@ export default function IncidentDetail() {
                         </Link>
 
                         <div className="grid grid-cols-2 gap-2 text-right shrink-0">
-                            <div className="soc-card px-3 py-2">
-                                <div className="soc-label">Threat</div>
+                            <div className="soc-card px-3 py-2" title="Pipeline threat score (0–100)">
+                                <div className="soc-label inline-flex items-center gap-1">
+                                    Threat
+                                    <HelpTip
+                                        title="Threat score"
+                                        body="Composite risk score for this incident from severity, IoC enrichment, and techniques."
+                                        testid="tip-case-threat"
+                                    />
+                                </div>
                                 <div className="font-mono text-primary text-xl"
                                      aria-label={`Threat score ${inc.threat_score}`}>{inc.threat_score}</div>
                             </div>
-                            <div className="soc-card px-3 py-2">
-                                <div className="soc-label">Grounding</div>
+                            <div className="soc-card px-3 py-2" title="Playbook citation grounding (0–1)">
+                                <div className="soc-label inline-flex items-center gap-1">
+                                    Grounding
+                                    <HelpTip
+                                        title="Grounding score"
+                                        body="Share of playbook steps with valid knowledge-base citations (0–1). Low scores force HiTL review."
+                                        how="valid citations / total steps on the generated playbook."
+                                        testid="tip-case-grounding"
+                                    />
+                                </div>
                                 <div className="font-mono text-success text-xl"
                                      aria-label={`Grounding ${pb?.grounding_score ?? "none"}`}>{pb?.grounding_score ?? "—"}</div>
                             </div>

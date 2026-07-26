@@ -202,23 +202,27 @@ const DASH_TIPS = {
         title: "Threat Operations dashboard",
         body: "Live snapshot of SOC workload: incident volume, critical severity, HiTL queue, playbook quality, MTTR, recent cases, and ATT&CK coverage.",
     },
-    total: {title: "Incidents", body: "Total incident records (all statuses, all-time)."},
-    critical: {title: "Critical severity", body: "Incidents scored as critical by the pipeline."},
-    pending: {title: "HiTL pending", body: "Cases waiting for senior reviewer approval."},
-    grounding: {title: "Average grounding", body: "Mean citation quality of generated playbooks (0–1)."},
-    acceptance: {title: "Acceptance rate", body: "Share of HiTL decisions that were approved vs rejected."},
-    mttr: {title: "Mean time to review", body: "Average hours from incident creation to first review decision."},
-    events: {title: "Events Processed", body: "Total raw log events ingested and analyzed."},
-    ips: {title: "Unique SRC IPs", body: "Distinct source IP addresses flagged across all incidents."},
-    iocs: {title: "Unique IOCs", body: "Distinct indicators of compromise extracted."},
-    high_threat: {title: "High Threat IOCs", body: "Indicators mapping directly to known threat actor infrastructure."},
-    multi: {title: "Multi-file Incidents", body: "Complex incidents spanning multiple log files."},
+    total: {title: "Incidents", body: "Total incident records (all statuses, all-time) from Mongo.", how: "COUNT of incidents collection."},
+    critical: {title: "Critical severity", body: "Incidents scored as critical by the pipeline.", how: "COUNT where severity=critical."},
+    high: {title: "High severity", body: "Incidents scored as high by the pipeline.", how: "COUNT where severity=high."},
+    medium: {title: "Medium severity", body: "Incidents scored as medium by the pipeline.", how: "COUNT where severity=medium."},
+    low: {title: "Low severity", body: "Incidents scored as low by the pipeline.", how: "COUNT where severity=low."},
+    pending: {title: "HiTL pending", body: "Cases waiting for senior reviewer approval.", how: "COUNT where status=pending_review."},
+    grounding: {title: "Average grounding", body: "Mean citation quality of generated playbooks (0–1).", how: "AVG(playbook.grounding_score) over incidents with a score."},
+    acceptance: {title: "Acceptance rate", body: "Share of HiTL decisions that were approved vs rejected.", how: "approved / (approved + rejected). 0 if none reviewed."},
+    mttr: {title: "Mean time to review", body: "Average hours from incident creation to first review decision.", how: "AVG(reviewed_at − created_at) in hours for reviewed cases."},
+    events: {title: "Events Processed", body: "Sum of raw log events across incidents (from correlation stats).", how: "SUM(correlation.stats.total_events)."},
+    ips: {title: "Unique SRC IPs", body: "Sum of distinct source IPs reported per incident correlation stats.", how: "SUM(correlation.stats.unique_source_ips)."},
+    iocs: {title: "Unique IOCs", body: "Total IoC objects extracted across all incidents.", how: "COUNT of IoC array elements (unwound)."},
+    high_threat: {title: "High Threat IOCs", body: "IoCs with enrichment threat_score ≥ 70.", how: "COUNT IoCs where threat_score ≥ 70."},
+    multi: {title: "Multi-file Incidents", body: "Incidents that include more than one source log file.", how: "COUNT where files_meta has 2+ files."},
     recent: {title: "Recent incidents", body: "Newest incidents for quick triage. Click headers to sort."},
     heatmap: {title: "MITRE ATT&CK coverage", body: "Technique frequency across incidents."},
     sev_mix: {title: "Severity distribution", body: "All-time severity mix from KPI aggregates."},
     ioc_mix: {title: "Top IoC types", body: "IoC type counts from KPI aggregates."},
-    trend: {title: "Incident creation trend", body: "Daily volume from the recent incident sample."},
+    trend: {title: "Incident creation trend", body: "Daily volume from the recent incident sample on this page (not all-time)."},
     status_mix: {title: "Lifecycle status mix", body: "Where cases sit in the IR lifecycle."},
+    top_tech: {title: "Top ATT&CK techniques", body: "Most frequent MITRE technique IDs mapped by the pipeline. Click a row to filter incidents."},
 };
 
 function kpiTip(tip) {
@@ -269,7 +273,36 @@ export default function Dashboard() {
     const useDemoIncidents = DEMO_FALLBACK_ENABLED && incidentsLoaded && incidents.length === 0;
 
     const kpis = useMemo(() => {
-        if (hasApiKpis) return {...EMPTY_KPIS, ...rawKpis};
+        if (hasApiKpis) {
+            const merged = {...EMPTY_KPIS, ...rawKpis};
+            // Normalize aliases from API (unique_source_ips vs unique_src_ips)
+            if (!merged.unique_src_ips && merged.unique_source_ips) {
+                merged.unique_src_ips = merged.unique_source_ips;
+            }
+            // Build top_techniques from attack_heatmap map if list missing
+            if ((!merged.top_techniques || !merged.top_techniques.length) && merged.attack_heatmap) {
+                const hm = merged.attack_heatmap;
+                if (hm && typeof hm === "object" && !Array.isArray(hm)) {
+                    merged.top_techniques = Object.entries(hm)
+                        .map(([id, count]) => ({id, count: Number(count) || 0}))
+                        .filter((t) => t.id)
+                        .sort((a, b) => b.count - a.count)
+                        .slice(0, 12);
+                }
+            }
+            // Flat severity cards from distribution if not present
+            if (Array.isArray(merged.severity_distribution)) {
+                for (const row of merged.severity_distribution) {
+                    const s = (row.severity || "").toLowerCase();
+                    const c = Number(row.count) || 0;
+                    if (s === "high" && !rawKpis.high_incidents) merged.high_incidents = c;
+                    if (s === "medium" && !rawKpis.medium_incidents) merged.medium_incidents = c;
+                    if (s === "low" && !rawKpis.low_incidents) merged.low_incidents = c;
+                    if (s === "critical" && !rawKpis.critical_incidents) merged.critical_incidents = c;
+                }
+            }
+            return merged;
+        }
         if (useDemoKpis) return DEMO_FALLBACK_KPIS;
         return EMPTY_KPIS;
     }, [hasApiKpis, rawKpis, useDemoKpis]);
@@ -524,12 +557,15 @@ export default function Dashboard() {
                 <KpiCard testid="kpi-high-threat" tip={kpiTip(DASH_TIPS.high_threat)} label="High Threat IOCs"
                          value={kpis.high_threat_iocs} sub="score > 70" icon={ShieldWarning} tone="critical"/>
 
-                <KpiCard testid="kpi-high" label="High" value={kpis.high_incidents} sub="severity=high" icon={TrendUp}
-                         tone="warning"/>
-                <KpiCard testid="kpi-medium" label="Medium" value={kpis.medium_incidents} sub="severity=medium"
-                         icon={ChartLineUp} tone="default"/>
-                <KpiCard testid="kpi-low" label="Low" value={kpis.low_incidents} sub="severity=low" icon={ArrowUpRight}
-                         tone="default"/>
+                <KpiCard testid="kpi-high" tip={kpiTip(DASH_TIPS.high)}
+                         label="High" value={kpis.high_incidents} sub="severity=high" icon={TrendUp}
+                         tone="warning" to="/incidents?severity=high"/>
+                <KpiCard testid="kpi-medium" tip={kpiTip(DASH_TIPS.medium)}
+                         label="Medium" value={kpis.medium_incidents} sub="severity=medium"
+                         icon={ChartLineUp} tone="default" to="/incidents?severity=medium"/>
+                <KpiCard testid="kpi-low" tip={kpiTip(DASH_TIPS.low)}
+                         label="Low" value={kpis.low_incidents} sub="severity=low" icon={ArrowUpRight}
+                         tone="default" to="/incidents?severity=low"/>
                 <KpiCard testid="kpi-multi" tip={kpiTip(DASH_TIPS.multi)} label="Multi-File"
                          value={kpis.multi_file_incidents} sub="complex incidents" icon={FolderSimpleLock}
                          tone="default"/>
@@ -760,8 +796,9 @@ export default function Dashboard() {
                                     <ShieldWarning size={16} className="text-blue-600"/>
                                     Top ATT&CK Techniques
                                     <HelpTip
-                                        title="Top techniques"
-                                        body="Most frequent MITRE ATT&CK techniques in KPIs. Click to filter."
+                                        title={DASH_TIPS.top_tech.title}
+                                        body={DASH_TIPS.top_tech.body}
+                                        testid="tip-dash-top-tech"
                                     />
                                 </div>
                                 <button
@@ -774,6 +811,11 @@ export default function Dashboard() {
                             </div>
 
                             <div className="flex-1 flex flex-col justify-evenly overflow-hidden">
+                                {!topTechMini.length && (
+                                    <p className="text-xs text-slate-500 px-2 py-4 text-center">
+                                        No ATT&CK techniques mapped yet. Ingest logs with detections to populate this list.
+                                    </p>
+                                )}
                                 {topTechMini.map((t) => (
                                     <Link
                                         key={t.id}

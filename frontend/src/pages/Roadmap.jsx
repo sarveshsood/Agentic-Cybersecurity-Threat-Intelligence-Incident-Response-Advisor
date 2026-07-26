@@ -24,6 +24,7 @@ import {
     User,
 } from "@phosphor-icons/react";
 import {KpiCard, PageHeader} from "../design-system";
+import {HelpTip} from "../components/HelpTip";
 
 const STATUS_META = {
     planned: {
@@ -838,6 +839,13 @@ export default function Roadmap() {
                 testid="roadmap-header"
                 title="Product Roadmap"
                 icon={MapTrifold}
+                tip={
+                    <HelpTip
+                        title="Product roadmap"
+                        body="In-app tracking of ACTIRA initiatives (status, priority, tasks). Seed cards merge from roadmap_data.py; not a SIEM feature."
+                        testid="tip-roadmap-page"
+                    />
+                }
                 subtitle={
                     <>
                         Track weekly-discussion initiatives as actionable work: status, priority, ownership,

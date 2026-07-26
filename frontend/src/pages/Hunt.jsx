@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from "react";
 import {Link} from "react-router-dom";
 import {api} from "../lib/api";
 import {PageHeader} from "../design-system";
+import {HelpTip} from "../components/HelpTip";
 import {SeverityBadge, StatusPill} from "../components/SeverityBadge";
 import {ListState} from "../components/ListState";
 import {MagnifyingGlass, Crosshair, Pulse} from "@phosphor-icons/react";
@@ -61,6 +62,14 @@ export default function Hunt() {
                 testid="hunt-header"
                 title="Threat Hunting"
                 subtitle="Natural-language hunt over recent incidents (rule-based intents + keyword scoring)"
+                tip={
+                    <HelpTip
+                        title="Threat Hunting"
+                        body="Ask in plain language (e.g. PowerShell, lateral movement). ACTIRA maps the query to rule-based intents and scores matching incidents — not a SIEM lake search (KQL/SPL)."
+                        how="Intents + keyword scoring over Mongo incidents and extracted IoCs/techniques."
+                        testid="tip-hunt-page"
+                    />
+                }
             />
 
             <form

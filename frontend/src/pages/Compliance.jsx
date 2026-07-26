@@ -183,6 +183,13 @@ export default function Compliance() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <KpiCard
                     testid="compliance-score-kpi"
+                    tip={
+                        <HelpTip
+                            title="Maturity score"
+                            body="Weighted product-alignment score across catalog controls — not a formal ISO/SOC2 certification."
+                            how="Passed control weights ÷ total weights × 100."
+                        />
+                    }
                     label="Maturity Score"
                     value={report != null ? `${report.score}%` : "—"}
                     sub="weighted controls"
@@ -191,6 +198,12 @@ export default function Compliance() {
                 />
                 <KpiCard
                     testid="compliance-frameworks-kpi"
+                    tip={
+                        <HelpTip
+                            title="Frameworks"
+                            body="How many GRC-style frameworks have mapped controls in the ACTIRA catalog (ISO, SOC 2, NIST CSF, CIS)."
+                        />
+                    }
                     label="Frameworks Tracked"
                     value={report?.frameworks?.length ?? "—"}
                     sub="ISO · SOC2 · NIST · CIS"
@@ -199,6 +212,12 @@ export default function Compliance() {
                 />
                 <KpiCard
                     testid="compliance-readiness-kpi"
+                    tip={
+                        <HelpTip
+                            title="Audit readiness"
+                            body="Label derived from overall score bands (Passing / Needs work / Critical gaps). Alignment only — not a certification."
+                        />
+                    }
                     label="Audit Readiness"
                     value={readiness}
                     sub={report?.disclaimer ? "alignment score" : "—"}
@@ -207,6 +226,12 @@ export default function Compliance() {
                 />
                 <KpiCard
                     testid="compliance-gaps-kpi"
+                    tip={
+                        <HelpTip
+                            title="Open gaps"
+                            body="Count of failed catalog controls. Open the gaps panel for remediation text and priority by weight."
+                        />
+                    }
                     label="Open Gaps"
                     value={gapCount}
                     sub="failed controls"

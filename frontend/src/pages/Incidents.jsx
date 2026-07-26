@@ -209,12 +209,17 @@ export default function Incidents() {
                     >
                         <thead>
                         <tr className="bg-muted/50 border-b border-border">
-                            <SortableTh label="Severity" sortKey="severity" sort={sort} onSort={toggleSort}/>
+                            <SortableTh label="Severity" sortKey="severity" sort={sort} onSort={toggleSort}
+                                        help={{title: "Severity", body: "Pipeline severity: low → critical."}}/>
                             <SortableTh label="Incident Title & ID" sortKey="title" sort={sort} onSort={toggleSort}
-                                        className="w-[45%]"/>
-                            <SortableTh label="Status" sortKey="status" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Threat Score" sortKey="threat_score" sort={sort} onSort={toggleSort}/>
-                            <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={toggleSort}/>
+                                        className="w-[45%]"
+                                        help={{title: "Title & ID", body: "Human-readable title and stable incident UUID."}}/>
+                            <SortableTh label="Status" sortKey="status" sort={sort} onSort={toggleSort}
+                                        help={{title: "Status", body: "IR lifecycle: new, in_progress, pending_review, approved, rejected, closed."}}/>
+                            <SortableTh label="Threat Score" sortKey="threat_score" sort={sort} onSort={toggleSort}
+                                        help={{title: "Threat score", body: "Composite risk score (0–100) from severity, IoCs, and techniques."}}/>
+                            <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={toggleSort}
+                                        help={{title: "Created", body: "When the pipeline first persisted this incident (UTC stored; display TZ from UI prefs)."}}/>
                             <th className="px-3 py-2.5 text-right font-semibold text-muted-foreground text-xs">Actions</th>
                         </tr>
                         </thead>

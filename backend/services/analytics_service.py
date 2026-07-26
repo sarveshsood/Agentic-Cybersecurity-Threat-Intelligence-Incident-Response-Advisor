@@ -39,7 +39,7 @@ async def _attach_llm_usage(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 async def kpis(*, force_refresh: bool = False) -> Dict[str, Any]:
     """Dashboard KPIs — one Mongo $facet instead of many count_documents."""
-    cache_key = "kpis:v2"
+    cache_key = "kpis:v3"
     if not force_refresh:
         hit = cache.get(cache_key)
         if hit is not None:
@@ -87,6 +87,45 @@ async def _kpis_compute() -> Dict[str, Any]:
             {"$group": {"_id": {"$ifNull": ["$iocs.type", "other"]}, "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
             {"$limit": 10},
+        ],
+        "ioc_totals": [
+            {"$unwind": {"path": "$iocs", "preserveNullAndEmptyArrays": False}},
+            {
+                "$group": {
+                    "_id": None,
+                    "ioc_count": {"$sum": 1},
+                    "high_threat": {
+                        "$sum": {
+                            "$cond": [
+                                {"$gte": [{"$ifNull": ["$iocs.threat_score", 0]}, 70]},
+                                1,
+                                0,
+                            ]
+                        }
+                    },
+                }
+            },
+        ],
+        "pipeline_stats": [
+            {
+                "$group": {
+                    "_id": None,
+                    "events_processed": {
+                        "$sum": {
+                            "$ifNull": ["$correlation.stats.total_events", 0]
+                        }
+                    },
+                    "unique_src_ips": {
+                        "$sum": {
+                            "$ifNull": ["$correlation.stats.unique_source_ips", 0]
+                        }
+                    },
+                }
+            },
+        ],
+        "multi_file": [
+            {"$match": {"files_meta.1": {"$exists": True}}},
+            {"$count": "n"},
         ],
         "techniques": [
             {"$unwind": {"path": "$techniques", "preserveNullAndEmptyArrays": False}},
@@ -190,10 +229,20 @@ async def _kpis_compute() -> Dict[str, Any]:
         {"type": (r.get("_id") or "other").lower(), "count": int(r.get("count") or 0)}
         for r in (block.get("ioc_types") or [])
     ]
+    ioc_tot = (block.get("ioc_totals") or [{"ioc_count": 0, "high_threat": 0}])[0]
+    pipe = (block.get("pipeline_stats") or [{"events_processed": 0, "unique_src_ips": 0}])[0]
+    multi_file = int((block.get("multi_file") or [{"n": 0}])[0].get("n") or 0)
+    top_techniques = sorted(
+        [{"id": tid, "count": n} for tid, n in tech_counts.items() if tid],
+        key=lambda x: -x["count"],
+    )[:12]
 
     return {
         "total_incidents": total,
         "critical_incidents": sev_counts.get("critical", 0),
+        "high_incidents": sev_counts.get("high", 0),
+        "medium_incidents": sev_counts.get("medium", 0),
+        "low_incidents": sev_counts.get("low", 0),
         "pending_review": pending,
         "approved": approved,
         "rejected": rejected,
@@ -205,6 +254,12 @@ async def _kpis_compute() -> Dict[str, Any]:
         "mean_mttr_hours": mean_mttr_hours,
         "median_mttr_hours": median_mttr_hours,
         "mttr_sample_size": len(review_hours),
+        "events_processed": int(pipe.get("events_processed") or 0),
+        "unique_src_ips": int(pipe.get("unique_src_ips") or 0),
+        "unique_source_ips": int(pipe.get("unique_src_ips") or 0),
+        "unique_iocs": int(ioc_tot.get("ioc_count") or 0),
+        "high_threat_iocs": int(ioc_tot.get("high_threat") or 0),
+        "multi_file_incidents": multi_file,
         "severity_distribution": [
             {"severity": k, "count": v}
             for k, v in sev_counts.items()
@@ -219,6 +274,7 @@ async def _kpis_compute() -> Dict[str, Any]:
             {"status": "closed", "count": closed},
         ],
         "top_ioc_types": top_ioc_types,
+        "top_techniques": top_techniques,
         "attack_heatmap": tech_counts,
         "engine": "mongo_facet",
     }
@@ -253,6 +309,8 @@ async def _kpis_legacy() -> Dict[str, Any]:
             "status": 1,
             "iocs": 1,
             "techniques": 1,
+            "correlation": 1,
+            "files_meta": 1,
         },
     ).limit(1000).to_list(1000)
 
@@ -261,6 +319,11 @@ async def _kpis_legacy() -> Dict[str, Any]:
     sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     ioc_type_counts: dict = {}
     tech_counts: dict = {}
+    events_processed = 0
+    unique_src_ips = 0
+    unique_iocs = 0
+    high_threat_iocs = 0
+    multi_file_incidents = 0
     for d in docs:
         pb = d.get("playbook") or {}
         if isinstance(pb, dict) and pb.get("grounding_score") is not None:
@@ -271,10 +334,25 @@ async def _kpis_legacy() -> Dict[str, Any]:
         sev = (d.get("severity") or "low").lower()
         if sev in sev_counts:
             sev_counts[sev] += 1
+        stats = (d.get("correlation") or {}).get("stats") or {}
+        try:
+            events_processed += int(stats.get("total_events") or 0)
+            unique_src_ips += int(stats.get("unique_source_ips") or 0)
+        except (TypeError, ValueError):
+            pass
+        files = {m.get("file") for m in (d.get("files_meta") or []) if isinstance(m, dict) and m.get("file")}
+        if len(files) > 1:
+            multi_file_incidents += 1
         for ioc in d.get("iocs") or []:
             if isinstance(ioc, dict):
                 t = (ioc.get("type") or "other").lower()
                 ioc_type_counts[t] = ioc_type_counts.get(t, 0) + 1
+                unique_iocs += 1
+                try:
+                    if float(ioc.get("threat_score") or 0) >= 70:
+                        high_threat_iocs += 1
+                except (TypeError, ValueError):
+                    pass
         for t in d.get("techniques") or []:
             if not isinstance(t, dict):
                 continue
@@ -323,10 +401,17 @@ async def _kpis_legacy() -> Dict[str, Any]:
         [{"type": k, "count": v} for k, v in ioc_type_counts.items()],
         key=lambda x: -x["count"],
     )[:10]
+    top_techniques = sorted(
+        [{"id": tid, "count": n} for tid, n in tech_counts.items() if tid],
+        key=lambda x: -x["count"],
+    )[:12]
 
     return {
         "total_incidents": total,
         "critical_incidents": critical,
+        "high_incidents": sev_counts.get("high", 0),
+        "medium_incidents": sev_counts.get("medium", 0),
+        "low_incidents": sev_counts.get("low", 0),
         "pending_review": pending,
         "approved": approved,
         "rejected": rejected,
@@ -338,6 +423,12 @@ async def _kpis_legacy() -> Dict[str, Any]:
         "mean_mttr_hours": mean_mttr_hours,
         "median_mttr_hours": median_mttr_hours,
         "mttr_sample_size": len(review_hours),
+        "events_processed": events_processed,
+        "unique_src_ips": unique_src_ips,
+        "unique_source_ips": unique_src_ips,
+        "unique_iocs": unique_iocs,
+        "high_threat_iocs": high_threat_iocs,
+        "multi_file_incidents": multi_file_incidents,
         "severity_distribution": [
             {"severity": k, "count": v} for k, v in sev_counts.items() if v > 0
         ],
@@ -350,6 +441,7 @@ async def _kpis_legacy() -> Dict[str, Any]:
             {"status": "closed", "count": closed},
         ],
         "top_ioc_types": top_ioc_types,
+        "top_techniques": top_techniques,
         "attack_heatmap": tech_counts,
         "engine": "legacy_parallel",
     }

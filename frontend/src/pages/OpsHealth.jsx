@@ -13,6 +13,7 @@ import {
     Warning,
 } from "@phosphor-icons/react";
 import {KpiCard, PageHeader, Panel} from "../design-system";
+import {HelpTip} from "../components/HelpTip";
 import {ListState} from "../components/ListState";
 
 function Badge({ok, children}) {
@@ -74,6 +75,14 @@ export default function OpsHealth() {
                 testid="ops-health-header"
                 title="Ops & Health"
                 subtitle="Multi-replica flags, job queue, pipeline timings, and LLM budget (admin)"
+                tip={
+                    <HelpTip
+                        title="Ops & Health"
+                        body="Admin view of platform readiness: Mongo connectivity, job queue depth, pipeline timings, and LLM monthly budget usage."
+                        how="GET /ops/status (admin). Refresh to re-poll live counters."
+                        testid="tip-ops-page"
+                    />
+                }
                 actions={
                     <button
                         type="button"

@@ -82,12 +82,12 @@ const SECRET_FORM_KEYS = [
 ];
 
 const SETTINGS_TABS = [
-    {id: "llm", label: "LLM", icon: Cpu, iconColor: "text-primary", sectionKey: "llm"},
-    {id: "pipeline", label: "Detection", icon: Sliders, iconColor: "text-primary", sectionKey: "pipeline"},
-    {id: "threat_intel", label: "Threat intel", icon: Key, iconColor: "text-warning", sectionKey: "threat_intel"},
-    {id: "notifications", label: "Alerts", icon: Bell, iconColor: "text-primary", sectionKey: "notifications"},
-    {id: "access", label: "Access & data", icon: Shield, iconColor: "text-success", sectionKey: "security"},
-    {id: "ui", label: "UI prefs", icon: Desktop, iconColor: "text-primary", sectionKey: "ui"},
+    {id: "llm", label: "LLM", icon: Cpu, iconColor: "text-primary", sectionKey: "llm", tip: "Provider, model, API keys, temperature, budget, and LLM fallback."},
+    {id: "pipeline", label: "Detection", icon: Sliders, iconColor: "text-primary", sectionKey: "pipeline", tip: "Grounding threshold, HiTL severity floor, auto-approve, correlation window."},
+    {id: "threat_intel", label: "Threat intel", icon: Key, iconColor: "text-warning", sectionKey: "threat_intel", tip: "Live CTI API keys (empty = mock enrichment)."},
+    {id: "notifications", label: "Alerts", icon: Bell, iconColor: "text-primary", sectionKey: "notifications", tip: "Slack webhook and alert email for critical/HiTL events."},
+    {id: "access", label: "Access & data", icon: Shield, iconColor: "text-success", sectionKey: "security", tip: "Session timeout, login lockout, retention, enrichment cache TTL."},
+    {id: "ui", label: "UI prefs", icon: Desktop, iconColor: "text-primary", sectionKey: "ui", tip: "Browser-local presentation prefs (tables, refresh, help tips) — not stored in Mongo."},
 ];
 
 const VALID_TAB_IDS = new Set(SETTINGS_TABS.map((t) => t.id));
@@ -1152,7 +1152,7 @@ export default function Settings() {
                 role="tablist"
                 aria-label="Settings categories"
             >
-                {SETTINGS_TABS.map(({id, label, icon: Icon, iconColor}) => {
+                {SETTINGS_TABS.map(({id, label, icon: Icon, iconColor, tip: tabTip}) => {
                     const active = activeTab === id;
                     const counts = tabIssueCounts[id] || {error: 0, warning: 0};
                     const badgeN = counts.error || counts.warning;
@@ -1165,6 +1165,7 @@ export default function Settings() {
                             aria-controls={`settings-panel-${id}`}
                             id={`settings-tab-${id}`}
                             data-testid={`tab-${id}`}
+                            title={tabTip || label}
                             onClick={() => setActiveTab(id)}
                             className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[13px] font-medium transition-colors min-h-[2.5rem] ${
                                 active

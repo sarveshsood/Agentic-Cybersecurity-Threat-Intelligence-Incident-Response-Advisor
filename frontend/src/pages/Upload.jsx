@@ -4,6 +4,7 @@ import {api, apiErrorMessage} from "../lib/api";
 import {toast} from "sonner";
 import {Archive, ArrowClockwise, FileArrowUp, Files, WarningCircle, X} from "@phosphor-icons/react";
 import {PageHeader} from "../design-system";
+import {HelpTip} from "../components/HelpTip";
 
 const STEPS = [
     ["queued", "Queued"],
@@ -162,6 +163,14 @@ export default function Upload() {
                 title="Ingest Logs"
                 icon={FileArrowUp}
                 subtitle="Drop a single log, multiple logs, or an incident-package ZIP. Formats auto-detected (Apache, Nginx, Syslog, JSON, CSV, CEF, LEEF, CloudTrail). Events normalize into CES and correlate into a single incident."
+                tip={
+                    <HelpTip
+                        title="Log ingest"
+                        body="Upload evidence packages. Multi-file ZIPs are expanded safely (zip-bomb limits). Events normalize into CES, correlate into one incident, then run IoC → TI → ATT&CK → playbook."
+                        how="POST /logs (or batch). Jobs appear below with status until the pipeline finishes."
+                        testid="tip-upload-page"
+                    />
+                }
                 actions={
                     <div className="flex items-center gap-2">
                         <button
