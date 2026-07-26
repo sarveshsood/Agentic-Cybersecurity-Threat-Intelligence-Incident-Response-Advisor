@@ -199,14 +199,23 @@ class TestMongoJobPayloads:
 # -------------------- Roadmap auto-merge logic --------------------
 class TestRoadmapAutoMergeLogic:
     def test_seed_contains_ops_stretch_card(self):
+        """Canonical post-dedupe seeds (old rm-review-deferred-close / rm-ops-stretch-close retired)."""
         from backend.roadmap_data import ROADMAP_SEED
 
         ids = {i["id"] for i in ROADMAP_SEED}
-        assert "rm-review-deferred-close" in ids
-        assert "rm-ops-stretch-close" in ids
-        card = next(i for i in ROADMAP_SEED if i["id"] == "rm-ops-stretch-close")
-        assert card["status"] == "completed"
-        assert int(card.get("progress") or 0) >= 100
+        # Retired fragment IDs must stay gone
+        assert "rm-review-deferred-close" not in ids
+        assert "rm-ops-stretch-close" not in ids
+        # Current platform / Wave C / next-hardening cards
+        assert "rm-next-platform-hardening" in ids
+        assert "rm-v1-6-compliance-audit-llm" in ids
+        assert "rm-next-trust-qa" in ids
+        hard = next(i for i in ROADMAP_SEED if i["id"] == "rm-next-platform-hardening")
+        assert hard["status"] in ("completed", "in_progress")
+        assert int(hard.get("progress") or 0) >= 90
+        wave_c = next(i for i in ROADMAP_SEED if i["id"] == "rm-v1-6-compliance-audit-llm")
+        assert wave_c["status"] == "completed"
+        assert int(wave_c.get("progress") or 0) >= 100
 
     def test_promote_completed_seed_item(self):
         """Simulate merge: incomplete local row promoted when seed is completed."""
