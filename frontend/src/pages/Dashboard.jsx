@@ -49,6 +49,41 @@ import {
 } from "@phosphor-icons/react";
 import {DataTable, KpiCard, PageHeader, Panel, useChartTheme} from "../design-system";
 
+/**
+ * Demo KPI/incident fallbacks are OFF by default (enterprise trust).
+ * Enable only for empty-DB marketing demos:
+ *   REACT_APP_DASHBOARD_DEMO_FALLBACK=true
+ */
+const DEMO_FALLBACK_ENABLED = ["1", "true", "yes", "on"].includes(
+    String(process.env.REACT_APP_DASHBOARD_DEMO_FALLBACK || "").toLowerCase(),
+);
+
+/** Zeroed KPI shape when the API returns nothing (real empty tenant). */
+const EMPTY_KPIS = {
+    total_incidents: 0,
+    critical_incidents: 0,
+    high_incidents: 0,
+    medium_incidents: 0,
+    low_incidents: 0,
+    pending_review: 0,
+    events_processed: 0,
+    unique_src_ips: 0,
+    unique_iocs: 0,
+    high_threat_iocs: 0,
+    multi_file_incidents: 0,
+    mean_grounding_score: 0,
+    acceptance_rate: 0,
+    mean_mttr_hours: null,
+    mttr_sample_size: 0,
+    approved: 0,
+    rejected: 0,
+    severity_distribution: [],
+    status_distribution: [],
+    top_ioc_types: [],
+    top_techniques: [],
+};
+
+/** Optional showcase data — never used unless REACT_APP_DASHBOARD_DEMO_FALLBACK=true. */
 const DEMO_FALLBACK_KPIS = {
     total_incidents: 65,
     critical_incidents: 23,
@@ -222,14 +257,31 @@ export default function Dashboard() {
 
     const [rawKpis, setRawKpis] = useState(null);
     const [incidents, setIncidents] = useState([]);
+    const [kpisLoaded, setKpisLoaded] = useState(false);
+    const [incidentsLoaded, setIncidentsLoaded] = useState(false);
     const [loadError, setLoadError] = useState(null);
     const [showTechLabels, setShowTechLabels] = useState(false);
 
-    const kpis = useMemo(() => {
-        return rawKpis && rawKpis.total_incidents > 0 ? {...DEMO_FALLBACK_KPIS, ...rawKpis} : DEMO_FALLBACK_KPIS;
-    }, [rawKpis]);
+    const hasApiKpis = kpisLoaded && rawKpis != null;
+    const hasApiIncidents = incidentsLoaded && incidents.length > 0;
+    // Showcase demo only when explicitly enabled and we have no real payload
+    const useDemoKpis = DEMO_FALLBACK_ENABLED && !hasApiKpis;
+    const useDemoIncidents = DEMO_FALLBACK_ENABLED && incidentsLoaded && incidents.length === 0;
 
-    const activeIncidents = incidents.length > 0 ? incidents : DEMO_INCIDENTS;
+    const kpis = useMemo(() => {
+        if (hasApiKpis) return {...EMPTY_KPIS, ...rawKpis};
+        if (useDemoKpis) return DEMO_FALLBACK_KPIS;
+        return EMPTY_KPIS;
+    }, [hasApiKpis, rawKpis, useDemoKpis]);
+
+    const activeIncidents = useMemo(() => {
+        if (hasApiIncidents) return incidents;
+        if (useDemoIncidents) return DEMO_INCIDENTS;
+        return [];
+    }, [hasApiIncidents, incidents, useDemoIncidents]);
+
+    const showingDemoData = useDemoKpis || useDemoIncidents;
+    const loading = !kpisLoaded || !incidentsLoaded;
 
     const {sorted, sort, toggleSort} = useSortableData(
         activeIncidents,
@@ -238,17 +290,31 @@ export default function Dashboard() {
     );
 
     const load = useCallback(() => {
-        api.get("/kpis").then((r) => setRawKpis(r.data)).catch((e) => {
-            setRawKpis(null);
-            setLoadError(e?.userMessage || "KPIs unavailable");
-        });
-        api.get("/incidents").then((r) => {
-            const all = Array.isArray(r.data) ? r.data : [];
-            const recent = [...all]
-                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-                .slice(0, limit);
-            setIncidents(recent);
-        }).catch(() => setIncidents([]));
+        setLoadError(null);
+        api.get("/kpis")
+            .then((r) => {
+                setRawKpis(r.data && typeof r.data === "object" ? r.data : {});
+                setKpisLoaded(true);
+            })
+            .catch((e) => {
+                setRawKpis(null);
+                setKpisLoaded(true);
+                setLoadError(e?.userMessage || e?.message || "KPIs unavailable");
+            });
+        api.get("/incidents")
+            .then((r) => {
+                const all = Array.isArray(r.data) ? r.data : [];
+                const recent = [...all]
+                    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+                    .slice(0, limit);
+                setIncidents(recent);
+                setIncidentsLoaded(true);
+            })
+            .catch((e) => {
+                setIncidents([]);
+                setIncidentsLoaded(true);
+                setLoadError((prev) => prev || e?.userMessage || e?.message || "Incidents unavailable");
+            });
     }, [limit]);
 
     useEffect(() => {
@@ -297,17 +363,7 @@ export default function Dashboard() {
     }, [kpis]);
 
     const trendSeries = useMemo(() => {
-        if (incidents.length === 0) {
-            return [
-                {date: "2026-07-19", total: 8, critical: 2},
-                {date: "2026-07-20", total: 12, critical: 4},
-                {date: "2026-07-21", total: 2, critical: 0},
-                {date: "2026-07-22", total: 1, critical: 0},
-                {date: "2026-07-23", total: 6, critical: 2},
-                {date: "2026-07-24", total: 15, critical: 5},
-                {date: "2026-07-25", total: 4, critical: 1},
-            ];
-        }
+        if (!activeIncidents.length) return [];
 
         const byDay = {};
         for (const inc of activeIncidents) {
@@ -321,7 +377,7 @@ export default function Dashboard() {
             if (inc.severity === "high") byDay[key].high += 1;
         }
         return Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
-    }, [incidents, activeIncidents]);
+    }, [activeIncidents]);
 
     const workloadBars = useMemo(() => {
         const rawDist = kpis?.status_distribution;
@@ -332,11 +388,11 @@ export default function Dashboard() {
             });
         }
         return [
-            {status: "New", count: map["new"] ?? 2, rawKey: "new"},
-            {status: "In Progress", count: map["in_progress"] ?? 3, rawKey: "in_progress"},
+            {status: "New", count: map["new"] ?? 0, rawKey: "new"},
+            {status: "In Progress", count: map["in_progress"] ?? 0, rawKey: "in_progress"},
             {
                 status: "Pending Review",
-                count: map["pending_review"] ?? kpis.pending_review ?? 60,
+                count: map["pending_review"] ?? kpis?.pending_review ?? 0,
                 rawKey: "pending_review"
             }
         ];
@@ -353,8 +409,13 @@ export default function Dashboard() {
         return [];
     }, [kpis]);
 
-    const mttrLabel = kpis?.mean_mttr_hours != null ? `${kpis.mean_mttr_hours}h` : "—";
+    const mttrLabel = kpis?.mean_mttr_hours != null && kpis.mean_mttr_hours !== ""
+        ? `${kpis.mean_mttr_hours}h`
+        : "—";
     const pendingCount = kpis?.pending_review ?? 0;
+    const acceptanceLabel = kpis?.acceptance_rate != null
+        ? `${Math.round(Number(kpis.acceptance_rate) * 100)}%`
+        : "—";
 
     return (
         <div data-testid="dashboard-page" className="pb-12">
@@ -364,7 +425,7 @@ export default function Dashboard() {
                 tip={<HelpTip title={DASH_TIPS.page.title} body={DASH_TIPS.page.body} testid="dash-tip-page"/>}
                 subtitle={
                     <>
-                        Realtime view of ingestion, correlation, and reviewer workload. Hover{" "}
+                        Live metrics from your ACTIRA tenant (API KPIs + recent incidents). Hover{" "}
                         <Info size={11} className="inline text-primary/80"/> for metric help.
                     </>
                 }
@@ -381,11 +442,36 @@ export default function Dashboard() {
                 }
             />
 
+            {showingDemoData && (
+                <div
+                    className="mb-4 rounded-lg border border-[var(--warning-border)] bg-warning-soft px-3 py-2 text-xs text-warning flex flex-wrap items-center gap-2"
+                    data-testid="dashboard-demo-banner"
+                    role="status"
+                >
+                    <strong className="font-semibold">DEMO DATA</strong>
+                    <span>
+                        Showcase fallback is enabled (`REACT_APP_DASHBOARD_DEMO_FALLBACK`).
+                        Metrics below are not from your Mongo incidents — ingest logs for real data, or unset the flag.
+                    </span>
+                    <Link to="/upload" className="font-semibold underline underline-offset-2">
+                        Go to Ingest
+                    </Link>
+                </div>
+            )}
+
             {loadError && (
                 <ListState
                     variant="error"
                     testid="dashboard-load-error"
                     message={`${loadError} — is the backend running on the configured API URL?`}
+                />
+            )}
+
+            {loading && (
+                <ListState
+                    variant="loading"
+                    testid="dashboard-loading"
+                    message="Loading live KPIs and recent incidents…"
                 />
             )}
 
@@ -450,10 +536,11 @@ export default function Dashboard() {
                 <KpiCard testid="kpi-grounding" tip={kpiTip(DASH_TIPS.grounding)} label="Mean Grounding"
                          value={kpis.mean_grounding_score} sub="citation rate" icon={Cpu} tone="success"/>
                 <KpiCard testid="kpi-acceptance" tip={kpiTip(DASH_TIPS.acceptance)} label="Acceptance Rate"
-                         value={`${Math.round(kpis.acceptance_rate * 100)}%`} sub={`${kpis.approved} approved`}
+                         value={acceptanceLabel} sub={`${kpis.approved ?? 0} approved`}
                          icon={CheckCircle} tone="success"/>
                 <KpiCard testid="kpi-mttr" tip={kpiTip(DASH_TIPS.mttr)} label="Mean MTTR" value={mttrLabel}
-                         sub={`median ${kpis.mttr_sample_size}n`} icon={Timer} tone="default"/>
+                         sub={kpis.mttr_sample_size ? `n=${kpis.mttr_sample_size}` : "no reviews yet"}
+                         icon={Timer} tone="default"/>
             </div>
 
             {showExtra && (
@@ -787,10 +874,14 @@ export default function Dashboard() {
                     </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                    {sorted.length === 0 && (
+                    {sorted.length === 0 && !loading && (
                         <tr>
-                            <td colSpan={8} className="text-center text-slate-500 text-sm py-12">
-                                No recent incidents to display. Waiting for log ingestion.
+                            <td colSpan={8} className="text-center text-slate-500 text-sm py-12" data-testid="dash-recent-empty">
+                                No incidents yet.{" "}
+                                <Link to="/upload" className="text-primary font-semibold underline-offset-2 hover:underline">
+                                    Ingest sample or production logs
+                                </Link>
+                                {" "}to populate live KPIs and this table.
                             </td>
                         </tr>
                     )}
