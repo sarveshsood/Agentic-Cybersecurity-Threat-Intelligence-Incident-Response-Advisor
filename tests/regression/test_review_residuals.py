@@ -34,7 +34,7 @@ def test_a_l2_playbook_phase_normalization():
 
 
 def test_a_e1_force_mock_enrichment():
-    from enrichment import enrich_ioc
+    from backend.enrichment import enrich_ioc
     from backend.models import IoC
 
     ioc = IoC(type="ip", value="203.0.113.50")
@@ -63,7 +63,7 @@ def test_email_http_gateway_default_off_outside_dev(monkeypatch):
     monkeypatch.setenv("ENV", "production")
     monkeypatch.delenv("EMAIL_HTTP_GATEWAY", raising=False)
     try:
-        from notifications import email_http_gateway_enabled
+        from backend.notifications import email_http_gateway_enabled
     except ImportError:
         pytest.skip("helper not exported")
     assert email_http_gateway_enabled() is False

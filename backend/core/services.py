@@ -117,16 +117,16 @@ async def lockout_limit() -> int:
 
 
 async def audit(actor: dict, action: str, target_type: str, target_id: str, detail: dict = None):
-    await db.audit_log.insert_one({
-        "id": new_id(),
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "actor_id": actor.get("sub", "system"),
-        "actor_email": actor.get("email", "system"),
-        "action": action,
-        "target_type": target_type,
-        "target_id": target_id,
-        "detail": detail or {},
-    })
+    # P1: delegate to AuditRepository (single write path)
+    from backend.repositories.audit import audit_repo
+
+    await audit_repo.insert(
+        actor=actor,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        detail=detail,
+    )
 
 
 def merge_settings_update(existing: dict, payload: dict) -> dict:
@@ -224,7 +224,9 @@ def slim_golden_payload(out: Dict[str, Any], *, include_cases: bool) -> Dict[str
     """Shape benchmark output for the UI (optional per-case detail)."""
     payload = {
         "summary": out.get("summary") or {},
-        "thresholds": out.get("thresholds") or dict(DEFAULT_THRESHOLDS),
+        "thresholds": out.get("thresholds") or dict(
+            __import__("backend.golden_eval", fromlist=["DEFAULT_THRESHOLDS"]).DEFAULT_THRESHOLDS  # lazy import
+        ),
         "failures": out.get("failures") or [],
         "passed": bool(out.get("passed")),
         "mode": "offline_template",

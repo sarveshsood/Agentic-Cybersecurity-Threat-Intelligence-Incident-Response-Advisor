@@ -1,7 +1,11 @@
 """Main FastAPI server — ACTIRA (Agentic Cybersecurity Threat Intelligence & Incident Response Advisor).
 
 v1.1: domain routes live under ``routers/``; shared DB/services under ``core/``.
-Entry point remains ``uvicorn server:app`` for backward compatibility.
+
+Canonical entry (P0):
+    uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
+
+Run from the repository root with ``PYTHONPATH=.`` (or install the package).
 """
 from __future__ import annotations
 
@@ -42,8 +46,11 @@ seed_demo_data = svc.seed_demo_data
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        logger.info("Startup: loading configuration (ENV=%s)", os.environ.get("ENV", "dev"))
+        logger.info("Startup: connecting MongoDB…")
         try:
             await client.admin.command("ping")
+            logger.info("Startup: MongoDB connected")
         except Exception as ping_err:
             raise RuntimeError(
                 f"Cannot reach MongoDB at MONGO_URL (ping failed: {type(ping_err).__name__}: {ping_err}). "
@@ -72,24 +79,34 @@ async def lifespan(app: FastAPI):
                 "exp": payload.get("exp"),
             }
 
+        logger.info("Startup: initializing authentication…")
         set_user_loader(_load_user_from_db)
         await svc.seed_demo_data()
         await svc.get_settings()
+        logger.info("Startup: settings loaded")
         try:
             from backend.knowledge_base import kb
 
             custom = await db.kb_docs.find({}, {"_id": 0}).to_list(500)
             n = kb.load_custom_docs(custom)
             if n:
-                logger.info("Loaded %s custom KB docs from Mongo", n)
+                logger.info("Startup: loaded %s custom KB docs from Mongo", n)
                 import asyncio
 
                 await asyncio.to_thread(kb.reindex_vectors)
         except Exception as kbe:
             logger.warning("custom KB load skipped: %s", kbe)
 
+        logger.info("Startup: ensuring indexes…")
         await db.incidents.create_index("id", unique=True)
         await db.incidents.create_index([("status", 1), ("created_at", -1)])
+        try:
+            from backend.services.analytics_service import ensure_analytics_indexes
+
+            await ensure_analytics_indexes(db)
+            logger.info("Startup: analytics indexes ready")
+        except Exception as aidx:
+            logger.warning("analytics indexes skipped: %s", aidx)
         await db.log_jobs.create_index("id", unique=True)
         await db.audit_log.create_index([("ts", -1)])
         await db.roadmap.create_index("id", unique=True)
@@ -108,7 +125,7 @@ async def lifespan(app: FastAPI):
 
             vs = vault_status()
             logger.info(
-                "secret_vault ready (key_source=%s recommend_master=%s)",
+                "Startup: secret_vault ready (key_source=%s recommend_master=%s)",
                 vs.get("key_source"),
                 vs.get("recommend_master_key") or vs.get("recommend_explicit_master_key"),
             )
@@ -131,6 +148,7 @@ async def lifespan(app: FastAPI):
         try:
             from backend.job_queue import start_worker
 
+            logger.info("Startup: starting job worker…")
             start_worker(db)
         except Exception as we:
             logger.exception("job worker failed to start: %s", we)
@@ -153,7 +171,7 @@ async def lifespan(app: FastAPI):
             n4 = await purge_from_settings(db, settings_snap)
             if n1 or n2 or any(n3.values()) or n4.get("incidents_deleted"):
                 logger.info(
-                    "Retention purge: sidecars=%s outbox=%s throttle=%s incidents=%s",
+                    "Startup: retention purge sidecars=%s outbox=%s throttle=%s incidents=%s",
                     n1,
                     n2,
                     n3,
@@ -161,7 +179,7 @@ async def lifespan(app: FastAPI):
                 )
         except Exception as pe:
             logger.warning("startup retention purge skipped: %s", pe)
-        logger.info("Application startup completed successfully")
+        logger.info("Startup complete — routers registered, ready to serve")
     except Exception:
         logger.exception("Lifespan startup failed")
         raise
@@ -353,6 +371,26 @@ async def health_root():
     return await svc.health_check()
 
 
+@app.get("/ready")
+async def ready_root():
+    """Readiness probe — 200 only when Mongo is reachable."""
+    body = await svc.health_check()
+    if body.get("mongo") != "up":
+        return JSONResponse(status_code=503, content=body)
+    return body
+
+
+@app.get("/version")
+async def version_root():
+    return {
+        "service": "ACTIRA API",
+        "full_name": "Agentic Cybersecurity Threat Intelligence & Incident Response Advisor",
+        "api": "v1",
+        "package": "backend",
+        "entry": "backend.server:app",
+    }
+
+
 @app.get("/metrics")
 async def metrics(request: Request):
     """Basic metrics (admin JWT or X-Metrics-Token only)."""
@@ -394,6 +432,7 @@ async def metrics(request: Request):
 
 
 @app.get("/api/audit/logs")
+@app.get("/api/v1/audit/logs")
 async def get_audit_logs(q: str = None, action: str = None, current_user: dict = Depends(get_current_user)):
     """Fetch immutable compliance audit logs with optional filtering."""
     try:

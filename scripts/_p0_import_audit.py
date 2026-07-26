@@ -13,6 +13,8 @@ SKIP_DIRS = {
     "bkp",
     ".venv",
     "node_modules",
+    # Historical one-shot modularization helpers — not runtime code.
+    "scripts",
 }
 
 LOCAL_TOPS = {
@@ -69,29 +71,22 @@ def main() -> int:
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 if node.level and node.level > 0:
-                    # Allow relative imports only inside routers package for sibling modules
+                    # Package-local relatives in routers/__init__.py are required
+                    # (absolute `from backend.routers import X` re-enters this module).
                     if (
                         "routers" in path.parts
                         and path.name == "__init__.py"
                         and node.level == 1
-                        and (node.module is None or not node.module.startswith("backend"))
+                        and (node.module is None or not str(node.module).startswith("backend"))
                     ):
-                        # still flag — we want absolute for consistency except package-local
-                        problems.append(
-                            (
-                                str(path.relative_to(ROOT)),
-                                node.lineno,
-                                f"relative:{'.' * node.level}{node.module or ''}",
-                            )
+                        continue
+                    problems.append(
+                        (
+                            str(path.relative_to(ROOT)),
+                            node.lineno,
+                            f"relative:{'.' * node.level}{node.module or ''}",
                         )
-                    elif node.level >= 1:
-                        problems.append(
-                            (
-                                str(path.relative_to(ROOT)),
-                                node.lineno,
-                                f"relative:{'.' * node.level}{node.module or ''}",
-                            )
-                        )
+                    )
                     continue
                 if not node.module:
                     continue

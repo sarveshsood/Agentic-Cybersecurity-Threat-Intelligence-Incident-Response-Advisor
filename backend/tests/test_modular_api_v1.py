@@ -11,10 +11,9 @@ from pathlib import Path
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 os.environ.setdefault("ENV", "test")
 os.environ.setdefault("JWT_SECRET", "ci-jwt-secret-not-for-production-use-32b")
 os.environ.setdefault("FORCE_MOCK_TI", "true")
@@ -27,7 +26,7 @@ LIVE_BASE = os.environ.get("ACTIRA_TEST_BASE", "http://127.0.0.1:8001").rstrip("
 
 
 def test_router_package_imports():
-    from routers import (
+    from backend.routers import (
         analytics,
         audit,
         auth,
@@ -63,8 +62,8 @@ def test_router_package_imports():
 
 
 def test_core_services_exports():
-    from core import services as svc
-    from core.database import client, db
+    from backend.core import services as svc
+    from backend.core.database import client, db
 
     assert db is not None
     assert client is not None
@@ -75,7 +74,7 @@ def test_core_services_exports():
 
 
 def test_server_app_has_api_and_v1_routes():
-    import server
+    import backend.server as server
 
     paths = {getattr(r, "path", None) for r in server.app.routes}
     assert "/api/health" in paths
@@ -85,10 +84,12 @@ def test_server_app_has_api_and_v1_routes():
     assert "/api/v1/auth/login" in paths
     assert "/api/v1/incidents" in paths
     assert "/health" in paths
+    assert "/ready" in paths
+    assert "/version" in paths
 
 
 def test_openapi_includes_v1_paths():
-    import server
+    import backend.server as server
 
     schema = server.app.openapi()
     paths = schema.get("paths") or {}
@@ -104,7 +105,7 @@ def test_openapi_includes_v1_paths():
 
 
 def test_server_reexports_db_for_compat():
-    import server
+    import backend.server as server
 
     assert hasattr(server, "db")
     assert hasattr(server, "app")
@@ -112,7 +113,7 @@ def test_server_reexports_db_for_compat():
 
 
 def test_build_api_router_route_count_stable():
-    from routers import build_api_router
+    from backend.routers import build_api_router
 
     a = build_api_router()
     b = build_api_router()

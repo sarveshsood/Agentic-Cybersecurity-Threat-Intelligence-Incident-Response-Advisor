@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 
 
 def _parse(text: str, filename: str = "upload.log"):
-    import parsers
+    import backend.parsers as parsers
 
     if hasattr(parsers, "detect_and_parse"):
         # detect_and_parse(content, filename) -> (format, events)

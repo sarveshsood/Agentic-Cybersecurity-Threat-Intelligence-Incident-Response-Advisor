@@ -1,6 +1,7 @@
 """Analytics/EDA aggregations over incidents + jobs."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -114,11 +115,14 @@ async def _compute_with_aggregation(db, cutoff: datetime, window_days: int) -> D
         },
     ]
 
-    sev_rows = await db.incidents.aggregate(sev_pipe).to_list(20)
-    status_rows = await db.incidents.aggregate(status_pipe).to_list(20)
-    daily_rows = await db.incidents.aggregate(daily_pipe).to_list(400)
-    tech_rows = await db.incidents.aggregate(tech_pipe).to_list(20)
-    ground_rows = await db.incidents.aggregate(ground_pipe).to_list(1)
+    # P2: run independent pipelines concurrently (was serial → multi-round-trip latency)
+    sev_rows, status_rows, daily_rows, tech_rows, ground_rows = await asyncio.gather(
+        db.incidents.aggregate(sev_pipe).to_list(20),
+        db.incidents.aggregate(status_pipe).to_list(20),
+        db.incidents.aggregate(daily_pipe).to_list(400),
+        db.incidents.aggregate(tech_pipe).to_list(20),
+        db.incidents.aggregate(ground_pipe).to_list(1),
+    )
 
     sev_counts = Counter({(r["_id"] or "unknown"): r["count"] for r in sev_rows})
     status_counts = Counter({(r["_id"] or "unknown"): r["count"] for r in status_rows})

@@ -1,6 +1,20 @@
 {
   "components": {
     "schemas": {
+      "Body_append_golden_dataset_eval_golden_dataset_append_post": {
+        "properties": {
+          "file": {
+            "format": "binary",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_append_golden_dataset_eval_golden_dataset_append_post",
+        "type": "object"
+      },
       "Body_kb_ingest_api_kb_ingest_post": {
         "properties": {
           "doc_id": {
@@ -190,7 +204,6 @@
         "type": "object"
       },
       "ClearSecretsBody": {
-        "description": "Wipe stored API keys (Mongo + process env + backend/.env).",
         "properties": {
           "confirm": {
             "default": false,
@@ -273,11 +286,9 @@
         "type": "object"
       },
       "LoraTrainRequest": {
-        "description": "Admin domain embedding fine-tune (rm-w1-embeddings LoRA).",
         "properties": {
           "activate": {
             "default": false,
-            "description": "If true, set process env to lora backend and reset embedder cache (this worker)",
             "title": "Activate",
             "type": "boolean"
           },
@@ -290,7 +301,6 @@
           },
           "include_approved_incidents": {
             "default": true,
-            "description": "Merge approved/closed incident playbooks into the training corpus",
             "title": "Include Approved Incidents",
             "type": "boolean"
           },
@@ -303,7 +313,6 @@
           },
           "method": {
             "default": "linear_lora",
-            "description": "linear_lora (offline numpy) | peft (requires torch/sentence-transformers)",
             "title": "Method",
             "type": "string"
           },
@@ -316,7 +325,6 @@
           },
           "reindex": {
             "default": false,
-            "description": "If true (and activate), rebuild LanceDB KB vectors after train",
             "title": "Reindex",
             "type": "boolean"
           }
@@ -818,7 +826,6 @@
         "type": "object"
       },
       "SettingsProfileBody": {
-        "description": "Apply a named ops profile without wiping secrets by default.",
         "properties": {
           "keep_secrets": {
             "default": true,
@@ -839,7 +846,6 @@
         "type": "object"
       },
       "SettingsResetBody": {
-        "description": "Reset runtime settings to factory defaults.\n\nkeep_secrets=True (default): restore ops/thresholds only; leave API keys & Slack.\nkeep_secrets=False: wipe secrets too (keys fall back to backend/.env on next resolve).",
         "properties": {
           "keep_secrets": {
             "default": true,
@@ -851,7 +857,6 @@
         "type": "object"
       },
       "StreamIngestBody": {
-        "description": "Push logs from a SIEM/forwarder without multipart file upload.",
         "properties": {
           "filename": {
             "anyOf": [
@@ -904,7 +909,6 @@
         "type": "object"
       },
       "TestEmailBody": {
-        "description": "Send a smoke-test alert email. SMTP is optional (HTTP gateway is the default).",
         "properties": {
           "save_recipient": {
             "default": false,
@@ -927,7 +931,6 @@
         "type": "object"
       },
       "TestSlackBody": {
-        "description": "Send a smoke-test Slack message via Incoming Webhook.",
         "properties": {
           "save_webhook": {
             "default": false,
@@ -1105,7 +1108,6 @@
     },
     "/api/analytics": {
       "get": {
-        "description": "EDA-style aggregations over recent incidents (Analytics page).",
         "operationId": "analytics_api_analytics_get",
         "parameters": [
           {
@@ -1118,6 +1120,18 @@
               "minimum": 1,
               "title": "Window Days",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Bypass dashboard cache (default TTL ANALYTICS_DASHBOARD_CACHE_TTL_SECONDS=60)",
+            "in": "query",
+            "name": "force_refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Bypass dashboard cache (default TTL ANALYTICS_DASHBOARD_CACHE_TTL_SECONDS=60)",
+              "title": "Force Refresh",
+              "type": "boolean"
             }
           }
         ],
@@ -1154,7 +1168,6 @@
     },
     "/api/analytics/retrieval-compare": {
       "get": {
-        "description": "Compare BM25 vs LanceDB dense vs hybrid (+ re-rank) for identification.\n\nOffline golden Q\u2192doc pairs \u2014 no Mongo required for the comparison itself.\nUsed by Analytics \u2192 Retrieval comparison panel.",
         "operationId": "analytics_retrieval_compare_api_analytics_retrieval_compare_get",
         "parameters": [
           {
@@ -1330,6 +1343,58 @@
         ]
       }
     },
+    "/api/audit/logs": {
+      "get": {
+        "description": "Fetch immutable compliance audit logs with optional filtering.",
+        "operationId": "get_audit_logs_api_audit_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "title": "Action",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit Logs"
+      }
+    },
     "/api/auth/login": {
       "post": {
         "operationId": "login_api_auth_login_post",
@@ -1464,9 +1529,32 @@
         ]
       }
     },
+    "/api/compliance/status": {
+      "get": {
+        "operationId": "get_compliance_status_api_compliance_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Status",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
     "/api/eval/golden-benchmark": {
       "get": {
-        "description": "Return dataset meta + last in-process run (if any). Admin-only (A-S10).",
         "operationId": "get_golden_benchmark_api_eval_golden_benchmark_get",
         "parameters": [
           {
@@ -1511,7 +1599,6 @@
         ]
       },
       "post": {
-        "description": "Run the offline golden benchmark (admin-only, A-S10).",
         "operationId": "post_golden_benchmark_api_eval_golden_benchmark_post",
         "parameters": [
           {
@@ -1570,7 +1657,6 @@
     },
     "/api/health": {
       "get": {
-        "description": "Health under the API prefix.",
         "operationId": "health_api_api_health_get",
         "responses": {
           "200": {
@@ -1844,7 +1930,6 @@
     },
     "/api/incidents/{incident_id}/investigate/stream": {
       "post": {
-        "description": "SSE stream of AI Investigator tokens + final structured answer.\n\nEvents (data JSON):\n  status | meta | token | done | error\n`done` includes answer (sanitized object) and persists the investigation.\nNon-streaming POST /investigate remains available as a fallback.",
         "operationId": "investigate_incident_stream_api_incidents__incident_id__investigate_stream_post",
         "parameters": [
           {
@@ -2027,7 +2112,6 @@
     },
     "/api/kb/custom": {
       "get": {
-        "description": "List admin-ingested custom KB documents (A-K2).",
         "operationId": "kb_list_custom_api_kb_custom_get",
         "responses": {
           "200": {
@@ -2097,7 +2181,6 @@
     },
     "/api/kb/ingest": {
       "post": {
-        "description": "A-K2: ingest a custom KB document (text body or uploaded .txt/.md).",
         "operationId": "kb_ingest_api_kb_ingest_post",
         "requestBody": {
           "content": {
@@ -2141,7 +2224,6 @@
     },
     "/api/kb/lora/status": {
       "get": {
-        "description": "Domain adapter status (path, rank, last train meta).",
         "operationId": "kb_lora_status_api_kb_lora_status_get",
         "responses": {
           "200": {
@@ -2166,7 +2248,6 @@
     },
     "/api/kb/lora/train": {
       "post": {
-        "description": "Train/export domain embedding adapter from golden pairs (+ optional approved incidents).\n\nOffline default: linear_lora (numpy, no HF download). After train, set\nACTIRA_EMBEDDING_BACKEND=lora and reindex, or pass activate=true on this worker.",
         "operationId": "kb_lora_train_api_kb_lora_train_post",
         "requestBody": {
           "content": {
@@ -2219,7 +2300,6 @@
     },
     "/api/kb/reindex": {
       "post": {
-        "description": "Force rebuild of local LanceDB KB chunks (admin).",
         "operationId": "kb_reindex_api_kb_reindex_post",
         "responses": {
           "200": {
@@ -2244,7 +2324,6 @@
     },
     "/api/kb/retrieval-eval": {
       "get": {
-        "description": "Offline hit@k on golden Q\u2192doc pairs (admin). No external APIs required.",
         "operationId": "kb_retrieval_eval_api_kb_retrieval_eval_get",
         "parameters": [
           {
@@ -2356,7 +2435,6 @@
     },
     "/api/kb/vector-status": {
       "get": {
-        "description": "LanceDB + embedder runtime status (no secrets).",
         "operationId": "kb_vector_status_api_kb_vector_status_get",
         "responses": {
           "200": {
@@ -2427,6 +2505,20 @@
     "/api/kpis": {
       "get": {
         "operationId": "kpis_api_kpis_get",
+        "parameters": [
+          {
+            "description": "Bypass short-lived KPI cache (default TTL ANALYTICS_KPI_CACHE_TTL_SECONDS=30)",
+            "in": "query",
+            "name": "force_refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Bypass short-lived KPI cache (default TTL ANALYTICS_KPI_CACHE_TTL_SECONDS=30)",
+              "title": "Force Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2435,6 +2527,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -2450,7 +2552,6 @@
     },
     "/api/logs/ingest": {
       "post": {
-        "description": "Realtime JSON ingest for SIEM / rsyslog / custom forwarders.\n\nAuth: header `X-Ingest-Key: <INGEST_API_KEY>` or `Authorization: Bearer <jwt>`.\n\nBody examples:\n  {\"text\": \"raw log lines...\\n\", \"source\": \"rsyslog\"}\n  {\"lines\": [\"line1\", \"line2\"], \"filename\": \"firewall.log\"}",
         "operationId": "ingest_stream_json_api_logs_ingest_post",
         "parameters": [
           {
@@ -2524,7 +2625,6 @@
     },
     "/api/logs/ingest/raw": {
       "post": {
-        "description": "Realtime raw-body ingest (text/plain or application/octet-stream).\n\nUseful for syslog-ng / fluent-bit HTTP output plugins.",
         "operationId": "ingest_stream_raw_api_logs_ingest_raw_post",
         "parameters": [
           {
@@ -2724,7 +2824,6 @@
     },
     "/api/logs/jobs/{job_id}/events": {
       "get": {
-        "description": "SSE stream of job phase updates (not LLM tokens).\n\nPolls Mongo until status is terminal (done / failed / error) or timeout.\nUseful for upload UI progress without tight client polling loops.",
         "operationId": "job_phase_events_api_logs_jobs__job_id__events_get",
         "parameters": [
           {
@@ -2770,7 +2869,6 @@
     },
     "/api/logs/jobs/{job_id}/resume": {
       "post": {
-        "description": "Re-queue a failed or hung pipeline job when the durable payload still exists.\n\nWorker picks it up on the next poll (same process or after restart). Use when\nupload shows stuck mid-phase or failed with a recoverable error.",
         "operationId": "resume_job_api_logs_jobs__job_id__resume_post",
         "parameters": [
           {
@@ -2816,7 +2914,6 @@
     },
     "/api/logs/upload": {
       "post": {
-        "description": "Single-file upload \u2014 durable queue (A-S7) with BackgroundTasks fallback kick.",
         "operationId": "upload_log_api_logs_upload_post",
         "requestBody": {
           "content": {
@@ -2861,7 +2958,6 @@
     },
     "/api/logs/upload-batch": {
       "post": {
-        "description": "Multi-file / ZIP incident-package upload (durable queue A-S7).\n\n- Accepts up to 20 files (or a single .zip containing many)\n- Auto-detects each file's format (Apache / Syslog / JSON / CSV / CEF / LEEF / plain)\n- Correlates events across all files into a single incident",
         "operationId": "upload_batch_api_logs_upload_batch_post",
         "requestBody": {
           "content": {
@@ -2901,6 +2997,25 @@
         "summary": "Upload Batch",
         "tags": [
           "logs"
+        ]
+      }
+    },
+    "/api/ready": {
+      "get": {
+        "operationId": "ready_api_api_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Api",
+        "tags": [
+          "meta"
         ]
       }
     },
@@ -2965,7 +3080,6 @@
     },
     "/api/review/{incident_id}": {
       "post": {
-        "description": "Atomic HiTL action \u2014 only one reviewer wins if concurrent requests race.",
         "operationId": "review_incident_api_review__incident_id__post",
         "parameters": [
           {
@@ -3021,7 +3135,6 @@
     },
     "/api/roadmap": {
       "get": {
-        "description": "List product roadmap items (seeded from weekly discussions).",
         "operationId": "list_roadmap_api_roadmap_get",
         "parameters": [
           {
@@ -3185,9 +3298,32 @@
         ]
       }
     },
+    "/api/roadmap/deduplicate": {
+      "post": {
+        "operationId": "deduplicate_roadmap_api_roadmap_deduplicate_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Deduplicate Roadmap",
+        "tags": [
+          "roadmap"
+        ]
+      }
+    },
     "/api/roadmap/seed": {
       "post": {
-        "description": "Seed roadmap from weekly discussions.\n\nforce=true upserts seed items by id.\nBy default preserves owner + local progress/status/tasks/notes.\nreset_progress=true applies seed status/progress/tasks/implementation_notes\n(still preserves owner and created_at).",
         "operationId": "reseed_roadmap_api_roadmap_seed_post",
         "parameters": [
           {
@@ -3201,13 +3337,13 @@
             }
           },
           {
-            "description": "With force=true, overwrite status/progress/tasks/notes from seed (does not keep stale in-DB progress). Use after shipping a seed item as completed.",
+            "description": "With force=true, overwrite status/progress/tasks/notes from seed.",
             "in": "query",
             "name": "reset_progress",
             "required": false,
             "schema": {
               "default": false,
-              "description": "With force=true, overwrite status/progress/tasks/notes from seed (does not keep stale in-DB progress). Use after shipping a seed item as completed.",
+              "description": "With force=true, overwrite status/progress/tasks/notes from seed.",
               "title": "Reset Progress",
               "type": "boolean"
             }
@@ -3245,6 +3381,49 @@
       }
     },
     "/api/roadmap/{item_id}": {
+      "delete": {
+        "operationId": "delete_roadmap_item_api_roadmap__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Roadmap Item",
+        "tags": [
+          "roadmap"
+        ]
+      },
       "get": {
         "operationId": "get_roadmap_item_api_roadmap__item_id__get",
         "parameters": [
@@ -3344,7 +3523,6 @@
     },
     "/api/roadmap/{item_id}/generate-tasks": {
       "post": {
-        "description": "Convert a roadmap item into a starter set of development tasks (if empty or force fill gaps).",
         "operationId": "generate_roadmap_tasks_api_roadmap__item_id__generate_tasks_post",
         "parameters": [
           {
@@ -3390,7 +3568,6 @@
     },
     "/api/roadmap/{item_id}/tasks": {
       "post": {
-        "description": "Add an actionable development task under a roadmap item.",
         "operationId": "add_roadmap_task_api_roadmap__item_id__tasks_post",
         "parameters": [
           {
@@ -3445,6 +3622,58 @@
       }
     },
     "/api/roadmap/{item_id}/tasks/{task_id}": {
+      "delete": {
+        "operationId": "delete_roadmap_task_api_roadmap__item_id__tasks__task_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Roadmap Task",
+        "tags": [
+          "roadmap"
+        ]
+      },
       "patch": {
         "operationId": "update_roadmap_task_api_roadmap__item_id__tasks__task_id__patch",
         "parameters": [
@@ -3577,7 +3806,7 @@
         ]
       },
       "put": {
-        "description": "Save Admin \u2192 Settings. Blank secret fields keep existing keys; use\nclear_fields / __CLEAR__ / POST /settings/clear-secrets to wipe.",
+        "description": "Save Admin \u2192 Settings. Blank secret fields keep existing keys.",
         "operationId": "update_settings_api_settings_put",
         "requestBody": {
           "content": {
@@ -3624,7 +3853,6 @@
     },
     "/api/settings/apply-profile": {
       "post": {
-        "description": "Apply factory or recommended ops profile (keeps API keys / Slack by default).\n\nPersists immediately \u2014 no separate Save required.",
         "operationId": "apply_settings_profile_api_settings_apply_profile_post",
         "requestBody": {
           "content": {
@@ -3672,7 +3900,6 @@
     },
     "/api/settings/clear-secrets": {
       "post": {
-        "description": "Clear configured secrets so enrichment falls back to mock / keys must be re-entered.\n\nscope:\n  - threat_intel: AbuseIPDB, VirusTotal, GreyNoise, ThreatFox, OTX, Shodan, Cohere\n  - llm: Anthropic / OpenAI / Gemini / Groq\n  - notifications: Slack webhook\n  - all: every secret field\n  - custom: body.fields list of Settings field names",
         "operationId": "clear_settings_secrets_api_settings_clear_secrets_post",
         "requestBody": {
           "content": {
@@ -3717,7 +3944,6 @@
     },
     "/api/settings/email-outbox": {
       "get": {
-        "description": "List locally recorded alert emails (always written, even without SMTP).",
         "operationId": "email_outbox_api_settings_email_outbox_get",
         "parameters": [
           {
@@ -3766,7 +3992,6 @@
     },
     "/api/settings/email-status": {
       "get": {
-        "description": "Email transport readiness (SMTP optional) + recipient + recent outbox.",
         "operationId": "email_alert_status_api_settings_email_status_get",
         "responses": {
           "200": {
@@ -3791,7 +4016,6 @@
     },
     "/api/settings/profiles": {
       "get": {
-        "description": "Document factory vs recommended ops for tooltips / apply buttons.",
         "operationId": "settings_profiles_api_settings_profiles_get",
         "responses": {
           "200": {
@@ -3816,7 +4040,7 @@
     },
     "/api/settings/reset": {
       "post": {
-        "description": "Factory-reset Admin \u2192 Settings to Pydantic defaults (not env overrides).",
+        "description": "Factory-reset Admin \u2192 Settings to Pydantic defaults.",
         "operationId": "reset_settings_api_settings_reset_post",
         "requestBody": {
           "content": {
@@ -3863,7 +4087,6 @@
     },
     "/api/settings/slack-status": {
       "get": {
-        "description": "Slack Incoming Webhook readiness (no OAuth bot install required).",
         "operationId": "slack_alert_status_api_settings_slack_status_get",
         "responses": {
           "200": {
@@ -3888,7 +4111,6 @@
     },
     "/api/settings/test-email": {
       "post": {
-        "description": "Smoke-test email alerts. SMTP is optional \u2014 default delivery uses HTTP gateway.\n\nExample:\n  POST /api/settings/test-email\n  {\"to\": \"sarvesh.sood@gmail.com\", \"save_recipient\": true}",
         "operationId": "test_email_alert_api_settings_test_email_post",
         "requestBody": {
           "content": {
@@ -3935,7 +4157,6 @@
     },
     "/api/settings/test-slack": {
       "post": {
-        "description": "Smoke-test Slack alerts via Incoming Webhook.\n\nInstall steps:\n  1. https://api.slack.com/messaging/webhooks \u2014 Create Incoming Webhook\n  2. Pick a channel \u2192 copy the URL (hooks.slack.com/services/T\u2026/B\u2026/\u2026)\n  3. Paste in Settings or POST here with save_webhook=true\n  4. POST /api/settings/test-slack",
         "operationId": "test_slack_alert_api_settings_test_slack_post",
         "requestBody": {
           "content": {
@@ -4001,7 +4222,6 @@
     },
     "/api/v1/analytics": {
       "get": {
-        "description": "EDA-style aggregations over recent incidents (Analytics page).",
         "operationId": "analytics_api_v1_analytics_get",
         "parameters": [
           {
@@ -4014,6 +4234,18 @@
               "minimum": 1,
               "title": "Window Days",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Bypass dashboard cache (default TTL ANALYTICS_DASHBOARD_CACHE_TTL_SECONDS=60)",
+            "in": "query",
+            "name": "force_refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Bypass dashboard cache (default TTL ANALYTICS_DASHBOARD_CACHE_TTL_SECONDS=60)",
+              "title": "Force Refresh",
+              "type": "boolean"
             }
           }
         ],
@@ -4050,7 +4282,6 @@
     },
     "/api/v1/analytics/retrieval-compare": {
       "get": {
-        "description": "Compare BM25 vs LanceDB dense vs hybrid (+ re-rank) for identification.\n\nOffline golden Q\u2192doc pairs \u2014 no Mongo required for the comparison itself.\nUsed by Analytics \u2192 Retrieval comparison panel.",
         "operationId": "analytics_retrieval_compare_api_v1_analytics_retrieval_compare_get",
         "parameters": [
           {
@@ -4226,6 +4457,58 @@
         ]
       }
     },
+    "/api/v1/audit/logs": {
+      "get": {
+        "description": "Fetch immutable compliance audit logs with optional filtering.",
+        "operationId": "get_audit_logs_api_v1_audit_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "title": "Action",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit Logs"
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login_api_v1_auth_login_post",
@@ -4360,9 +4643,32 @@
         ]
       }
     },
+    "/api/v1/compliance/status": {
+      "get": {
+        "operationId": "get_compliance_status_api_v1_compliance_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Compliance Status",
+        "tags": [
+          "Compliance"
+        ]
+      }
+    },
     "/api/v1/eval/golden-benchmark": {
       "get": {
-        "description": "Return dataset meta + last in-process run (if any). Admin-only (A-S10).",
         "operationId": "get_golden_benchmark_api_v1_eval_golden_benchmark_get",
         "parameters": [
           {
@@ -4407,7 +4713,6 @@
         ]
       },
       "post": {
-        "description": "Run the offline golden benchmark (admin-only, A-S10).",
         "operationId": "post_golden_benchmark_api_v1_eval_golden_benchmark_post",
         "parameters": [
           {
@@ -4466,7 +4771,6 @@
     },
     "/api/v1/health": {
       "get": {
-        "description": "Health under the API prefix.",
         "operationId": "health_api_api_v1_health_get",
         "responses": {
           "200": {
@@ -4740,7 +5044,6 @@
     },
     "/api/v1/incidents/{incident_id}/investigate/stream": {
       "post": {
-        "description": "SSE stream of AI Investigator tokens + final structured answer.\n\nEvents (data JSON):\n  status | meta | token | done | error\n`done` includes answer (sanitized object) and persists the investigation.\nNon-streaming POST /investigate remains available as a fallback.",
         "operationId": "investigate_incident_stream_api_v1_incidents__incident_id__investigate_stream_post",
         "parameters": [
           {
@@ -4923,7 +5226,6 @@
     },
     "/api/v1/kb/custom": {
       "get": {
-        "description": "List admin-ingested custom KB documents (A-K2).",
         "operationId": "kb_list_custom_api_v1_kb_custom_get",
         "responses": {
           "200": {
@@ -4993,7 +5295,6 @@
     },
     "/api/v1/kb/ingest": {
       "post": {
-        "description": "A-K2: ingest a custom KB document (text body or uploaded .txt/.md).",
         "operationId": "kb_ingest_api_v1_kb_ingest_post",
         "requestBody": {
           "content": {
@@ -5037,7 +5338,6 @@
     },
     "/api/v1/kb/lora/status": {
       "get": {
-        "description": "Domain adapter status (path, rank, last train meta).",
         "operationId": "kb_lora_status_api_v1_kb_lora_status_get",
         "responses": {
           "200": {
@@ -5062,7 +5362,6 @@
     },
     "/api/v1/kb/lora/train": {
       "post": {
-        "description": "Train/export domain embedding adapter from golden pairs (+ optional approved incidents).\n\nOffline default: linear_lora (numpy, no HF download). After train, set\nACTIRA_EMBEDDING_BACKEND=lora and reindex, or pass activate=true on this worker.",
         "operationId": "kb_lora_train_api_v1_kb_lora_train_post",
         "requestBody": {
           "content": {
@@ -5115,7 +5414,6 @@
     },
     "/api/v1/kb/reindex": {
       "post": {
-        "description": "Force rebuild of local LanceDB KB chunks (admin).",
         "operationId": "kb_reindex_api_v1_kb_reindex_post",
         "responses": {
           "200": {
@@ -5140,7 +5438,6 @@
     },
     "/api/v1/kb/retrieval-eval": {
       "get": {
-        "description": "Offline hit@k on golden Q\u2192doc pairs (admin). No external APIs required.",
         "operationId": "kb_retrieval_eval_api_v1_kb_retrieval_eval_get",
         "parameters": [
           {
@@ -5252,7 +5549,6 @@
     },
     "/api/v1/kb/vector-status": {
       "get": {
-        "description": "LanceDB + embedder runtime status (no secrets).",
         "operationId": "kb_vector_status_api_v1_kb_vector_status_get",
         "responses": {
           "200": {
@@ -5323,6 +5619,20 @@
     "/api/v1/kpis": {
       "get": {
         "operationId": "kpis_api_v1_kpis_get",
+        "parameters": [
+          {
+            "description": "Bypass short-lived KPI cache (default TTL ANALYTICS_KPI_CACHE_TTL_SECONDS=30)",
+            "in": "query",
+            "name": "force_refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Bypass short-lived KPI cache (default TTL ANALYTICS_KPI_CACHE_TTL_SECONDS=30)",
+              "title": "Force Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5331,6 +5641,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -5346,7 +5666,6 @@
     },
     "/api/v1/logs/ingest": {
       "post": {
-        "description": "Realtime JSON ingest for SIEM / rsyslog / custom forwarders.\n\nAuth: header `X-Ingest-Key: <INGEST_API_KEY>` or `Authorization: Bearer <jwt>`.\n\nBody examples:\n  {\"text\": \"raw log lines...\\n\", \"source\": \"rsyslog\"}\n  {\"lines\": [\"line1\", \"line2\"], \"filename\": \"firewall.log\"}",
         "operationId": "ingest_stream_json_api_v1_logs_ingest_post",
         "parameters": [
           {
@@ -5420,7 +5739,6 @@
     },
     "/api/v1/logs/ingest/raw": {
       "post": {
-        "description": "Realtime raw-body ingest (text/plain or application/octet-stream).\n\nUseful for syslog-ng / fluent-bit HTTP output plugins.",
         "operationId": "ingest_stream_raw_api_v1_logs_ingest_raw_post",
         "parameters": [
           {
@@ -5620,7 +5938,6 @@
     },
     "/api/v1/logs/jobs/{job_id}/events": {
       "get": {
-        "description": "SSE stream of job phase updates (not LLM tokens).\n\nPolls Mongo until status is terminal (done / failed / error) or timeout.\nUseful for upload UI progress without tight client polling loops.",
         "operationId": "job_phase_events_api_v1_logs_jobs__job_id__events_get",
         "parameters": [
           {
@@ -5666,7 +5983,6 @@
     },
     "/api/v1/logs/jobs/{job_id}/resume": {
       "post": {
-        "description": "Re-queue a failed or hung pipeline job when the durable payload still exists.\n\nWorker picks it up on the next poll (same process or after restart). Use when\nupload shows stuck mid-phase or failed with a recoverable error.",
         "operationId": "resume_job_api_v1_logs_jobs__job_id__resume_post",
         "parameters": [
           {
@@ -5712,7 +6028,6 @@
     },
     "/api/v1/logs/upload": {
       "post": {
-        "description": "Single-file upload \u2014 durable queue (A-S7) with BackgroundTasks fallback kick.",
         "operationId": "upload_log_api_v1_logs_upload_post",
         "requestBody": {
           "content": {
@@ -5757,7 +6072,6 @@
     },
     "/api/v1/logs/upload-batch": {
       "post": {
-        "description": "Multi-file / ZIP incident-package upload (durable queue A-S7).\n\n- Accepts up to 20 files (or a single .zip containing many)\n- Auto-detects each file's format (Apache / Syslog / JSON / CSV / CEF / LEEF / plain)\n- Correlates events across all files into a single incident",
         "operationId": "upload_batch_api_v1_logs_upload_batch_post",
         "requestBody": {
           "content": {
@@ -5797,6 +6111,25 @@
         "summary": "Upload Batch",
         "tags": [
           "logs"
+        ]
+      }
+    },
+    "/api/v1/ready": {
+      "get": {
+        "operationId": "ready_api_api_v1_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Api",
+        "tags": [
+          "meta"
         ]
       }
     },
@@ -5861,7 +6194,6 @@
     },
     "/api/v1/review/{incident_id}": {
       "post": {
-        "description": "Atomic HiTL action \u2014 only one reviewer wins if concurrent requests race.",
         "operationId": "review_incident_api_v1_review__incident_id__post",
         "parameters": [
           {
@@ -5917,7 +6249,6 @@
     },
     "/api/v1/roadmap": {
       "get": {
-        "description": "List product roadmap items (seeded from weekly discussions).",
         "operationId": "list_roadmap_api_v1_roadmap_get",
         "parameters": [
           {
@@ -6081,9 +6412,32 @@
         ]
       }
     },
+    "/api/v1/roadmap/deduplicate": {
+      "post": {
+        "operationId": "deduplicate_roadmap_api_v1_roadmap_deduplicate_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Deduplicate Roadmap",
+        "tags": [
+          "roadmap"
+        ]
+      }
+    },
     "/api/v1/roadmap/seed": {
       "post": {
-        "description": "Seed roadmap from weekly discussions.\n\nforce=true upserts seed items by id.\nBy default preserves owner + local progress/status/tasks/notes.\nreset_progress=true applies seed status/progress/tasks/implementation_notes\n(still preserves owner and created_at).",
         "operationId": "reseed_roadmap_api_v1_roadmap_seed_post",
         "parameters": [
           {
@@ -6097,13 +6451,13 @@
             }
           },
           {
-            "description": "With force=true, overwrite status/progress/tasks/notes from seed (does not keep stale in-DB progress). Use after shipping a seed item as completed.",
+            "description": "With force=true, overwrite status/progress/tasks/notes from seed.",
             "in": "query",
             "name": "reset_progress",
             "required": false,
             "schema": {
               "default": false,
-              "description": "With force=true, overwrite status/progress/tasks/notes from seed (does not keep stale in-DB progress). Use after shipping a seed item as completed.",
+              "description": "With force=true, overwrite status/progress/tasks/notes from seed.",
               "title": "Reset Progress",
               "type": "boolean"
             }
@@ -6141,6 +6495,49 @@
       }
     },
     "/api/v1/roadmap/{item_id}": {
+      "delete": {
+        "operationId": "delete_roadmap_item_api_v1_roadmap__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Roadmap Item",
+        "tags": [
+          "roadmap"
+        ]
+      },
       "get": {
         "operationId": "get_roadmap_item_api_v1_roadmap__item_id__get",
         "parameters": [
@@ -6240,7 +6637,6 @@
     },
     "/api/v1/roadmap/{item_id}/generate-tasks": {
       "post": {
-        "description": "Convert a roadmap item into a starter set of development tasks (if empty or force fill gaps).",
         "operationId": "generate_roadmap_tasks_api_v1_roadmap__item_id__generate_tasks_post",
         "parameters": [
           {
@@ -6286,7 +6682,6 @@
     },
     "/api/v1/roadmap/{item_id}/tasks": {
       "post": {
-        "description": "Add an actionable development task under a roadmap item.",
         "operationId": "add_roadmap_task_api_v1_roadmap__item_id__tasks_post",
         "parameters": [
           {
@@ -6341,6 +6736,58 @@
       }
     },
     "/api/v1/roadmap/{item_id}/tasks/{task_id}": {
+      "delete": {
+        "operationId": "delete_roadmap_task_api_v1_roadmap__item_id__tasks__task_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Roadmap Task",
+        "tags": [
+          "roadmap"
+        ]
+      },
       "patch": {
         "operationId": "update_roadmap_task_api_v1_roadmap__item_id__tasks__task_id__patch",
         "parameters": [
@@ -6473,7 +6920,7 @@
         ]
       },
       "put": {
-        "description": "Save Admin \u2192 Settings. Blank secret fields keep existing keys; use\nclear_fields / __CLEAR__ / POST /settings/clear-secrets to wipe.",
+        "description": "Save Admin \u2192 Settings. Blank secret fields keep existing keys.",
         "operationId": "update_settings_api_v1_settings_put",
         "requestBody": {
           "content": {
@@ -6520,7 +6967,6 @@
     },
     "/api/v1/settings/apply-profile": {
       "post": {
-        "description": "Apply factory or recommended ops profile (keeps API keys / Slack by default).\n\nPersists immediately \u2014 no separate Save required.",
         "operationId": "apply_settings_profile_api_v1_settings_apply_profile_post",
         "requestBody": {
           "content": {
@@ -6568,7 +7014,6 @@
     },
     "/api/v1/settings/clear-secrets": {
       "post": {
-        "description": "Clear configured secrets so enrichment falls back to mock / keys must be re-entered.\n\nscope:\n  - threat_intel: AbuseIPDB, VirusTotal, GreyNoise, ThreatFox, OTX, Shodan, Cohere\n  - llm: Anthropic / OpenAI / Gemini / Groq\n  - notifications: Slack webhook\n  - all: every secret field\n  - custom: body.fields list of Settings field names",
         "operationId": "clear_settings_secrets_api_v1_settings_clear_secrets_post",
         "requestBody": {
           "content": {
@@ -6613,7 +7058,6 @@
     },
     "/api/v1/settings/email-outbox": {
       "get": {
-        "description": "List locally recorded alert emails (always written, even without SMTP).",
         "operationId": "email_outbox_api_v1_settings_email_outbox_get",
         "parameters": [
           {
@@ -6662,7 +7106,6 @@
     },
     "/api/v1/settings/email-status": {
       "get": {
-        "description": "Email transport readiness (SMTP optional) + recipient + recent outbox.",
         "operationId": "email_alert_status_api_v1_settings_email_status_get",
         "responses": {
           "200": {
@@ -6687,7 +7130,6 @@
     },
     "/api/v1/settings/profiles": {
       "get": {
-        "description": "Document factory vs recommended ops for tooltips / apply buttons.",
         "operationId": "settings_profiles_api_v1_settings_profiles_get",
         "responses": {
           "200": {
@@ -6712,7 +7154,7 @@
     },
     "/api/v1/settings/reset": {
       "post": {
-        "description": "Factory-reset Admin \u2192 Settings to Pydantic defaults (not env overrides).",
+        "description": "Factory-reset Admin \u2192 Settings to Pydantic defaults.",
         "operationId": "reset_settings_api_v1_settings_reset_post",
         "requestBody": {
           "content": {
@@ -6759,7 +7201,6 @@
     },
     "/api/v1/settings/slack-status": {
       "get": {
-        "description": "Slack Incoming Webhook readiness (no OAuth bot install required).",
         "operationId": "slack_alert_status_api_v1_settings_slack_status_get",
         "responses": {
           "200": {
@@ -6784,7 +7225,6 @@
     },
     "/api/v1/settings/test-email": {
       "post": {
-        "description": "Smoke-test email alerts. SMTP is optional \u2014 default delivery uses HTTP gateway.\n\nExample:\n  POST /api/settings/test-email\n  {\"to\": \"sarvesh.sood@gmail.com\", \"save_recipient\": true}",
         "operationId": "test_email_alert_api_v1_settings_test_email_post",
         "requestBody": {
           "content": {
@@ -6831,7 +7271,6 @@
     },
     "/api/v1/settings/test-slack": {
       "post": {
-        "description": "Smoke-test Slack alerts via Incoming Webhook.\n\nInstall steps:\n  1. https://api.slack.com/messaging/webhooks \u2014 Create Incoming Webhook\n  2. Pick a channel \u2192 copy the URL (hooks.slack.com/services/T\u2026/B\u2026/\u2026)\n  3. Paste in Settings or POST here with save_webhook=true\n  4. POST /api/settings/test-slack",
         "operationId": "test_slack_alert_api_v1_settings_test_slack_post",
         "requestBody": {
           "content": {
@@ -6876,6 +7315,102 @@
         ]
       }
     },
+    "/api/v1/version": {
+      "get": {
+        "operationId": "version_api_api_v1_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Version Api",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "operationId": "version_api_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Version Api",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/eval/golden-dataset/append": {
+      "post": {
+        "operationId": "append_golden_dataset_eval_golden_dataset_append_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_append_golden_dataset_eval_golden_dataset_append_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Append Golden Dataset",
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
+    "/eval/golden-dataset/download": {
+      "get": {
+        "operationId": "download_golden_dataset_eval_golden_dataset_download_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Download Golden Dataset",
+        "tags": [
+          "Evaluation"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "health_root_health_get",
@@ -6907,6 +7442,39 @@
           }
         },
         "summary": "Metrics"
+      }
+    },
+    "/ready": {
+      "get": {
+        "description": "Readiness probe \u2014 200 only when Mongo is reachable.",
+        "operationId": "ready_root_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready Root"
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "version_root_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Version Root"
       }
     }
   }

@@ -7,6 +7,8 @@ Covers:
 - HiTL: critical -> pending_review, review actions
 - RBAC: analyst forbidden on /review/queue and PUT /settings
 - KPIs, Settings, KB search / get
+
+Requires a live API at REACT_APP_BACKEND_URL (default http://127.0.0.1:8003).
 """
 import io
 import os
@@ -14,6 +16,9 @@ import time
 
 import pytest
 import requests
+
+# Live HTTP against a running server — not part of offline unit CI.
+pytestmark = [pytest.mark.integration, pytest.mark.api]
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:8003").rstrip("/")
 API = f"{BASE_URL}/api"

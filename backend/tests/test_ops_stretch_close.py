@@ -10,16 +10,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 # -------------------- External secrets (Hashicorp / AWS SM) --------------------
 class TestExternalSecrets:
     def setup_method(self):
-        import external_secrets as es
-        import secret_vault as sv
+        import backend.external_secrets as es
+        import backend.secret_vault as sv
 
         es.reset_external_hooks()
         os.environ["SECRETS_MASTER_KEY"] = "ops-stretch-master-key-2026"
@@ -29,14 +27,14 @@ class TestExternalSecrets:
         sv.reset_fernet_cache()
 
     def teardown_method(self):
-        import external_secrets as es
-        import secret_vault as sv
+        import backend.external_secrets as es
+        import backend.secret_vault as sv
 
         es.reset_external_hooks()
         sv.reset_fernet_cache()
 
     def test_normalize_vault_and_awssm_pastes(self):
-        from external_secrets import normalize_secret_input, HVK_PREFIX, AWSSM_PREFIX
+        from backend.external_secrets import normalize_secret_input, HVK_PREFIX, AWSSM_PREFIX
 
         assert normalize_secret_input("vault://actira/llm#openai_api_key") == (
             f"{HVK_PREFIX}actira/llm#openai_api_key"
@@ -47,7 +45,7 @@ class TestExternalSecrets:
         assert normalize_secret_input("sk-plain") == "sk-plain"
 
     def test_transit_encrypt_decrypt_via_hook(self):
-        import external_secrets as es
+        import backend.external_secrets as es
 
         os.environ["VAULT_ADDR"] = "http://vault:8200"
         os.environ["VAULT_TOKEN"] = "s.token"
@@ -75,8 +73,8 @@ class TestExternalSecrets:
         assert es.transit_decrypt(wire) == "sk-from-transit"
 
     def test_encrypt_secret_uses_transit_when_enabled(self):
-        import external_secrets as es
-        import secret_vault as sv
+        import backend.external_secrets as es
+        import backend.secret_vault as sv
 
         os.environ["VAULT_ADDR"] = "http://vault:8200"
         os.environ["VAULT_TOKEN"] = "s.token"
@@ -100,8 +98,8 @@ class TestExternalSecrets:
         assert sv.decrypt_secret(enc) == "sk-resolved"
 
     def test_hvk_and_awssm_resolve(self):
-        import external_secrets as es
-        from secret_vault import decrypt_secret
+        import backend.external_secrets as es
+        from backend.secret_vault import decrypt_secret
 
         os.environ["VAULT_ADDR"] = "http://vault:8200"
         os.environ["VAULT_TOKEN"] = "s.token"
@@ -116,7 +114,7 @@ class TestExternalSecrets:
         assert decrypt_secret(f"{es.AWSSM_PREFIX}prod/actira#anthropic") == "sk-from-sm"
 
     def test_vault_status_includes_external(self):
-        from secret_vault import vault_status
+        from backend.secret_vault import vault_status
 
         st = vault_status()
         assert st["enabled"] is True
@@ -128,7 +126,7 @@ class TestExternalSecrets:
 class TestMongoJobPayloads:
     def test_mongo_inline_fallback_roundtrip(self):
         """Without GridFS, inline_b64 path stores multi-node payloads in Mongo."""
-        import job_queue as jq
+        import backend.job_queue as jq
 
         async def run():
             store = {}
@@ -180,7 +178,7 @@ class TestMongoJobPayloads:
         asyncio.run(run())
 
     def test_load_async_disk_fallback(self, tmp_path, monkeypatch):
-        import job_queue as jq
+        import backend.job_queue as jq
 
         monkeypatch.setattr(jq, "PAYLOAD_ROOT", tmp_path)
         monkeypatch.setattr(jq, "PAYLOAD_BACKEND", "mongo")
@@ -201,7 +199,7 @@ class TestMongoJobPayloads:
 # -------------------- Roadmap auto-merge logic --------------------
 class TestRoadmapAutoMergeLogic:
     def test_seed_contains_ops_stretch_card(self):
-        from roadmap_data import ROADMAP_SEED
+        from backend.roadmap_data import ROADMAP_SEED
 
         ids = {i["id"] for i in ROADMAP_SEED}
         assert "rm-review-deferred-close" in ids

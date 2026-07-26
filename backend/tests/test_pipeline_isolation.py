@@ -12,10 +12,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 from backend.pipeline import (  # noqa: E402
     MAX_UNCOMPRESSED_BYTES,
     MAX_ZIP_MEMBERS,
@@ -94,9 +93,9 @@ class TestPerFileParseIsolation:
                 ("broken.dat", b"\x00\x01\xff not really a log"),
             ]
 
-            with patch("pipeline.enrich_ioc", side_effect=lambda ioc, s: ioc), \
-                    patch("pipeline.generate_playbook", new_callable=AsyncMock) as gp, \
-                    patch("pipeline.mark_job_failed", new_callable=AsyncMock) as mjf:
+            with patch("backend.pipeline.enrich_ioc", side_effect=lambda ioc, s: ioc), \
+                    patch("backend.pipeline.generate_playbook", new_callable=AsyncMock) as gp, \
+                    patch("backend.pipeline.mark_job_failed", new_callable=AsyncMock) as mjf:
                 from backend.models import Playbook, PlaybookStep
 
                 gp.return_value = Playbook(

@@ -4,11 +4,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-from parsers import detect_and_parse  # noqa: E402
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+from backend.parsers import detect_and_parse  # noqa: E402
 
 
 def test_syslog_failed_password():

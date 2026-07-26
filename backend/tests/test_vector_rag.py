@@ -13,11 +13,9 @@ from pathlib import Path
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 @pytest.fixture()
 def hash_env(tmp_path, monkeypatch):
     monkeypatch.setenv("ACTIRA_EMBEDDING_BACKEND", "hash")
@@ -26,8 +24,8 @@ def hash_env(tmp_path, monkeypatch):
     monkeypatch.setenv("ACTIRA_RETRIEVAL_MODE", "hybrid")
     monkeypatch.setenv("ACTIRA_LANCEDB_PATH", str(tmp_path / "lancedb"))
     # reset singletons after env change
-    import embeddings
-    import vector_store
+    import backend.embeddings as embeddings
+    import backend.vector_store as vector_store
 
     embeddings.reset_embedder_cache()
     vector_store._db = None
@@ -40,7 +38,7 @@ def hash_env(tmp_path, monkeypatch):
 
 class TestEmbeddings:
     def test_hash_embedder_dim_and_stability(self, hash_env):
-        from embeddings import get_embedder, cosine
+        from backend.embeddings import get_embedder, cosine
 
         emb = get_embedder()
         assert emb.name == "hash"
@@ -57,7 +55,7 @@ class TestEmbeddings:
     def test_none_backend(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ACTIRA_EMBEDDING_BACKEND", "none")
         monkeypatch.setenv("ACTIRA_LANCEDB_PATH", str(tmp_path / "x"))
-        import embeddings
+        import backend.embeddings as embeddings
 
         embeddings.reset_embedder_cache()
         emb = embeddings.get_embedder()
@@ -68,7 +66,7 @@ class TestEmbeddings:
 
 class TestRRF:
     def test_rrf_prefers_consensus(self):
-        from vector_store import rrf_fuse, rrf_scores
+        from backend.vector_store import rrf_fuse, rrf_scores
 
         a = ["doc1", "doc2", "doc3"]
         b = ["doc2", "doc1", "doc4"]
@@ -82,8 +80,8 @@ class TestRRF:
 class TestVectorStore:
     def test_reindex_and_search(self, hash_env):
         lancedb = pytest.importorskip("lancedb")
-        from embeddings import get_embedder
-        from vector_store import reindex_kb, search_kb, status, upsert_incident, search_incidents
+        from backend.embeddings import get_embedder
+        from backend.vector_store import reindex_kb, search_kb, status, upsert_incident, search_incidents
 
         docs = [
             {
@@ -130,9 +128,9 @@ class TestKnowledgeBaseHybrid:
     def test_hybrid_search_falls_back_and_tags_retriever(self, hash_env):
         # Import after env so KnowledgeBase init uses temp path
         import importlib
-        import knowledge_base
-        import embeddings
-        import vector_store
+        import backend.knowledge_base as knowledge_base
+        import backend.embeddings as embeddings
+        import backend.vector_store as vector_store
 
         embeddings.reset_embedder_cache()
         vector_store._db = None

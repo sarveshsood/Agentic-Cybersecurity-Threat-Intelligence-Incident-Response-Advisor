@@ -18,14 +18,13 @@ from pathlib import Path
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 from backend.hitl_gate import decide_incident_status, severity_rank  # noqa: E402
-from llm_provider import parse_llm_json  # noqa: E402
+from backend.llm_provider import parse_llm_json  # noqa: E402
 from backend.models import SECRET_SETTINGS_FIELDS  # noqa: E402
-from secrets_util import is_real_secret, redact_for_log  # noqa: E402
+from backend.secrets_util import is_real_secret, redact_for_log  # noqa: E402
 
 
 # -------------------- HiTL gate --------------------
@@ -183,6 +182,6 @@ class TestRegisterRolePolicy:
         )
         assert not hasattr(pub, "role") or "role" not in pub.model_fields
         # Privileged set used by auth module
-        from auth import PRIVILEGED_ROLES
+        from backend.auth import PRIVILEGED_ROLES
         assert "admin" in PRIVILEGED_ROLES
         assert "senior_reviewer" in PRIVILEGED_ROLES

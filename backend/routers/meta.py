@@ -1,18 +1,36 @@
-"""Meta routes — API root and health under /api prefix."""
+"""Meta routes — thin adapters over bootstrap health helpers."""
 from __future__ import annotations
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
-from backend.core import services as svc
+from backend.services import bootstrap
 
 router = APIRouter(tags=["meta"])
 
 
-# ---------- Health ----------
 @router.get("/health")
 async def health_api():
-    """Health under the API prefix."""
-    return await svc.health_check()
+    return await bootstrap.health_check()
+
+
+@router.get("/ready")
+async def ready_api():
+    body = await bootstrap.health_check()
+    if body.get("mongo") != "up":
+        return JSONResponse(status_code=503, content=body)
+    return body
+
+
+@router.get("/version")
+async def version_api():
+    return {
+        "service": "ACTIRA API",
+        "full_name": "Agentic Cybersecurity Threat Intelligence & Incident Response Advisor",
+        "api": "v1",
+        "package": "backend",
+        "entry": "backend.server:app",
+    }
 
 
 @router.get("/")

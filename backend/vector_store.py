@@ -85,7 +85,6 @@ def _table_names(db) -> set:
 
 
 def _db_or_connect():
-    global _db
     if not vector_store_enabled():
         return None
     if _db is None:

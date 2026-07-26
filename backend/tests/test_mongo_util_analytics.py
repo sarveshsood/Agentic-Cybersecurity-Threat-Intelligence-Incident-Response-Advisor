@@ -5,10 +5,9 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 from backend.mongo_util import created_at_match, ensure_datetime, to_mongo_doc  # noqa: E402
 from backend.models import Incident  # noqa: E402
 

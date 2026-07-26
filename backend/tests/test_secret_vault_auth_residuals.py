@@ -9,15 +9,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-BACKEND = Path(__file__).resolve().parents[1]
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 # -------------------- A-S3 encrypt-at-rest vault --------------------
 class TestSecretVault:
     def setup_method(self):
-        import secret_vault as sv
+        import backend.secret_vault as sv
 
         os.environ["SECRETS_MASTER_KEY"] = "unit-test-master-key-actira-residuals-2026"
         os.environ.setdefault("JWT_SECRET", "unit-test-jwt-secret-not-for-prod")
@@ -32,13 +30,13 @@ class TestSecretVault:
         sv.reset_fernet_cache()
 
     def teardown_method(self):
-        import secret_vault as sv
+        import backend.secret_vault as sv
 
         sv.reset_fernet_cache()
         os.environ.pop("SECRETS_MASTER_KEY", None)
 
     def test_encrypt_decrypt_roundtrip(self):
-        from secret_vault import decrypt_secret, encrypt_secret, is_encrypted_value
+        from backend.secret_vault import decrypt_secret, encrypt_secret, is_encrypted_value
 
         plain = "sk-ant-test-secret-value-12345"
         enc = encrypt_secret(plain)
@@ -48,7 +46,7 @@ class TestSecretVault:
         assert decrypt_secret(enc) == plain
 
     def test_idempotent_encrypt(self):
-        from secret_vault import encrypt_secret, is_encrypted_value
+        from backend.secret_vault import encrypt_secret, is_encrypted_value
 
         plain = "hooks.slack.com/services/T000/B000/XXXXXXXX"
         once = encrypt_secret(plain)
@@ -57,14 +55,14 @@ class TestSecretVault:
         assert is_encrypted_value(twice)
 
     def test_legacy_plaintext_passthrough_on_read(self):
-        from secret_vault import decrypt_secret
+        from backend.secret_vault import decrypt_secret
 
         assert decrypt_secret("sk-legacy-plaintext") == "sk-legacy-plaintext"
         assert decrypt_secret(None) is None
         assert decrypt_secret("") is None
 
     def test_settings_doc_encrypt_decrypt(self):
-        from secret_vault import decrypt_settings_doc, encrypt_settings_doc, is_encrypted_value
+        from backend.secret_vault import decrypt_settings_doc, encrypt_settings_doc, is_encrypted_value
 
         doc = {
             "id": "global",
@@ -87,7 +85,7 @@ class TestSecretVault:
         assert "hooks.slack.com" in (runtime["slack_webhook_url"] or "")
 
     def test_migrate_plaintext_to_encrypted(self):
-        from secret_vault import is_encrypted_value, migrate_settings_doc
+        from backend.secret_vault import is_encrypted_value, migrate_settings_doc
 
         doc = {"anthropic_api_key": "sk-plain-to-migrate", "llm_model": "x"}
         storage, changed = migrate_settings_doc(doc)
@@ -98,15 +96,15 @@ class TestSecretVault:
         assert changed2 is False
 
     def test_resolve_secret_decrypts_vault_blob(self):
-        from secret_vault import encrypt_secret
-        from secrets_util import resolve_secret
+        from backend.secret_vault import encrypt_secret
+        from backend.secrets_util import resolve_secret
 
         enc = encrypt_secret("sk-from-mongo-vault")
         settings = {"anthropic_api_key": enc}
         assert resolve_secret(settings, "anthropic_api_key", "ANTHROPIC_API_KEY") == "sk-from-mongo-vault"
 
     def test_vault_status_reports_key_source(self):
-        from secret_vault import vault_status
+        from backend.secret_vault import vault_status
 
         st = vault_status()
         assert st["enabled"] is True
@@ -118,14 +116,14 @@ class TestSecretVault:
 # -------------------- A-A3 atomic multi-worker rate limit --------------------
 class TestAuthThrottleAtomic:
     def setup_method(self):
-        import auth_throttle as at
+        import backend.auth_throttle as at
 
         at._login_failures.clear()
         at._rate_limit.clear()
 
     def test_rate_limit_find_one_and_update_is_source_of_truth(self):
         """Mongo find_one_and_update path (not memory-first allow)."""
-        import auth_throttle as at
+        import backend.auth_throttle as at
 
         async def run():
             store: dict = {}
@@ -164,7 +162,7 @@ class TestAuthThrottleAtomic:
 
     def test_two_workers_share_mongo_counter(self):
         """Simulate two processes sharing one Mongo store (no shared memory)."""
-        import auth_throttle as at
+        import backend.auth_throttle as at
 
         async def run():
             store: dict = {}
@@ -202,7 +200,7 @@ class TestAuthThrottleAtomic:
         asyncio.run(run())
 
     def test_login_lockout_uses_atomic_inc(self):
-        import auth_throttle as at
+        import backend.auth_throttle as at
         from pymongo import ReturnDocument
 
         async def run():

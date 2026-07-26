@@ -4,7 +4,7 @@ import io
 import logging
 import zipfile
 from datetime import datetime, timezone
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from backend.correlator import correlate_events
 from backend.enrichment import enrich_ioc

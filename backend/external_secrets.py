@@ -109,9 +109,15 @@ def _http_json(
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         req_headers.setdefault("Content-Type", "application/json")
+    # Only allow http(s) — blocks file:/ and other schemes (bandit B310).
+    from urllib.parse import urlparse
+
+    scheme = (urlparse(url).scheme or "").lower()
+    if scheme not in ("http", "https"):
+        raise RuntimeError(f"external vault URL scheme not allowed: {scheme or 'missing'}")
     req = urlrequest.Request(url, data=data, headers=req_headers, method=method.upper())
     try:
-        with urlrequest.urlopen(req, timeout=timeout) as resp:
+        with urlrequest.urlopen(req, timeout=timeout) as resp:  # nosec B310
             raw = resp.read().decode("utf-8") or "{}"
             return json.loads(raw)
     except urlerror.HTTPError as e:
