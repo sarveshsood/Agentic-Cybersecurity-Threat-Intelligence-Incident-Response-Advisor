@@ -6,6 +6,7 @@
 | Feature                      | Status                         |
 |------------------------------|--------------------------------|
 | Log upload / batch / ZIP     | Yes                            |
+| Suricata EVE / Zeek / Defender / Sysmon parsers | Yes (Wave B) |
 | Realtime ingest API          | Yes                            |
 | IoC extract + TI enrich      | Yes (mock default)             |
 | Correlation panel            | Yes                            |
