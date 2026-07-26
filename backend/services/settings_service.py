@@ -127,7 +127,7 @@ async def public_settings_payload() -> Dict[str, Any]:
 
 
 def _validate_llm_selection(doc: Dict[str, Any]) -> None:
-    """Reject unknown provider/model combos before persist."""
+    """Validate provider; allow custom model IDs (catalog is a convenience list, not a hard gate)."""
     from backend.llm_provider import PROVIDER_MODELS, is_known_model
 
     provider = str(doc.get("llm_provider") or "anthropic").strip().lower()
@@ -137,11 +137,15 @@ def _validate_llm_selection(doc: Dict[str, Any]) -> None:
             status_code=422,
             detail=f"Unknown llm_provider '{provider}'. Allowed: {', '.join(PROVIDER_MODELS)}",
         )
-    if model and not is_known_model(provider, model):
-        allowed = ", ".join(PROVIDER_MODELS[provider])
-        raise HTTPException(
-            status_code=422,
-            detail=f"llm_model '{model}' is not in the catalog for provider '{provider}'. Allowed: {allowed}",
+    if not model:
+        raise HTTPException(status_code=422, detail="llm_model is required")
+    # Unknown model IDs are allowed so Settings can pin vendor aliases / new IDs
+    # without a code deploy — catalog is the curated UX list, not a hard reject list.
+    if not is_known_model(provider, model):
+        logger.info(
+            "settings: custom llm_model %r for provider %s (not in catalog allow-list)",
+            model,
+            provider,
         )
     fb = doc.get("llm_fallback_provider")
     if fb and str(fb).strip().lower() not in ("", "none", *PROVIDER_MODELS.keys()):

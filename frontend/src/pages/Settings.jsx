@@ -32,11 +32,14 @@ import {
 } from "../lib/uiPrefs";
 import {HoverCard, HoverCardContent, HoverCardTrigger,} from "../components/ui/hover-card";
 import {
+    applyLiveCatalog,
     defaultModelForProvider,
     FACTORY_OPS,
     FIELD_META,
     getModelMeta,
     modelLabel,
+    modelsByTier,
+    MODEL_CATALOG,
     PROVIDER_MODELS,
     RECOMMENDED_OPS,
     tipFromMeta,
@@ -542,6 +545,8 @@ export default function Settings() {
     const [initialForm, setInitialForm] = useState({});
     const [busy, setBusy] = useState(false);
     const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
+    const [customModelMode, setCustomModelMode] = useState(false);
+    const [catalogTick, setCatalogTick] = useState(0);
     const [tiEditField, setTiEditField] = useState(null);
     const [showSlackHelp, setShowSlackHelp] = useState(false);
     const [uiPrefs, setUiPrefs] = useState(() => loadUiPrefs());
@@ -559,6 +564,10 @@ export default function Settings() {
         const parsed = formFromSettings(raw);
         setForm(parsed);
         setInitialForm(parsed);
+        // If stored model is not in curated list, open custom input so the value is visible/editable
+        const provider = parsed.llm_provider || "anthropic";
+        const ids = PROVIDER_MODELS[provider] || [];
+        setCustomModelMode(Boolean(parsed.llm_model && !ids.includes(parsed.llm_model)));
     }, []);
 
     const isDirty = useMemo(() => {
@@ -644,7 +653,7 @@ export default function Settings() {
         });
     }, [settings, form, tiSortCol, tiSortDir]);
 
-    // Load settings once with safety timer
+    // Load settings + live LLM catalog once with safety timer
     useEffect(() => {
         let isSubscribed = true;
 
@@ -655,6 +664,8 @@ export default function Settings() {
                     llm_model: "claude-sonnet-4-6",
                     llm_temperature: 0.2,
                     llm_token_budget_monthly: 0,
+                    llm_fallback_enabled: true,
+                    llm_fallback_provider: "anthropic",
                     grounding_threshold: 0.7,
                     hitl_severity_min: "high",
                     auto_approve_grounding_min: 0.85,
@@ -667,6 +678,17 @@ export default function Settings() {
                 });
             }
         }, 1500);
+
+        // Prefer backend catalog so free/paid lists stay in sync with the API
+        api.get("/settings/llm-catalog")
+            .then((r) => {
+                if (!isSubscribed) return;
+                applyLiveCatalog(r.data || {});
+                setCatalogTick((n) => n + 1);
+            })
+            .catch(() => {
+                /* static MODEL_CATALOG remains */
+            });
 
         api.get("/settings")
             .then((r) => {
@@ -683,6 +705,8 @@ export default function Settings() {
                         llm_model: "claude-sonnet-4-6",
                         llm_temperature: 0.2,
                         llm_token_budget_monthly: 0,
+                        llm_fallback_enabled: true,
+                        llm_fallback_provider: "anthropic",
                         grounding_threshold: 0.7,
                         hitl_severity_min: "high",
                         auto_approve_grounding_min: 0.85,
@@ -987,6 +1011,18 @@ export default function Settings() {
         }
     };
 
+    // Hooks must stay above any early return (loading gate)
+    const modelGroups = useMemo(
+        () => modelsByTier(form.llm_provider || "anthropic"),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [form.llm_provider, catalogTick],
+    );
+    const curatedModelIds = useMemo(
+        () => PROVIDER_MODELS[form.llm_provider] || [],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [form.llm_provider, catalogTick],
+    );
+
     if (!settings) {
         return (
             <div data-testid="settings-page">
@@ -1006,6 +1042,7 @@ export default function Settings() {
     };
 
     const onProviderChange = (provider) => {
+        setCustomModelMode(false);
         setForm((f) => ({
             ...f,
             llm_provider: provider,
@@ -1204,42 +1241,89 @@ export default function Settings() {
                                         </select>
                                     </Field>
                                     <Field
-                                        key={`model-field-${form.llm_provider}`}
+                                        key={`model-field-${form.llm_provider}-${catalogTick}`}
                                         label="Model"
                                         fieldKey="llm_model"
                                         meta={modelMeta}
                                         tipKey={`llm_model-${form.llm_provider}`}
                                         matchesRecommended={isRec(form, "llm_model") && isRec(form, "llm_provider")}
                                         warning={issueByField.llm_model}
+                                        hint={`${curatedModelIds.length} curated · free + paid · custom IDs allowed`}
                                     >
-                                        <select
-                                            data-testid="llm-model"
-                                            className={`${inputCls(issueByField.llm_model?.level === "error")} font-mono text-[12px]`}
-                                            value={form.llm_model}
-                                            onChange={(e) => upd("llm_model", e.target.value)}
-                                        >
-                                            {PROVIDER_MODELS[form.llm_provider]?.map((m) => (
-                                                <option key={m} value={m}>
-                                                    {modelLabel(form.llm_provider, m)}
-                                                </option>
-                                            ))}
-                                            {form.llm_model
-                                                && !(PROVIDER_MODELS[form.llm_provider] || []).includes(form.llm_model) && (
-                                                    <option
-                                                        value={form.llm_model}>{form.llm_model} (unsupported)</option>
+                                        {!customModelMode ? (
+                                            <select
+                                                data-testid="llm-model"
+                                                className={`${inputCls(issueByField.llm_model?.level === "error")} font-mono text-[12px]`}
+                                                value={curatedModelIds.includes(form.llm_model) ? form.llm_model : ""}
+                                                onChange={(e) => {
+                                                    const v = e.target.value;
+                                                    if (v === "__custom__") {
+                                                        setCustomModelMode(true);
+                                                        return;
+                                                    }
+                                                    upd("llm_model", v);
+                                                }}
+                                            >
+                                                {!curatedModelIds.includes(form.llm_model) && form.llm_model && (
+                                                    <option value="">{form.llm_model} (not in list — use Custom)</option>
                                                 )}
-                                        </select>
+                                                {modelGroups.free.length > 0 && (
+                                                    <optgroup label={`Free tier (${modelGroups.free.length})`}>
+                                                        {modelGroups.free.map((m) => (
+                                                            <option key={m.id} value={m.id}>
+                                                                {modelLabel(form.llm_provider, m.id)}
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                                {modelGroups.paid.length > 0 && (
+                                                    <optgroup label={`Paid (${modelGroups.paid.length})`}>
+                                                        {modelGroups.paid.map((m) => (
+                                                            <option key={m.id} value={m.id}>
+                                                                {modelLabel(form.llm_provider, m.id)}
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                                <option value="__custom__">Custom model ID…</option>
+                                            </select>
+                                        ) : (
+                                            <div className="space-y-1.5">
+                                                <input
+                                                    data-testid="llm-model-custom"
+                                                    type="text"
+                                                    className={`${inputCls(issueByField.llm_model?.level === "error")} font-mono text-[12px]`}
+                                                    value={form.llm_model || ""}
+                                                    placeholder="e.g. gpt-5.6-sol or gemini-3.6-flash"
+                                                    onChange={(e) => upd("llm_model", e.target.value.trim())}
+                                                    autoComplete="off"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="text-[11px] text-primary hover:underline"
+                                                    data-testid="llm-model-use-list"
+                                                    onClick={() => {
+                                                        setCustomModelMode(false);
+                                                        if (!curatedModelIds.includes(form.llm_model)) {
+                                                            upd("llm_model", defaultModelForProvider(form.llm_provider));
+                                                        }
+                                                    }}
+                                                >
+                                                    ← Back to curated list
+                                                </button>
+                                            </div>
+                                        )}
                                     </Field>
                                 </div>
 
                                 <Field
-                                    label={`${form.llm_provider || "Provider"} API key`}
+                                    label={`${form.llm_provider || "Provider"} API key (active)`}
                                     fieldKey={pk.field}
                                     warning={issueByField[pk.field]}
                                     hint={
-                                        settings[pk.flag]
+                                        settings?.[pk.flag]
                                             ? "✓ configured — leave blank to keep"
-                                            : "Required for live playbooks"
+                                            : "Required for live playbooks on this provider"
                                     }
                                 >
                                     <input
@@ -1252,6 +1336,39 @@ export default function Settings() {
                                         onChange={(e) => upd(pk.field, e.target.value)}
                                     />
                                 </Field>
+
+                                <div
+                                    className="rounded-lg border border-border bg-muted/30 p-3 space-y-2"
+                                    data-testid="llm-all-keys"
+                                >
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                        All provider keys (for fallback)
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground m-0">
+                                        Store keys for multiple providers so cross-provider fallback can run when the primary fails.
+                                        Leave blank to keep an existing secret.
+                                    </p>
+                                    <div className={`${FIELD_GRID_2}`}>
+                                        {Object.entries(PROVIDER_KEY).map(([prov, meta]) => (
+                                            <Field
+                                                key={prov}
+                                                label={`${prov}${prov === form.llm_provider ? " ★" : ""}`}
+                                                fieldKey={meta.field}
+                                                hint={settings?.[meta.flag] ? "✓ configured" : "not set"}
+                                            >
+                                                <input
+                                                    data-testid={`key-all-${meta.field}`}
+                                                    type="password"
+                                                    placeholder={meta.ph}
+                                                    autoComplete="off"
+                                                    className={`${inputCls(false)} font-mono text-[12px]`}
+                                                    value={form[meta.field] || ""}
+                                                    onChange={(e) => upd(meta.field, e.target.value)}
+                                                />
+                                            </Field>
+                                        ))}
+                                    </div>
+                                </div>
 
                                 <button
                                     type="button"

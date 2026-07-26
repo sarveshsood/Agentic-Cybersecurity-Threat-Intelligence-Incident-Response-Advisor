@@ -29,44 +29,80 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
 DEFAULT_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
 
-# Product allow-list with tier labels (keep FE settingsMeta in sync).
-# tier: "paid" | "free" — free means usable on a free/developer API tier
-# (rate-limited), not necessarily $0 at high volume.
+# Product catalog with tier labels (FE can load via GET /settings/llm-catalog).
+# tier: "paid" | "free" — free = usable on free/developer API tier (rate-limited).
 MODEL_CATALOG: Dict[str, list] = {
     "anthropic": [
-        {"id": "claude-sonnet-4-6", "tier": "paid", "role": "default", "label": "Sonnet 4.6 (recommended)"},
-        {"id": "claude-opus-4-6", "tier": "paid", "role": "flagship", "label": "Opus 4.6"},
-        {"id": "claude-opus-4-8", "tier": "paid", "role": "flagship", "label": "Opus 4.8"},
-        {"id": "claude-haiku-4-5", "tier": "paid", "role": "fast", "label": "Haiku 4.5 (cheap/fast)"},
+        {"id": "claude-sonnet-4-6", "tier": "paid", "role": "default", "label": "Claude Sonnet 4.6 (recommended)"},
+        {"id": "claude-opus-4-6", "tier": "paid", "role": "flagship", "label": "Claude Opus 4.6"},
+        {"id": "claude-opus-4-8", "tier": "paid", "role": "flagship", "label": "Claude Opus 4.8"},
+        {"id": "claude-opus-4-5", "tier": "paid", "role": "flagship", "label": "Claude Opus 4.5"},
+        {"id": "claude-sonnet-4-5", "tier": "paid", "role": "mid", "label": "Claude Sonnet 4.5"},
+        {"id": "claude-sonnet-4-0", "tier": "paid", "role": "prior", "label": "Claude Sonnet 4"},
+        {"id": "claude-haiku-4-5", "tier": "paid", "role": "fast", "label": "Claude Haiku 4.5 (cheap/fast)"},
+        {"id": "claude-3-7-sonnet-latest", "tier": "paid", "role": "prior", "label": "Claude 3.7 Sonnet (latest alias)"},
+        {"id": "claude-3-5-sonnet-latest", "tier": "paid", "role": "prior", "label": "Claude 3.5 Sonnet (latest alias)"},
+        {"id": "claude-3-5-haiku-latest", "tier": "paid", "role": "fast", "label": "Claude 3.5 Haiku (latest alias)"},
+        {"id": "claude-3-opus-latest", "tier": "paid", "role": "prior", "label": "Claude 3 Opus (latest alias)"},
     ],
     "openai": [
-        {"id": "gpt-5.4", "tier": "paid", "role": "default", "label": "GPT-5.4 (flagship)"},
+        # GPT-5.6 family (current frontier, mid-2026)
+        {"id": "gpt-5.6-sol", "tier": "paid", "role": "flagship", "label": "GPT-5.6 Sol (frontier)"},
+        {"id": "gpt-5.6-terra", "tier": "paid", "role": "default", "label": "GPT-5.6 Terra (balanced)"},
+        {"id": "gpt-5.6-luna", "tier": "paid", "role": "fast", "label": "GPT-5.6 Luna (cost)"},
+        {"id": "gpt-5.5", "tier": "paid", "role": "flagship", "label": "GPT-5.5"},
+        {"id": "gpt-5.5-pro", "tier": "paid", "role": "flagship", "label": "GPT-5.5 Pro"},
+        {"id": "gpt-5.4", "tier": "paid", "role": "mid", "label": "GPT-5.4"},
         {"id": "gpt-5.4-mini", "tier": "paid", "role": "fast", "label": "GPT-5.4 mini"},
         {"id": "gpt-5.4-pro", "tier": "paid", "role": "flagship", "label": "GPT-5.4 pro"},
-        {"id": "gpt-5.2", "tier": "paid", "role": "prior", "label": "GPT-5.2 (pinned gen)"},
+        {"id": "gpt-5.2", "tier": "paid", "role": "prior", "label": "GPT-5.2"},
+        {"id": "gpt-5.1", "tier": "paid", "role": "prior", "label": "GPT-5.1"},
+        {"id": "gpt-5", "tier": "paid", "role": "prior", "label": "GPT-5"},
+        {"id": "gpt-5-mini", "tier": "paid", "role": "fast", "label": "GPT-5 mini"},
+        {"id": "gpt-5-nano", "tier": "paid", "role": "fast", "label": "GPT-5 nano"},
         {"id": "gpt-4.1", "tier": "paid", "role": "prior", "label": "GPT-4.1"},
         {"id": "gpt-4.1-mini", "tier": "paid", "role": "fast", "label": "GPT-4.1 mini"},
+        {"id": "gpt-4.1-nano", "tier": "paid", "role": "fast", "label": "GPT-4.1 nano"},
         {"id": "gpt-4o", "tier": "paid", "role": "prior", "label": "GPT-4o"},
         {"id": "gpt-4o-mini", "tier": "paid", "role": "fast", "label": "GPT-4o mini"},
+        {"id": "o3", "tier": "paid", "role": "reasoning", "label": "o3 (reasoning)"},
+        {"id": "o3-mini", "tier": "paid", "role": "reasoning", "label": "o3-mini"},
+        {"id": "o4-mini", "tier": "paid", "role": "reasoning", "label": "o4-mini"},
+        {"id": "o1", "tier": "paid", "role": "reasoning", "label": "o1 (reasoning)"},
+        {"id": "o1-mini", "tier": "paid", "role": "reasoning", "label": "o1-mini"},
     ],
     "gemini": [
         {"id": "gemini-3.1-pro-preview", "tier": "paid", "role": "default", "label": "Gemini 3.1 Pro (preview)"},
-        {"id": "gemini-3-flash-preview", "tier": "free", "role": "fast", "label": "Gemini 3 Flash (free tier)"},
-        {"id": "gemini-3.5-flash", "tier": "free", "role": "fast", "label": "Gemini 3.5 Flash (free tier)"},
+        {"id": "gemini-3-pro-preview", "tier": "paid", "role": "flagship", "label": "Gemini 3 Pro (preview)"},
         {"id": "gemini-3.6-flash", "tier": "free", "role": "fast", "label": "Gemini 3.6 Flash (free tier)"},
-        {"id": "gemini-2.5-pro", "tier": "paid", "role": "prior", "label": "Gemini 2.5 Pro"},
+        {"id": "gemini-3.5-flash", "tier": "free", "role": "fast", "label": "Gemini 3.5 Flash (free tier)"},
+        {"id": "gemini-3.5-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 3.5 Flash-Lite (free tier)"},
+        {"id": "gemini-3.1-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 3.1 Flash-Lite (free tier)"},
+        {"id": "gemini-3-flash-preview", "tier": "free", "role": "fast", "label": "Gemini 3 Flash (preview / free)"},
+        {"id": "gemini-2.5-pro", "tier": "free", "role": "prior", "label": "Gemini 2.5 Pro (limited free)"},
         {"id": "gemini-2.5-flash", "tier": "free", "role": "fast", "label": "Gemini 2.5 Flash (free tier)"},
+        {"id": "gemini-2.5-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 2.5 Flash-Lite (free tier)"},
         {"id": "gemini-2.0-flash", "tier": "free", "role": "fast", "label": "Gemini 2.0 Flash (free tier)"},
+        {"id": "gemini-2.0-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 2.0 Flash-Lite (free tier)"},
+        {"id": "gemini-1.5-pro", "tier": "paid", "role": "legacy", "label": "Gemini 1.5 Pro (legacy)"},
+        {"id": "gemini-1.5-flash", "tier": "free", "role": "legacy", "label": "Gemini 1.5 Flash (legacy)"},
     ],
     "groq": [
-        # Groq free developer tier (rate-limited) covers these open-weight models
+        # Free developer tier (rate-limited) — chat-capable production + preview text models
         {"id": "openai/gpt-oss-120b", "tier": "free", "role": "default", "label": "GPT-OSS 120B (free tier)"},
         {"id": "openai/gpt-oss-20b", "tier": "free", "role": "fast", "label": "GPT-OSS 20B (free tier)"},
-        {"id": "llama-3.3-70b-versatile", "tier": "free", "role": "prior", "label": "Llama 3.3 70B (free tier)"},
-        {"id": "llama-3.1-8b-instant", "tier": "free", "role": "fast", "label": "Llama 3.1 8B Instant (free tier)"},
-        {"id": "meta-llama/llama-4-scout-17b-16e-instruct", "tier": "free", "role": "fast", "label": "Llama 4 Scout (free tier)"},
-        {"id": "qwen/qwen3.6-27b", "tier": "free", "role": "mid", "label": "Qwen3.6 27B (free tier)"},
-        {"id": "moonshotai/kimi-k2-instruct", "tier": "free", "role": "mid", "label": "Kimi K2 Instruct (free tier)"},
+        {"id": "openai/gpt-oss-safeguard-20b", "tier": "free", "role": "mid", "label": "GPT-OSS Safeguard 20B"},
+        {"id": "llama-3.3-70b-versatile", "tier": "free", "role": "prior", "label": "Llama 3.3 70B Versatile"},
+        {"id": "llama-3.1-8b-instant", "tier": "free", "role": "fast", "label": "Llama 3.1 8B Instant"},
+        {"id": "meta-llama/llama-4-scout-17b-16e-instruct", "tier": "free", "role": "fast", "label": "Llama 4 Scout 17B"},
+        {"id": "meta-llama/llama-4-maverick-17b-128e-instruct", "tier": "free", "role": "mid", "label": "Llama 4 Maverick 17B"},
+        {"id": "qwen/qwen3.6-27b", "tier": "free", "role": "mid", "label": "Qwen3.6 27B"},
+        {"id": "qwen/qwen3-32b", "tier": "free", "role": "prior", "label": "Qwen3 32B"},
+        {"id": "moonshotai/kimi-k2-instruct", "tier": "free", "role": "mid", "label": "Kimi K2 Instruct"},
+        {"id": "groq/compound", "tier": "free", "role": "agent", "label": "Groq Compound (agentic)"},
+        {"id": "groq/compound-mini", "tier": "free", "role": "agent", "label": "Groq Compound Mini"},
+        {"id": "deepseek-r1-distill-llama-70b", "tier": "free", "role": "reasoning", "label": "DeepSeek R1 Distill Llama 70B"},
+        {"id": "gemma2-9b-it", "tier": "free", "role": "fast", "label": "Gemma 2 9B IT"},
     ],
 }
 

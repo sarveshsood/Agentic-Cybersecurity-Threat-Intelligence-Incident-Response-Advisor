@@ -36,7 +36,15 @@ def test_provider_models_non_empty():
     assert any(m["tier"] == "free" for m in cat["catalog"]["gemini"])
     assert any(m["tier"] == "paid" for m in cat["catalog"]["openai"])
     assert "gpt-4o-mini" in cat["models"]["openai"]
+    assert "gpt-5.6-sol" in cat["models"]["openai"]
+    assert "gpt-5.6-terra" in cat["models"]["openai"]
+    assert "o4-mini" in cat["models"]["openai"]
+    assert "gemini-3.5-flash-lite" in cat["models"]["gemini"]
     assert "meta-llama/llama-4-scout-17b-16e-instruct" in cat["models"]["groq"]
+    assert len(cat["models"]["openai"]) >= 15
+    assert len(cat["models"]["anthropic"]) >= 8
+    assert len(cat["models"]["gemini"]) >= 10
+    assert len(cat["models"]["groq"]) >= 10
 
 
 def test_is_known_model():
@@ -44,6 +52,7 @@ def test_is_known_model():
 
     assert is_known_model("anthropic", "claude-sonnet-4-6")
     assert is_known_model("openai", "gpt-5.4-pro")
+    assert is_known_model("openai", "gpt-5.6-sol")
     assert is_known_model("openai", "gpt-4o-mini")
     assert is_known_model("groq", "qwen/qwen3.6-27b")
     assert is_known_model("gemini", "gemini-2.0-flash")
