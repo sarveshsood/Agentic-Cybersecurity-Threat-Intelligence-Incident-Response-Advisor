@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from backend.security import get_current_user, require_roles
+from backend.security import require_roles
 from backend.services import bootstrap
 from backend.services import ops_service
 
