@@ -37,4 +37,6 @@ jobs:
         run: pytest tests/test_golden_benchmark.py -v -n 0 --tb=short
 
       - name: Golden CLI summary
-        run: python -m golden_eval
+        # Package imports use `backend.*`; repo root must be on PYTHONPATH.
+        working-directory: .
+        run: PYTHONPATH=. python -m backend.golden_eval
