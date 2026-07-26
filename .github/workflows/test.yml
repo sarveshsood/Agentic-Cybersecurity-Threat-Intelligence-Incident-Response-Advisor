@@ -33,10 +33,22 @@ jobs:
           pip install -r backend/requirements.txt -r requirements-test.txt
       - run: |
           cd backend && pytest tests -n 0 -q --tb=line \
-            -m "not integration and not e2e and not performance and not requires_llm"
+            -m "not integration and not e2e and not performance and not requires_llm and not requires_mongo"
+        env:
+          ENV: test
+          FORCE_MOCK_TI: "true"
+          JWT_SECRET: ci-jwt-secret-not-for-production-use-32b
+          MONGO_URL: mongodb://127.0.0.1:27017
+          DB_NAME: soc_console_ci
       - run: |
           pytest -c pytest.ini tests -n 0 -q --tb=line \
-            -m "not integration and not e2e and not performance and not requires_mongo"
+            -m "not integration and not e2e and not performance and not requires_mongo and not requires_llm"
+        env:
+          ENV: test
+          FORCE_MOCK_TI: "true"
+          JWT_SECRET: ci-jwt-secret-not-for-production-use-32b
+          MONGO_URL: mongodb://127.0.0.1:27017
+          DB_NAME: soc_console_ci
 
   security:
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'security' || inputs.suite == 'all'

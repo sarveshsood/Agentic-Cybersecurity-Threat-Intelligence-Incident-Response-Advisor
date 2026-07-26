@@ -1038,7 +1038,14 @@
         ],
         "technique_ids": [
           "T1566"
-        ]
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
       }
     },
     {
@@ -1059,7 +1066,14 @@
         ],
         "technique_ids": [
           "T1566"
-        ]
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
+        ],
+        "min_grounding": 0.5
       }
     }
   ]

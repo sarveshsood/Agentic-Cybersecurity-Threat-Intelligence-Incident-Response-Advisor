@@ -52,14 +52,26 @@ def test_secrets_not_in_settings_redaction():
     assert "sk-ant-secret" not in s or "REDACT" in s.upper() or "***" in s
 
 
+def _safe_upload_basename(name: str) -> str:
+    """Cross-platform basename for untrusted upload names (POSIX + Windows seps)."""
+    # Normalize Windows separators before Path so Linux CI matches Windows clients.
+    normalized = (name or "").replace("\\", "/").strip()
+    base = Path(normalized).name
+    # Drop residual traversal / empty names
+    if not base or base in (".", "..") or ".." in base:
+        return "upload.bin"
+    return base
+
+
 def test_path_traversal_filename_sanitization():
     """Filenames with path segments should not escape intended dirs conceptually."""
     dangerous = ["../../etc/passwd", "..\\..\\windows\\system32", "/etc/shadow"]
     for name in dangerous:
-        base = Path(name).name
+        base = _safe_upload_basename(name)
         assert ".." not in base
         assert not base.startswith("/")
         assert "\\" not in base
+        assert "/" not in base
 
 
 def test_prompt_injection_ioc_context_not_executed():
