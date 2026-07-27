@@ -483,10 +483,15 @@ ACTIRA delivers a complete capstone-grade **human-gated AI IR advisor**: multi-f
 
 | Horizon | Items |
 |---------|--------|
-| Submission close | Demo video (student-owned); screenshot pack done (light theme) |
-| Next release | SSO JWKS, rate limits, E2E expansion, Analytics error polish |
+| Submission close | **5-minute demo video only** (student-owned); trust UX + report pack otherwise closed |
+| Documented stretch (not demo-blocking) | Default real SBERT + broader KB corpus; continuous compliance automation; Hunt/Lance hybrid lake search — see `docs/product/PRODUCT_HONESTY.md` |
+| Next release | SSO JWKS hardening, rate limits, E2E expansion |
 | v2.0 | Multi-tenant, connectors, commercial pilot |
 | v3.0 | Gated SOAR, forensics agent, formal multi-agent roster UX, RAGAS board |
+
+### Trust & honesty surfaces (2026-07-27 close)
+
+ACTIRA surfaces **explicit non-claims** in product UI: Hunt is case-pool scoring (not SIEM); Audit is hash-chained best-effort (not WORM); Analytics cache hit/miss/TTL footer; KB default hash embedder banner; Compliance assumed vs live-verified provenance. Dynamic audit actions, custom KB admin manager, Analytics drill-through to Hunt/Incidents, and live-probe unit tests close the remaining trust/UX depth items short of the demo video.
 
 ## 10.3 Ethical statement
 

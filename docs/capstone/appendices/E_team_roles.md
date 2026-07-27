@@ -41,9 +41,10 @@
 
 | Field | Value |
 |-------|--------|
-| Mentor name | *(fill if assigned by TalentSprint / IISc track)* |
+| Mentor name | **Not assigned in repository** — fill on the printed declaration / institute portal if TalentSprint or IISc track assigns a named mentor |
 | Institute / track | Advanced Certification Programme in Agentic and Generative AI (TalentSprint / IISc track) |
-| Evaluation board date | *(fill)* |
+| Evaluation board date | Per institute schedule (not fixed in-repo) |
+| Signatures | Signature block in §E.5 is intentionally blank for wet-ink / portal upload — **not a software defect** |
 
 ---
 

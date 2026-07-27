@@ -29,6 +29,48 @@ function statusBadgeClass(status) {
     return "text-error border-[var(--error-border,var(--sev-critical-border))] bg-[var(--sev-critical-bg)]";
 }
 
+/** Assumed product feature vs env-checked vs live-probed evidence. */
+function verificationBadgeClass(v) {
+    if (v === "verified") {
+        return "text-success border-[var(--success-border)] bg-success-soft";
+    }
+    if (v === "env") {
+        return "text-primary border-primary/40 bg-primary/10";
+    }
+    if (v === "mixed") {
+        return "text-foreground border-border bg-muted/50";
+    }
+    // assumed (default)
+    return "text-amber-800 dark:text-amber-200 border-amber-500/40 bg-amber-500/10";
+}
+
+function VerificationBadge({verification, label}) {
+    const v = verification || "assumed";
+    const text = label || {
+        verified: "Live verified",
+        env: "Config-checked",
+        assumed: "Assumed",
+        mixed: "Mixed",
+    }[v] || v;
+    return (
+        <span
+            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border whitespace-nowrap ${verificationBadgeClass(v)}`}
+            data-testid={`verification-badge-${v}`}
+            title={
+                v === "verified"
+                    ? "Live-probed this request (audit chain and/or golden last run)"
+                    : v === "env"
+                        ? "Checked against process env / settings"
+                        : v === "mixed"
+                            ? "Mix of assumed, config, and/or live evidence keys"
+                            : "Product capability assumed present — not live-probed this request"
+            }
+        >
+            {text}
+        </span>
+    );
+}
+
 export default function Compliance() {
     const [report, setReport] = useState(null);
     const [gapsPayload, setGapsPayload] = useState(null);
@@ -113,6 +155,10 @@ export default function Compliance() {
     const gaps = gapsPayload?.gaps || report?.gaps_preview || [];
     const domains = report?.domains || [];
     const live = report?.live_signals || gapsPayload?.live_signals || {};
+    const verificationSummary =
+        report?.verification_summary || gapsPayload?.verification_summary || {};
+    const verificationLegend =
+        report?.verification_legend || gapsPayload?.verification_legend || {};
 
     return (
         <div className="space-y-6 pb-12" data-testid="compliance-page">
@@ -188,9 +234,62 @@ export default function Compliance() {
                     </p>
                     <p className="text-muted-foreground text-[13px] mt-1 leading-relaxed">
                         {report?.disclaimer ||
-                            "Scores map runtime product controls to ISO / SOC 2 / NIST CSF / CIS-style catalog items. They do not constitute ISO, SOC 2, or other third-party certification. Use gaps and evidence packs for pilot GRC conversations only."}
+                            "Scores map runtime product controls to ISO / SOC 2 / NIST CSF / CIS-style catalog items. They do not constitute ISO, SOC 2, or other third-party certification. Use gaps and evidence packs for pilot GRC conversations only. Most controls are assumed product features; only a subset are live-verified or config-checked each request."}
                     </p>
                 </div>
+            </div>
+
+            {/* Assumed vs verified honesty — evidence provenance summary */}
+            <div
+                className="soc-card p-3 border border-border rounded-lg space-y-2"
+                data-testid="compliance-verification-summary"
+            >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                        Evidence provenance
+                        <HelpTip
+                            title="Assumed vs verified"
+                            body="Most catalog controls map to product features that are assumed present (RBAC routes, HiTL gate, etc.). A smaller set is config-checked from env/settings or live-verified this request (audit hash sample, golden last run)."
+                            how="verification field on each control: assumed | env | verified | mixed."
+                            testid="tip-compliance-verification"
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5" data-testid="compliance-verification-chips">
+                        {["verified", "env", "assumed", "mixed"].map((k) => {
+                            const n = verificationSummary[k];
+                            if (n == null && !Object.keys(verificationSummary).length) return null;
+                            return (
+                                <span
+                                    key={k}
+                                    className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border ${verificationBadgeClass(k)}`}
+                                >
+                                    {k} {n ?? 0}
+                                </span>
+                            );
+                        })}
+                        {!Object.keys(verificationSummary).length && (
+                            <span className="text-[11px] text-muted-foreground">
+                                {loading ? "Loading provenance…" : "No summary yet — refresh after API upgrade."}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                {(verificationLegend.assumed || verificationLegend.verified) && (
+                    <ul className="m-0 pl-4 text-[11px] text-muted-foreground space-y-0.5 list-disc">
+                        {verificationLegend.verified && (
+                            <li><span className="font-medium text-foreground">Live verified:</span> {verificationLegend.verified}</li>
+                        )}
+                        {verificationLegend.env && (
+                            <li><span className="font-medium text-foreground">Config-checked:</span> {verificationLegend.env}</li>
+                        )}
+                        {verificationLegend.assumed && (
+                            <li><span className="font-medium text-foreground">Assumed:</span> {verificationLegend.assumed}</li>
+                        )}
+                        {verificationLegend.mixed && (
+                            <li><span className="font-medium text-foreground">Mixed:</span> {verificationLegend.mixed}</li>
+                        )}
+                    </ul>
+                )}
             </div>
 
             {/* Live runtime signals feeding audit integrity + golden last-run evidence */}
@@ -460,6 +559,7 @@ export default function Compliance() {
                             <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
                                 <th className="py-2 pr-3 font-semibold">ID</th>
                                 <th className="py-2 pr-3 font-semibold">Control</th>
+                                <th className="py-2 pr-3 font-semibold">Evidence</th>
                                 <th className="py-2 pr-3 font-semibold">Framework</th>
                                 <th className="py-2 pr-3 font-semibold">Remediation</th>
                                 <th className="py-2 font-semibold text-right">Weight</th>
@@ -481,6 +581,12 @@ export default function Compliance() {
                                                 missing: {g.missing_evidence.join(", ")}
                                             </div>
                                         ) : null}
+                                    </td>
+                                    <td className="py-2.5 pr-3">
+                                        <VerificationBadge
+                                            verification={g.verification}
+                                            label={g.verification_label}
+                                        />
                                     </td>
                                     <td className="py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap">
                                         {g.framework}

@@ -30,8 +30,9 @@ docs/capstone/
 | **Viva PPTX** | [presentation/ACTIRA_Capstone_Presentation.pptx](./presentation/ACTIRA_Capstone_Presentation.pptx) |
 | **Board review** | [board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md](./board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md) |
 
-**Golden metrics (2026-07-26):** 37 cases · IoC F1 **0.982** · technique recall **0.930** · board **78/100** pilot.  
-**Formal pytest pack:** **66 passed** (golden + compliance + audit + LLM + RBAC + hardening).
+**Golden metrics (2026-07-26):** 37 cases · IoC F1 **0.982** · technique recall **0.930** · board **78/100** pilot (trust UX + Wave C).  
+**Formal pytest pack:** golden + compliance + audit + hunt + LLM + RBAC + hardening (re-run commands below after trust UX).  
+**Product honesty:** [`docs/product/PRODUCT_HONESTY.md`](../product/PRODUCT_HONESTY.md)
 
 ## Commands
 
@@ -67,5 +68,8 @@ python -m pytest backend/tests/test_golden_benchmark.py \
 - [x] Report PDF export (readable typography, one figure/page)
 - [x] Viva PPTX light theme + embedded captures
 - [x] Login honesty + Compliance disclaimer (product code)
-- [ ] 5-minute demo video (student-owned)
-- [ ] Mentor name / signatures if institute requires
+- [x] Trust UX Tier-1 (Hunt honesty, Audit paging, Analytics cache footer, KB embedder banner, Compliance assumed-vs-verified)
+- [x] Trust UX Tier-2 close (Audit dynamic actions, KB custom manager, Hunt/Compliance probes, Analytics drill-through)
+- [x] Product honesty doc (`docs/product/PRODUCT_HONESTY.md`)
+- [x] Mentor / signature fields documented (Appendix E — wet-ink / portal; blank by design)
+- [ ] 5-minute demo video (**only remaining student-owned deliverable**)

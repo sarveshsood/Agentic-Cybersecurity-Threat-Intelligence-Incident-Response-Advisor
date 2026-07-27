@@ -106,8 +106,8 @@ Recent remediation improved trust and ops UX:
 | **4** | Prompt / structured validation | HiTL + parse resilience | Done |
 | **5 Deploy** | Docker / cloud | Compose + K8s/Helm | Done |
 | **5** | Architecture & API docs | `docs/*`, OpenAPI, presentations | Done |
-| **5** | Evaluation report + screenshots | This pack + `samples/demo/` | In progress (use §7–9) |
-| **5** | 5-min demo video | `docs/DEMO_SCRIPT.md` + speaker notes | Student deliverable |
+| **5** | Evaluation report + screenshots | This pack + `samples/demo/` + trust UX surfaces | Done (regen screenshots after merge if UI drifts) |
+| **5** | 5-min demo video | `docs/DEMO_SCRIPT.md` + speaker notes | **Only open student deliverable** |
 
 ---
 
@@ -171,21 +171,23 @@ Recent remediation improved trust and ops UX:
 - [x] Incident load errors  
 - [x] Soften Login marketing “Connected” rows — probe `/health`; capability tiles (not fake KPIs)  
 - [x] Compliance alignment disclaimer banner (always visible)  
-- [x] Capstone report PDF + appendices pack + formal test summary (66 pass)  
-- [x] Screenshot figure slots under `assets/screenshots/` (placeholders; overwrite with live UI)  
-- [ ] 5-minute demo recording (student-owned)  
-- [ ] Live UI screenshots overwrite placeholders  
+- [x] Capstone report PDF + appendices pack + formal test summary  
+- [x] Live light-theme screenshots under `assets/screenshots/` (01–14; re-run `capture_screenshots.py` after trust UX merge)  
+- [x] Trust UX honesty surfaces (Hunt / Audit / Analytics / KB / Compliance) — see `docs/product/PRODUCT_HONESTY.md`  
+- [ ] 5-minute demo recording (**only remaining student-owned item**)  
 
-### P1
-- Analytics error state  
-- Mobile nav drawer  
-- E2E testid alignment  
-- Cookie-only JWT for SPA (largely landed; residual proxy modes)  
+### P1 (closed for submission scope or documented)
+- [x] Analytics main-path error + cache honesty footer + drill-through  
+- Mobile nav drawer — residual polish (non-blocking)  
+- E2E testid alignment — residual  
+- Cookie-only JWT for SPA — largely landed  
 
-### P2–P3
-- Server-side pagination everywhere  
-- OIDC JWKS  
-- Multi-tenant design (v2)  
+### P2–P3 (explicitly deferred / stretch)
+- Server-side pagination remaining lists  
+- OIDC JWKS hardening  
+- Multi-tenant (v2)  
+- Default SBERT + larger KB corpus; Hunt/Lance hybrid; continuous compliance automation — **documented stretch**, not demo-blocking  
+
 
 ---
 

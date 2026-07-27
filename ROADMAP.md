@@ -248,6 +248,7 @@ In-app seeds: `rm-next-trust-qa`, `rm-next-platform-hardening`, `rm-v1-7-agent-r
 | ID   | Activity | Outcome | Priority | Status |
 |------|----------|---------|----------|--------|
 | T-01 | **Trust UX** — DEMO banners, hard error states, login tokens, mobile nav, palette Audit/Compliance | Never mask empty/fail as healthy | P0 | ✅ |
+| T-01b | **Trust UX surface wins** — Hunt filters/honesty, Audit paging + dynamic actions, Analytics cache footer + drill-through, KB hash banner + custom manager, Compliance assumed-vs-verified + live probes | Capstone honesty | P0 | ✅ (2026-07-27) |
 | T-02 | **API scale & edge security** — server-side incident pagination, global rate limit + metrics, CSP/HSTS | Internet-ready pilot | P1 | ✅ |
 | T-03 | **QA depth** — repair smoke testids; Playwright for workspace / hunt / compliance / audit | CI truth for new surfaces | P1 | ✅ |
 | T-04 | **Wave D product** — multi-agent roster UX + executive risk dashboard | Persona command surfaces | P1 | ✅ |

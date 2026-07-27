@@ -1,15 +1,36 @@
 import {useCallback, useEffect, useState} from "react";
-import {Link} from "react-router-dom";
+import {Link, useSearchParams} from "react-router-dom";
 import {api} from "../lib/api";
 import {PageHeader} from "../design-system";
-import {HelpTip} from "../components/HelpTip";
+import {HelpTip, Tip} from "../components/HelpTip";
 import {SeverityBadge, StatusPill} from "../components/SeverityBadge";
 import {ListState} from "../components/ListState";
-import {MagnifyingGlass, Crosshair, Pulse} from "@phosphor-icons/react";
+import {MagnifyingGlass, Crosshair, Pulse, Warning} from "@phosphor-icons/react";
 import {toast} from "sonner";
 
+const SEV_OPTIONS = [
+    {value: "", label: "All severities"},
+    {value: "critical", label: "Critical"},
+    {value: "high", label: "High"},
+    {value: "medium", label: "Medium"},
+    {value: "low", label: "Low"},
+];
+
+const STATUS_OPTIONS = [
+    {value: "", label: "All statuses"},
+    {value: "new", label: "New"},
+    {value: "in_progress", label: "In progress"},
+    {value: "pending_review", label: "Pending review"},
+    {value: "approved", label: "Approved"},
+    {value: "rejected", label: "Rejected"},
+    {value: "closed", label: "Closed"},
+];
+
 export default function Hunt() {
-    const [q, setQ] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [q, setQ] = useState(searchParams.get("q") || "");
+    const [severity, setSeverity] = useState(searchParams.get("severity") || "");
+    const [status, setStatus] = useState(searchParams.get("status") || "");
     const [suggestions, setSuggestions] = useState([]);
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -27,7 +48,7 @@ export default function Hunt() {
                     "Find ransomware indicators",
                     "Show suspicious DNS",
                     "Find persistence",
-                ])
+                ]),
             );
         api
             .get("/hunt/behavior?limit=8")
@@ -35,9 +56,30 @@ export default function Hunt() {
             .catch(() => setHotspots(null));
     }, []);
 
+    // Deep-link: auto-run when ?q= present on mount / param change
+    useEffect(() => {
+        const initial = (searchParams.get("q") || "").trim();
+        if (!initial) return;
+        run(initial, {
+            severity: searchParams.get("severity") || "",
+            status: searchParams.get("status") || "",
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional deep-link once per q change
+    }, [searchParams.get("q")]);
+
+    const syncUrl = (query, sev, st) => {
+        const next = new URLSearchParams();
+        if (query?.trim()) next.set("q", query.trim());
+        if (sev) next.set("severity", sev);
+        if (st) next.set("status", st);
+        setSearchParams(next, {replace: true});
+    };
+
     const run = useCallback(
-        async (query) => {
+        async (query, overrides = {}) => {
             const text = (query ?? q).trim();
+            const sev = overrides.severity !== undefined ? overrides.severity : severity;
+            const st = overrides.status !== undefined ? overrides.status : status;
             if (!text) {
                 toast.error("Enter a hunt query");
                 return;
@@ -45,8 +87,12 @@ export default function Hunt() {
             setQ(text);
             setLoading(true);
             setHuntError(null);
+            syncUrl(text, sev, st);
             try {
-                const r = await api.get(`/hunt?q=${encodeURIComponent(text)}&limit=40`);
+                const params = {q: text, limit: 40};
+                if (sev) params.severity = sev;
+                if (st) params.status = st;
+                const r = await api.get("/hunt", {params});
                 setResult(r.data);
             } catch (e) {
                 const msg = e?.userMessage || e?.response?.data?.detail || "Hunt failed";
@@ -57,7 +103,7 @@ export default function Hunt() {
                 setLoading(false);
             }
         },
-        [q]
+        [q, severity, status, setSearchParams],
     );
 
     return (
@@ -70,11 +116,24 @@ export default function Hunt() {
                     <HelpTip
                         title="Threat Hunting"
                         body="Ask in plain language (e.g. PowerShell, lateral movement). ACTIRA maps the query to rule-based intents and scores matching incidents — not a SIEM lake search (KQL/SPL)."
-                        how="Intents + keyword scoring over Mongo incidents and extracted IoCs/techniques."
+                        how="Intents + keyword scoring over up to 500 newest Mongo incidents (optional severity/status filters)."
                         testid="tip-hunt-page"
                     />
                 }
             />
+
+            <div
+                className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-foreground"
+                data-testid="hunt-honesty-banner"
+                role="note"
+            >
+                <Warning size={16} className="text-amber-600 shrink-0 mt-0.5" weight="fill" aria-hidden/>
+                <p className="m-0 leading-relaxed text-muted-foreground">
+                    <span className="font-semibold text-amber-800 dark:text-amber-200">Case hunt, not SIEM. </span>
+                    Scores the newest <span className="font-mono">≤500</span> incidents (with optional severity/status
+                    filters). Does not query raw log lakes (KQL/SPL).
+                </p>
+            </div>
 
             <form
                 className="soc-card p-4 space-y-3"
@@ -89,7 +148,7 @@ export default function Hunt() {
                     <HelpTip
                         title="Hunt query"
                         body="Plain-language intent (e.g. PowerShell, lateral movement, ransomware). Mapped to rule-based intents + keyword scoring over recent incidents — not KQL/SPL lake search."
-                        how="GET /hunt?q=… scores incidents by IoCs, techniques, and text fields."
+                        how="GET /hunt?q=…&severity=&status= scores incidents by IoCs, techniques, and text fields."
                         testid="tip-hunt-query"
                     />
                 </label>
@@ -108,6 +167,32 @@ export default function Hunt() {
                             onChange={(e) => setQ(e.target.value)}
                         />
                     </div>
+                    <Tip content="Filter candidate pool by severity before scoring">
+                        <select
+                            className="text-xs border border-border rounded-lg px-2 py-2 bg-background"
+                            value={severity}
+                            onChange={(e) => setSeverity(e.target.value)}
+                            data-testid="hunt-filter-severity"
+                            aria-label="Severity filter"
+                        >
+                            {SEV_OPTIONS.map((o) => (
+                                <option key={o.value || "all"} value={o.value}>{o.label}</option>
+                            ))}
+                        </select>
+                    </Tip>
+                    <Tip content="Filter candidate pool by incident status">
+                        <select
+                            className="text-xs border border-border rounded-lg px-2 py-2 bg-background"
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
+                            data-testid="hunt-filter-status"
+                            aria-label="Status filter"
+                        >
+                            {STATUS_OPTIONS.map((o) => (
+                                <option key={o.value || "all"} value={o.value}>{o.label}</option>
+                            ))}
+                        </select>
+                    </Tip>
                     <button
                         type="submit"
                         disabled={loading}
@@ -196,9 +281,17 @@ export default function Hunt() {
                             />
                         </div>
                         <div className="text-sm text-foreground font-medium">{result.intent?.label}</div>
-                        <div className="text-[11px] text-muted-foreground mt-1 font-mono">
+                        <div className="text-[11px] text-muted-foreground mt-1 font-mono" data-testid="hunt-pool-meta">
                             id={result.intent?.id} · matches {result.total_matches} / {result.total_candidates} scanned
+                            {result.pool_limit ? ` · pool_limit ${result.pool_limit}` : ""}
+                            {result.pool_filters?.severity ? ` · severity=${result.pool_filters.severity}` : ""}
+                            {result.pool_filters?.status ? ` · status=${result.pool_filters.status}` : ""}
                         </div>
+                        {result.honesty && (
+                            <p className="text-[11px] text-muted-foreground mt-2 m-0 leading-relaxed">
+                                {result.honesty}
+                            </p>
+                        )}
                         {result.intent?.keywords?.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                                 {result.intent.keywords.slice(0, 12).map((k) => (
@@ -216,7 +309,7 @@ export default function Hunt() {
                     {result.hits?.length === 0 ? (
                         <ListState
                             variant="empty"
-                            message="No incidents matched this hunt. Try another query or ingest more logs."
+                            message="No incidents matched this hunt. Try another query, clear filters, or ingest more logs."
                             testid="hunt-empty"
                         />
                     ) : (

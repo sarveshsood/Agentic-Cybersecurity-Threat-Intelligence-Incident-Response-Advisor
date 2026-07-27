@@ -23,14 +23,24 @@ def _ttl_seconds(name: str, default: float) -> float:
 
 
 def get(key: str) -> Optional[Any]:
+    meta = get_meta(key)
+    return None if meta is None else meta["value"]
+
+
+def get_meta(key: str) -> Optional[Dict[str, Any]]:
+    """Return value plus remaining TTL when the key is still live."""
     item = _store.get(key)
     if not item:
         return None
     expires_at, value = item
-    if time.monotonic() >= expires_at:
+    now = time.monotonic()
+    if now >= expires_at:
         _store.pop(key, None)
         return None
-    return value
+    return {
+        "value": value,
+        "expires_in_seconds": max(0.0, expires_at - now),
+    }
 
 
 def set(key: str, value: Any, *, ttl: float) -> None:

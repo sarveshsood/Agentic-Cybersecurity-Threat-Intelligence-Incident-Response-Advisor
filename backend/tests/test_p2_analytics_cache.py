@@ -20,10 +20,16 @@ def test_analytics_cache_ttl_roundtrip():
     assert cache.get("x") is None
     cache.set("x", {"a": 1}, ttl=60)
     assert cache.get("x") == {"a": 1}
+    meta = cache.get_meta("x")
+    assert meta is not None
+    assert meta["value"] == {"a": 1}
+    assert meta["expires_in_seconds"] > 0
+    assert meta["expires_in_seconds"] <= 60
     cache.set("y", 2, ttl=0)  # ttl 0 → no store
     assert cache.get("y") is None
     assert cache.invalidate("x") == 1
     assert cache.get("x") is None
+    assert cache.get_meta("x") is None
 
 
 def test_kpi_ttl_env_helpers():
@@ -31,6 +37,20 @@ def test_kpi_ttl_env_helpers():
 
     assert cache.kpi_ttl() >= 0
     assert cache.analytics_ttl() >= 0
+
+
+def test_analytics_cache_meta_helper():
+    from backend.services.analytics_service import _analytics_cache_meta
+
+    hit = _analytics_cache_meta(status="hit", ttl=60, expires_in=40)
+    assert hit["status"] == "hit"
+    assert hit["ttl_seconds"] == 60
+    assert hit["expires_in_seconds"] == 40
+    assert hit["age_seconds"] == 20
+    miss = _analytics_cache_meta(status="miss", ttl=60)
+    assert miss["status"] == "miss"
+    assert miss["age_seconds"] == 0
+    assert miss["expires_in_seconds"] == 60
 
 
 def test_analytics_router_exposes_force_refresh():

@@ -70,6 +70,13 @@ Show:
 
 ---
 
+## 5-minute cut (video)
+
+Use the same flow compressed: problem (0:30) → ingest sample (1:00) → workspace citations/grounding (1:15) → HiTL approve (0:45) → **one honesty surface** (Hunt banner *or* Compliance assumed-vs-verified) (0:40) → close non-claims (0:30).  
+Full shot list: keep total ≤ 5:00. **Only remaining submission artifact is this recording** (student-owned). Product honesty: `docs/product/PRODUCT_HONESTY.md`.
+
+---
+
 ## Failure fallbacks
 
 | If…             | Do…                                                     |
