@@ -316,6 +316,11 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping (canonical �
 | Enterprise board (demo) | `docs/ENTERPRISE_REVIEW.md`                   |
 | Enterprise board (pilot lens) | `docs/ENTERPRISE_REVIEW_BOARD_2026-07-26.md` |
 | Capstone pack           | `docs/capstone/`                              |
+| Capstone board review   | `docs/capstone/board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md` |
+| Capstone report + PDF   | `docs/capstone/PROJECT_REPORT.md` · `PROJECT_REPORT.pdf` |
+| Capstone PPTX           | `docs/capstone/presentation/ACTIRA_Capstone_Presentation.pptx` |
+| Capstone demo video     | `docs/capstone/assets/video/` · script `DEMO_VIDEO_5MIN.md` |
+| **Product honesty**     | `docs/product/PRODUCT_HONESTY.md` (**T-01 / T-01b** binding) |
 | Capstone UX review      | `docs/product/CAPSTONE_ENHANCEMENT_REVIEW.md` |
 | Feature inventory       | `docs/product/FEATURE_INVENTORY.md`           |
 | E2E capability truth    | `docs/product/E2E_CAPABILITY_MATRIX.md`       |
@@ -323,3 +328,12 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping (canonical �
 | Release notes           | `RELEASE_NOTES.md`                            |
 | Changelog               | `CHANGELOG.md`                                |
 | Doc index               | `DOCUMENTATION_INDEX.md`                      |
+
+### Submission close (capstone)
+
+| Item | Status |
+|------|--------|
+| T-01 / T-01b Trust UX surface wins | ✅ |
+| PRODUCT_HONESTY + report PDF + PPTX + screenshots | ✅ |
+| Stretch: default SBERT, Hunt/Lance hybrid, continuous compliance | 🔮 **Non-blocking** (documented) |
+| 5-minute demo video | ✅ UI track in `docs/capstone/assets/video/` + `DEMO_VIDEO_5MIN.md` (optional VO dub) |

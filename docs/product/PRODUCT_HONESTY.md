@@ -66,10 +66,10 @@ ACTIRA is a **human-gated, AI-assisted IR advisor** for single-tenant pilots: mu
 
 | Item | Status |
 |------|--------|
-| Broader KB corpus + default real SBERT | Stretch — optional `ACTIRA_EMBEDDING_BACKEND=sbert` path exists; hash remains default |
-| Continuous compliance automation | Stretch — live probes for audit integrity + golden last run only |
-| Hunt / Lance hybrid lake search | Stretch — out of scope for pilot; incident-pool hunt is intentional |
-| 5-minute demo video | Student-owned deliverable |
+| Broader KB corpus + default real SBERT | **Non-blocking stretch** — optional `ACTIRA_EMBEDDING_BACKEND=sbert` path exists; hash remains default |
+| Continuous compliance automation | **Non-blocking stretch** — live probes for audit integrity + golden last run only |
+| Hunt / Lance hybrid lake search | **Non-blocking stretch** — out of scope for pilot; incident-pool hunt is intentional |
+| 5-minute demo video | Capstone deliverable — `docs/capstone/DEMO_VIDEO_5MIN.md` + `assets/video/` |
 
 ---
 

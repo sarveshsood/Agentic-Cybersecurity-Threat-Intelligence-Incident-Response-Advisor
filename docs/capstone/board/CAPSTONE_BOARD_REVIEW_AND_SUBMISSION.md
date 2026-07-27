@@ -107,7 +107,7 @@ Recent remediation improved trust and ops UX:
 | **5 Deploy** | Docker / cloud | Compose + K8s/Helm | Done |
 | **5** | Architecture & API docs | `docs/*`, OpenAPI, presentations | Done |
 | **5** | Evaluation report + screenshots | This pack + `samples/demo/` + trust UX surfaces | Done (regen screenshots after merge if UI drifts) |
-| **5** | 5-min demo video | `docs/DEMO_SCRIPT.md` + speaker notes | **Only open student deliverable** |
+| **5** | 5-min demo video | `docs/capstone/DEMO_VIDEO_5MIN.md` + `assets/video/` + `record_demo_video.py` | Deliverable pack (record/narrate) |
 
 ---
 
@@ -174,7 +174,8 @@ Recent remediation improved trust and ops UX:
 - [x] Capstone report PDF + appendices pack + formal test summary  
 - [x] Live light-theme screenshots under `assets/screenshots/` (01–14; re-run `capture_screenshots.py` after trust UX merge)  
 - [x] Trust UX honesty surfaces (Hunt / Audit / Analytics / KB / Compliance) — see `docs/product/PRODUCT_HONESTY.md`  
-- [ ] 5-minute demo recording (**only remaining student-owned item**)  
+- [x] 5-minute demo pack — `DEMO_VIDEO_5MIN.md`, `record_demo_video.py`, output under `assets/video/`  
+
 
 ### P1 (closed for submission scope or documented)
 - [x] Analytics main-path error + cache honesty footer + drill-through  
@@ -233,7 +234,7 @@ Aligned with root `ROADMAP.md` §T (Trust) — **T-01 / T-01b ✅**.
 
 ## 10. Top Priorities to Next Maturity Level
 
-**Submission (remaining):** record and submit the **5-minute demo video**.
+**Submission:** trust UX, honesty docs, PDF/PPTX, and demo **video pack** are closed in-repo. Narrate or re-record with `record_demo_video.py` if the institute requires a fresh take.
 
 To reach **Production Ready (single-tenant lab)** after submission:
 

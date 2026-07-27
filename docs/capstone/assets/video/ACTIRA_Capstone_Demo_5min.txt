@@ -1,0 +1,6 @@
+﻿ACTIRA capstone demo video (UI walkthrough)
+recorded: wall_clock≈272s target=300s
+files: ACTIRA_Capstone_Demo_5min.webm + ACTIRA_Capstone_Demo_5min.mp4
+voiceover: docs/capstone/DEMO_VIDEO_5MIN.md
+stack: frontend http://localhost:3000 + backend health required
+honesty: docs/product/PRODUCT_HONESTY.md

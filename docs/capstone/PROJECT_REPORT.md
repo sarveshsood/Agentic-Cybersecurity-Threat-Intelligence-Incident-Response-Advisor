@@ -483,7 +483,7 @@ ACTIRA delivers a complete capstone-grade **human-gated AI IR advisor**: multi-f
 
 | Horizon | Items |
 |---------|--------|
-| Submission close | **5-minute demo video only** (student-owned); trust UX + report pack otherwise closed |
+| Submission close | Demo video pack closed in-repo (`assets/video/` + `DEMO_VIDEO_5MIN.md`); optional VO dub / portal upload |
 | Documented stretch (not demo-blocking) | Default real SBERT + broader KB corpus; continuous compliance automation; Hunt/Lance hybrid lake search — see `docs/product/PRODUCT_HONESTY.md` |
 | Next release | SSO JWKS hardening, rate limits, E2E expansion |
 | v2.0 | Multi-tenant, connectors, commercial pilot |

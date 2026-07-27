@@ -46,6 +46,10 @@ python docs/capstone/export_report_pdf.py
 # Regenerate PPTX (light theme + embedded screenshots; requires pptxgenjs)
 node docs/capstone/presentation/build_capstone_pptx.js
 
+# Record 5-min silent UI demo (requires stack :3000/:8001; optional: pip install imageio-ffmpeg for mp4)
+python docs/capstone/record_demo_video.py
+# Narrate: docs/capstone/DEMO_VIDEO_5MIN.md → assets/video/ACTIRA_Capstone_Demo_5min.{webm,mp4}
+
 # Re-run formal test pack
 python -m pytest backend/tests/test_golden_benchmark.py \
   backend/tests/test_compliance_score.py \
@@ -72,4 +76,6 @@ python -m pytest backend/tests/test_golden_benchmark.py \
 - [x] Trust UX Tier-2 close (Audit dynamic actions, KB custom manager, Hunt/Compliance probes, Analytics drill-through)
 - [x] Product honesty doc (`docs/product/PRODUCT_HONESTY.md`)
 - [x] Mentor / signature fields documented (Appendix E — wet-ink / portal; blank by design)
-- [ ] 5-minute demo video (**only remaining student-owned deliverable**)
+- [x] Product honesty + PDF + PPTX linked from ROADMAP §L and board §8–9
+- [x] Stretch (SBERT / hybrid hunt / continuous compliance) documented **non-blocking**
+- [x] 5-minute demo video pack (`DEMO_VIDEO_5MIN.md` + `record_demo_video.py` + `assets/video/`)
