@@ -3,9 +3,9 @@
 **Program:** Advanced Certification Programme in Agentic and Generative AI (TalentSprint / IISc track)  
 **Capstone Project:** **#4 — Agentic Cybersecurity Threat Intelligence & Incident Response Advisor**  
 **Product codename:** ACTIRA  
-**Date:** 2026-07-26  
+**Date:** 2026-07-27 (trust UX surface wins + pack regen)  
 **Repo maturity label:** **Enterprise Pilot Ready (single-tenant)**  
-**Honest enterprise score:** **78 / 100** (updated after Wave C + dashboard trust/KPI fixes)
+**Honest enterprise score:** **78 / 100** (Wave C + dashboard trust/KPI; honesty surfaces closed 2026-07-27 — score held; video still open)
 
 This document is the **single submission-facing board review**, mapped to TalentSprint Phase 1–5 guidelines and Project 4 requirements. Use it for:
 
@@ -193,12 +193,21 @@ Recent remediation improved trust and ops UX:
 
 ## 8. Product Roadmap (for report/PPT)
 
+Aligned with root `ROADMAP.md` §T (Trust) — **T-01 / T-01b ✅**.
+
 | Horizon | Items |
 |---------|--------|
-| **Next sprint** | Demo video, report screenshots, Login honesty, Analytics errors |
-| **Next release** | SSO harden, rate limits, E2E expansion |
-| **v2.0** | Multi-tenant, connectors, commercial pilot |
+| **Submission close** | **5-min demo video only** (student-owned). Screenshots, report PDF, PPTX, trust UX honesty surfaces **done** |
+| **Documented stretch (non-blocking)** | Default SBERT + broader KB; continuous compliance automation; Hunt/Lance hybrid lake search — see `docs/product/PRODUCT_HONESTY.md` |
+| **Next release** | SSO JWKS harden, rate limits, E2E expansion |
+| **v2.0** | Multi-tenant, connectors, commercial pilot (H-07/H-08 collab designs) |
 | **v3.0** | Gated SOAR, forensics agent, multi-agent roster UX |
+
+| Roadmap ID | Status | Notes |
+|------------|--------|--------|
+| T-01 Trust UX baseline | ✅ | DEMO banners, live data default, palette |
+| **T-01b surface wins** | ✅ (2026-07-27) | Hunt honesty/filters, Audit paging + dynamic actions, Analytics cache + drill-through, KB hash banner + custom manager, Compliance assumed-vs-verified + live probes |
+| T-02 … T-07 | ✅ / ~95% | See `ROADMAP.md` §T |
 
 ---
 
@@ -208,26 +217,31 @@ Recent remediation improved trust and ops UX:
 |----------|------|
 | This board + mapping | `board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md` |
 | **Full project report** | `PROJECT_REPORT.md` |
+| **Detailed PDF** | `PROJECT_REPORT.pdf` |
 | **Appendices A–F** | `appendices/` |
-| **Viva PPTX (18 slides)** | `presentation/ACTIRA_Capstone_Presentation.pptx` |
+| **Viva PPTX** | `presentation/ACTIRA_Capstone_Presentation.pptx` |
 | Master test cases | `appendices/A_test_case_catalog.md` |
 | Project report outline | `outlines/PROJECT_REPORT_OUTLINE.md` |
 | PPT outline + builder | `presentation/PPT_OUTLINE.md`, `presentation/build_capstone_pptx.js` |
-| Screenshots / figures | `assets/screenshots/`, `assets/figures/` |
-| Demo script (product) | `docs/DEMO_SCRIPT.md` (outside pack; optional) |
+| Screenshots / figures | `assets/screenshots/` (01–14 live), `assets/figures/` |
+| **Product honesty (binding)** | `docs/product/PRODUCT_HONESTY.md` |
+| Product roadmap | `ROADMAP.md` (root) |
+| Demo script (product) | `docs/DEMO_SCRIPT.md` (5-min cut section) |
 | Pack index | `README.md` |
 
 ---
 
 ## 10. Top Priorities to Next Maturity Level
 
-To reach **Production Ready (single-tenant lab)**:
+**Submission (remaining):** record and submit the **5-minute demo video**.
 
-1. Demo + screenshots + report completion (submission).  
-2. Identity: disable unsafe OIDC path or finish JWKS.  
-3. No silent demo data / marketing metrics misread as live.  
-4. E2E green on critical paths.  
-5. Capacity note for expected concurrent users (even small pilot).
+To reach **Production Ready (single-tenant lab)** after submission:
+
+1. Identity: finish OIDC JWKS / disable unsafe OIDC path.  
+2. Keep honesty defaults (no silent demo data as live).  
+3. E2E green on critical paths.  
+4. Capacity note for expected concurrent users (even small pilot).  
+5. Optional stretch: real SBERT default, continuous compliance probes, lake-scale hunt — **not** required for capstone close.
 
 ---
 
