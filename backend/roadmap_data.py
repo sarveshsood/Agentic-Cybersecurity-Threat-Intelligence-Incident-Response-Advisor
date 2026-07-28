@@ -317,7 +317,7 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             "frontend/src/pages/Dashboard.jsx",
         ],
         "docs": ["docs/dx/BACKEND_STRUCTURE.md", "docs/product/CAPSTONE_ENHANCEMENT_REVIEW.md"],
-        "architecture_notes": "uvicorn server:app unchanged; SPA still uses /api.",
+        "architecture_notes": "Entry: uvicorn backend.server:app from repo root; SPA still uses /api.",
         "progress": 100,
         "implementation_notes": (
             "Consolidated from: modular-api, capstone-ux-polish, arch-p0-p3-layers-analytics."
@@ -595,6 +595,57 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
             {"id": "t2", "title": "CSP/HSTS + Grafana dashboards + deeper OTEL", "status": "done", "done": True},
             {"id": "t3", "title": "Repos/Settings split + bkp cleanup", "status": "done", "done": True},
             {"id": "t4", "title": "AI catalog experimental tags + effective provider UI", "status": "done", "done": True},
+        ],
+    },
+    {
+        "id": "rm-enterprise-platform-track",
+        "title": "Enterprise platform track — TI, logs, metrics, audit, artifacts",
+        "summary": (
+            "JSON logging + rid/user; TI retries/proxy/SSL/circuits; enrich concurrency; "
+            "Prometheus /metrics; expanded audit; optional job artifacts; settings versions."
+        ),
+        "description": (
+            "Enterprise hardening wave: structured JSON logs with correlation IDs and user; "
+            "TI HTTP resilience (timeouts, retries, exponential backoff, circuit breakers, proxy/CA); "
+            "configurable ENRICH_CONCURRENCY worker pool; Prometheus text exposition; "
+            "auth.login + pipeline.completed audit actions; optional JOB_ARTIFACTS snapshots; "
+            "append-only settings_versions (secrets redacted). Broker (Kafka/Rabbit) remains out of scope "
+            "while Mongo durable job queue is the scaling path."
+        ),
+        "status": "completed",
+        "priority": "p0",
+        "owner": "",
+        "effort": "l",
+        "target_release": "v1.8",
+        "week": "Now",
+        "category": "Platform / SRE",
+        "modules": [
+            "backend/logging_setup.py",
+            "backend/ti_http.py",
+            "backend/metrics_registry.py",
+            "backend/job_artifacts.py",
+            "backend/settings_versions.py",
+            "backend/enrichment.py",
+            "backend/pipeline.py",
+            "backend/otel_setup.py",
+        ],
+        "docs": ["docs/CONFIGURATION.md", "ROADMAP.md"],
+        "architecture_notes": (
+            "Mongo enrichment cache already done (P1). Redis optional. "
+            "Kafka/Rabbit multi-worker is explicit non-goal until multi-tenant scale demands a broker."
+        ),
+        "progress": 100,
+        "implementation_notes": (
+            "2026-07-28: W1 JSON logs; W2 TI + enrich pool; W3 Prometheus; W4 audit expand; "
+            "W5 job artifacts (opt-in); W6 settings versions; W7 OTEL auto-instrument depth; "
+            "replay APIs + hunt/investigate audit + LLM USD estimates + log archival; "
+            "ops anomaly, audit WORM/SIEM, optional AMQP broker, SPA replay controls."
+        ),
+        "tasks": [
+            {"id": "t1", "title": "JSON logging + correlation IDs + user fields", "status": "done", "done": True},
+            {"id": "t2", "title": "TI connectivity: retries, circuits, proxy/CA, enrich concurrency", "status": "done", "done": True},
+            {"id": "t3", "title": "Prometheus metrics + stage/HTTP/TI histograms", "status": "done", "done": True},
+            {"id": "t4", "title": "Audit/WORM/SIEM + replay + cost + archival + anomaly + broker", "status": "done", "done": True},
         ],
     },
     {

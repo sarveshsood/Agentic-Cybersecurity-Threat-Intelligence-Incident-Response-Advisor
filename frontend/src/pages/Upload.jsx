@@ -181,6 +181,44 @@ export default function Upload() {
         [refresh],
     );
 
+    const replayJob = useCallback(
+        async (jobId) => {
+            try {
+                const r = await api.post(`/logs/jobs/${jobId}/replay`);
+                if (r.data?.ok && r.data?.mode === "requeue") {
+                    toast.success("Replay re-queued — worker will run the pipeline again");
+                } else if (r.data?.mode === "artifact_only") {
+                    toast.message(
+                        r.data?.message ||
+                            "No upload payload retained — open artifacts or re-upload logs",
+                    );
+                } else {
+                    toast.success(r.data?.message || "Replay requested");
+                }
+                refresh();
+            } catch (e) {
+                toast.error(e?.userMessage || apiErrorMessage(e, "Could not replay job"));
+            }
+        },
+        [refresh],
+    );
+
+    const showArtifacts = useCallback(async (jobId) => {
+        try {
+            const r = await api.get(`/logs/jobs/${jobId}/artifacts`);
+            const names = r.data?.artifacts || [];
+            if (!names.length) {
+                toast.message(
+                    "No artifacts yet — set JOB_ARTIFACTS_ENABLED=1 and re-run the pipeline",
+                );
+                return;
+            }
+            toast.success(`Artifacts: ${names.join(", ")}`);
+        } catch (e) {
+            toast.error(e?.userMessage || apiErrorMessage(e, "Could not list artifacts"));
+        }
+    }, []);
+
     const submit = useCallback(async () => {
         if (queue.length === 0) return;
         setUploading(true);
@@ -656,6 +694,24 @@ export default function Upload() {
                                                     Resume
                                                 </button>
                                             )}
+                                            <button
+                                                type="button"
+                                                data-testid={`job-replay-${j.id}`}
+                                                onClick={() => replayJob(j.id)}
+                                                className="text-[11px] px-2.5 py-1 bg-primary/10 border border-primary/30 text-primary rounded hover:bg-primary/20 transition-colors font-medium"
+                                                title="Full pipeline replay when JOB_PAYLOAD_RETAIN kept the upload"
+                                            >
+                                                Replay
+                                            </button>
+                                            <button
+                                                type="button"
+                                                data-testid={`job-artifacts-${j.id}`}
+                                                onClick={() => showArtifacts(j.id)}
+                                                className="text-[11px] px-2.5 py-1 border border-border text-muted-foreground rounded hover:bg-muted/40 transition-colors font-medium"
+                                                title="List captured stage artifacts (if JOB_ARTIFACTS_ENABLED)"
+                                            >
+                                                Artifacts
+                                            </button>
                                             <span
                                                 data-testid={`job-status-${j.id}`}
                                                 className={`text-[10px] uppercase tracking-[0.14em] font-semibold px-2 py-0.5 rounded ${

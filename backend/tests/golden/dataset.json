@@ -1075,6 +1075,22 @@
         ],
         "min_grounding": 0.5
       }
+    },
+    {
+      "id": "test_case_999",
+      "name": "Unit Test Injection Scenario",
+      "log": "Failed password for root from 192.168.1.50 port 22 ssh2",
+      "expected": {
+        "iocs": [
+          {
+            "type": "ip",
+            "value": "192.168.1.50"
+          }
+        ],
+        "technique_ids": [
+          "T1110"
+        ]
+      }
     }
   ]
 }

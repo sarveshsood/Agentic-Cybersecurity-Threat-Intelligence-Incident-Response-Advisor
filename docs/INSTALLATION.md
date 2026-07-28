@@ -28,16 +28,24 @@ docker compose up -d mongodb
 
 ## 3. Backend
 
+Run **from the repository root** (not `cd backend`) so `backend.*` imports resolve.
+
 ```bash
-cd backend
-python -m venv .venv
+# Create venv (optional location: backend/.venv or repo .venv)
+python -m venv backend/.venv
 # Windows PowerShell:
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
-# Edit .env: set JWT_SECRET (long random), optional LLM keys
-python -m uvicorn server:app --reload --host 0.0.0.0 --port 8001
+.\backend\.venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
+Copy-Item backend\.env.example backend\.env
+# Edit backend/.env: set JWT_SECRET (long random), optional LLM keys
+
+# Canonical entry (repo root):
+# Windows: $env:PYTHONPATH = (Get-Location).Path
+# Unix:    export PYTHONPATH=.
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
 ```
+
+> Do **not** run `cd backend && uvicorn server:app` — absolute `from backend.*` imports will fail.
 
 ## 4. Frontend
 

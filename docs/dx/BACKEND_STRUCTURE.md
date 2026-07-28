@@ -4,7 +4,7 @@
 
 ```
 backend/
-  server.py              # FastAPI app, lifespan, middleware, CORS — entry: uvicorn server:app
+  server.py              # FastAPI app, lifespan, middleware, CORS — entry: uvicorn backend.server:app
   core/
     database.py          # Motor client + db
     services.py          # get_settings, audit, seed, health_check, …
@@ -44,5 +44,6 @@ Do not change frontend until you intentionally migrate to `/api/v1`.
 
 ## Compatibility
 
-- Tests and docs still use `import server` / `server:app`.
-- `server.db`, `server.seed_demo_data` re-exported for older scripts.
+- Canonical process entry (repo root): `PYTHONPATH=. python -m uvicorn backend.server:app`
+- Prefer `from backend.*` absolute imports in application code.
+- Legacy `import server` paths remain only in backups / migration notes — do not document them as the daily entry.

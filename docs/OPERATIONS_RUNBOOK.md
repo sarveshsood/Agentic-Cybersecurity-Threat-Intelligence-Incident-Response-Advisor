@@ -26,8 +26,9 @@
 
 ```bash
 # Backend only
-# Ctrl+C uvicorn, then:
-cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 8001
+# Ctrl+C uvicorn, then (from repo root):
+export PYTHONPATH=.
+python -m uvicorn backend.server:app --host 0.0.0.0 --port 8001
 
 # Compose
 docker compose restart backend

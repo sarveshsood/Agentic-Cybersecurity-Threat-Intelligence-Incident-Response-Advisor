@@ -403,6 +403,114 @@ export default function OpsHealth() {
                         </div>
                     )}
 
+                    {/* Anomaly + broker + WORM */}
+                    {data?.anomaly && (
+                        <Panel
+                            title={`Ops anomalies · ${data.anomaly.overall || "—"}`}
+                            testid="ops-anomaly-panel"
+                            tip={
+                                <HelpTip
+                                    title="Ops anomaly detection"
+                                    body="Median/MAD baselines on pipeline timings, failure rate, queue backlog, open TI circuits, and HTTP latency. Deterministic — not ML."
+                                    testid="tip-ops-anomaly"
+                                />
+                            }
+                        >
+                            <div className="space-y-2 text-xs" data-testid="ops-anomaly-body">
+                                {data.anomaly.pipeline?.baseline_ms != null && (
+                                    <div className="font-mono text-muted-foreground">
+                                        pipeline baseline {Math.round(data.anomaly.pipeline.baseline_ms)}ms
+                                        {data.anomaly.pipeline.p95_ms != null
+                                            ? ` · p95 ${Math.round(data.anomaly.pipeline.p95_ms)}ms`
+                                            : ""}
+                                        {data.anomaly.pipeline.sample_size
+                                            ? ` · n=${data.anomaly.pipeline.sample_size}`
+                                            : ""}
+                                    </div>
+                                )}
+                                {(data.anomaly.alerts || []).length === 0 ? (
+                                    <p className="text-muted-foreground m-0">
+                                        {data.anomaly.pipeline?.message || "No active anomaly alerts."}
+                                    </p>
+                                ) : (
+                                    <ul className="list-disc pl-4 space-y-1 m-0">
+                                        {(data.anomaly.alerts || []).slice(0, 8).map((a, i) => (
+                                            <li
+                                                key={`${a.kind}-${i}`}
+                                                className={
+                                                    a.severity === "critical"
+                                                        ? "text-error"
+                                                        : "text-warning"
+                                                }
+                                            >
+                                                <span className="font-semibold uppercase text-[10px] mr-1">
+                                                    {a.severity}
+                                                </span>
+                                                {a.message}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                {data.anomaly.disclaimer && (
+                                    <p className="text-[10px] text-muted-foreground m-0 pt-1">
+                                        {data.anomaly.disclaimer}
+                                    </p>
+                                )}
+                            </div>
+                        </Panel>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Panel
+                            title="Job broker"
+                            testid="ops-broker-panel"
+                            tip={
+                                <HelpTip
+                                    title="Optional AMQP broker"
+                                    body="When JOB_BROKER_URL is set, Mongo still owns claims; AMQP only wakes workers. Install pika for publish."
+                                    testid="tip-ops-broker"
+                                />
+                            }
+                        >
+                            <div className="text-xs space-y-1 font-mono">
+                                <div>mode: {data?.broker?.mode || "mongo_only"}</div>
+                                <div>enabled: {String(Boolean(data?.broker?.enabled))}</div>
+                                <div>queue: {data?.broker?.queue || "—"}</div>
+                                {data?.broker?.last_error && (
+                                    <div className="text-warning">error: {data.broker.last_error}</div>
+                                )}
+                            </div>
+                        </Panel>
+                        <Panel
+                            title="Audit WORM export"
+                            testid="ops-worm-panel"
+                            tip={
+                                <HelpTip
+                                    title="Append-only audit export"
+                                    body="Local JSONL under AUDIT_WORM_DIR plus optional SIEM webhook. Not legal WORM unless storage is immutable."
+                                    testid="tip-ops-worm"
+                                />
+                            }
+                        >
+                            <div className="text-xs space-y-1">
+                                <div className="font-mono">
+                                    enabled: {String(Boolean(data?.audit_worm?.enabled))}
+                                </div>
+                                <div className="font-mono truncate" title={data?.audit_worm?.dir}>
+                                    dir: {data?.audit_worm?.dir || "—"}
+                                </div>
+                                <div className="font-mono">
+                                    siem: {String(Boolean(data?.audit_worm?.siem_webhook_configured))}
+                                </div>
+                                {(data?.audit_worm?.recent_files || []).length > 0 && (
+                                    <div className="text-muted-foreground truncate">
+                                        files: {(data.audit_worm.recent_files || []).slice(-3).join(", ")}
+                                    </div>
+                                )}
+                            </div>
+                        </Panel>
+                    </div>
+
                     {/* Queue visual + process / cache */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
                         <Panel

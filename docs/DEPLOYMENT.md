@@ -15,13 +15,17 @@
 docker compose up -d mongodb
 # or: mongod with local data path
 
-# Backend
+# Backend (from repository root)
 cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env   # then edit JWT_SECRET, optional keys
-python -m uvicorn server:app --reload --host 0.0.0.0 --port 8001
+cd ..
+export PYTHONPATH=.
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
+# Windows: $env:PYTHONPATH=(Get-Location).Path; python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
+# Or: .\scripts\start-demo.ps1 -SkipDocker
 
 # Frontend (second terminal)
 cd frontend

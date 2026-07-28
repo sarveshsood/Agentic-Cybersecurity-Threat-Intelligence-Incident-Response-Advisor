@@ -23,6 +23,157 @@
 | `JWT_SECRET`   | ≥32 random chars                              | Weak refused when `ENV` not lab                          |
 | `ENV`          | `dev` / `test` / `production`                 | Affects seed, secret sync, JWT checks                    |
 
+## Logging (console + physical file)
+
+Yes — application logs are routed to a **physical rotating file** by default, in addition to the console. Every line includes **request id**, **user** (email), **user id**, and **role** for tracking and audit greps.
+
+| Variable           | Default           | Notes |
+|--------------------|-------------------|-------|
+| `LOG_TO_FILE`      | `1` (on)          | Set `0`/`false` to console-only |
+| `LOG_DIR`          | `backend/logs`    | Absolute path (e.g. `D:\actira-logs`) or relative to **repo root** |
+| `LOG_FILE`         | `actira.log`      | Filename only (no `../`) |
+| `LOG_LEVEL`        | `INFO`            | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `LOG_MAX_BYTES`    | `10485760` (10 MiB) | Rotating file size |
+| `LOG_BACKUP_COUNT` | `10`              | Kept rotated files |
+
+Example (Windows absolute path):
+
+```env
+LOG_TO_FILE=1
+LOG_DIR=C:\actira\logs
+LOG_FILE=actira.log
+LOG_LEVEL=INFO
+# Optional: JSON lines for SIEM shipping
+# LOG_FILE_FORMAT=json
+```
+
+Example line:
+
+```text
+2026-07-28 22:10:01,234 INFO [rid=a1b2…] [user=analyst@soc.example.com] [uid=fa1f…] [role=admin] actira: http_request method=POST path=/api/logs/upload-batch status=200 …
+```
+
+Pipeline jobs use `[rid=job:<job_id>] [user=<uploader_email>] [uid=…] [role=…]`.  
+Admin → **Ops & Health** (`GET /api/ops/status`) reports the active log file path under `logging.path`.  
+Restart uvicorn after changing log env vars.
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `LOG_FORMAT` | `text` | `json` for structured one-line JSON (ELK/Datadog) |
+| `LOG_FILE_FORMAT` | same as `LOG_FORMAT` | e.g. text console + JSON file |
+
+### Threat intel HTTP + enrichment pool
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `TI_HTTP_TIMEOUT` | `8` | Seconds per TI call |
+| `TI_HTTP_RETRIES` | `2` | Retries after first attempt (backoff) |
+| `TI_HTTP_BACKOFF_BASE` | `0.4` | Exponential base seconds |
+| `TI_HTTP_PROXY` | — | Or `HTTPS_PROXY` / `HTTP_PROXY` |
+| `TI_HTTP_CA_BUNDLE` | — | Corporate CA path |
+| `TI_HTTP_VERIFY_SSL` | on | `0` only in lab |
+| `TI_CIRCUIT_FAILURES` | `5` | Open circuit after N consecutive failures |
+| `TI_CIRCUIT_COOLDOWN_SECONDS` | `60` | Open duration |
+| `ENRICH_CONCURRENCY` | `8` | Parallel IoC enrich workers (1–32) |
+| `PARSE_CONCURRENCY` | `4` | Parallel multi-file log parse workers (1–16) |
+
+### Pipeline parallelization (summary)
+
+| Stage | Parallel? | Config | Notes |
+|-------|-----------|--------|-------|
+| ZIP expand | No | — | Sequential with ZIP-bomb guards |
+| Multi-file parse | **Yes** | `PARSE_CONCURRENCY` / Settings `parse_concurrency` | `asyncio.to_thread` + semaphore |
+| Correlate | No | `correlation_window_minutes` | Single entity graph |
+| IoC extract | No | `max_enrich_iocs` cap | Regex over combined blob |
+| Enrich | **Yes** | `ENRICH_CONCURRENCY` / Settings `enrich_concurrency` | TI HTTP pool + cache |
+| ATT&CK map | No | optional LLM refine | Catalog heuristics |
+| RAG + playbook | No | LLM provider | Single authoring call |
+| HiTL gate | No | severity + grounding | Pure policy |
+
+Admin → **Settings → Platform** exposes enrich + parse concurrency (synced to env on save).
+
+### Metrics
+
+`GET /metrics` (admin JWT or `X-Metrics-Token`):
+
+- JSON gauges (default)
+- Prometheus text: `?format=prometheus` or `Accept: text/plain`
+
+### Job artifacts (optional)
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `JOB_ARTIFACTS_ENABLED` | off | Store parse/enrich/playbook summaries under `JOB_ARTIFACTS_DIR` |
+| `JOB_ARTIFACTS_RETAIN_HOURS` | `168` | Auto-purge older artifact dirs |
+
+### Settings versioning
+
+Each admin settings save appends an ops snapshot to Mongo `settings_versions` (secrets never stored).  
+API: `GET /api/settings/versions` (admin).
+
+### Pipeline replay
+
+| API | Purpose |
+|-----|---------|
+| `POST /api/logs/jobs/{id}/replay` | Re-queue when payload retained (`JOB_PAYLOAD_RETAIN=1`) |
+| `GET /api/logs/jobs/{id}/artifacts` | List stage snapshots |
+| `POST /api/incidents/{id}/replay-enrich` | Re-run TI on stored IoCs |
+
+### Log archival
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `LOG_ARCHIVE_ENABLED` | follows `LOG_TO_FILE` | Copy logs into dated archive dirs |
+| `LOG_ARCHIVE_DIR` | `backend/logs/archive` | |
+| `LOG_ARCHIVE_RETAIN_DAYS` | `30` | Purge older day folders |
+
+### LLM cost estimates
+
+`usage_snapshot` / ops surfaces include `estimated_usd` and `by_provider` from token counts × list rates.  
+Override rates with `LLM_PRICE_TABLE_JSON`. **Not a billing invoice.**
+
+### Admin → Settings → Platform
+
+Enterprise knobs that used to be env-only are now **first-class Settings fields** (Mongo + UI), with factory/recommended defaults. On **API start** and **Save settings**, values are pushed into process env so logging/TI/jobs pick them up.
+
+| Area | Fields |
+|------|--------|
+| Enrichment / TI | `max_enrich_iocs`, `enrich_concurrency`, `parse_concurrency`, `ti_http_*`, `ti_circuit_*` |
+| Logging | `log_format`, `log_file_format`, `log_level`, `log_to_file`, `log_archive_*` |
+| Jobs / replay | `job_artifacts_enabled`, `job_payload_retain`, `job_artifacts_retain_hours` |
+| Audit | `audit_worm_enabled`, `audit_siem_webhook_url` (secret) |
+| Broker | `job_broker_enabled`, `job_broker_url` (secret), `job_broker_queue` |
+
+**Still env-only (infrastructure):** `MONGO_URL`, `JWT_SECRET`, `CORS_ORIGINS`, `DB_NAME`, `ENV`, vault/OIDC — not product Settings.
+
+### Ops anomaly detection
+
+`GET /api/ops/status` → `anomaly` block: median/MAD z-scores on job timings, failure rate, backlog, TI circuits, HTTP latency. Deterministic (not ML). Shown on **Ops Health**.
+
+### Audit WORM + SIEM
+
+| Variable | Notes |
+|----------|-------|
+| `AUDIT_WORM_ENABLED` | Append-only JSONL under `AUDIT_WORM_DIR` on every audit insert |
+| `AUDIT_SIEM_WEBHOOK_URL` | Optional POST of each audit event |
+| `GET /api/audit/export` | Admin bulk export + JSONL write |
+| `GET /api/audit/worm-status` | Path + recent files |
+| `POST /api/audit/siem-test` | Synthetic webhook probe |
+
+### Optional AMQP job broker
+
+| Variable | Notes |
+|----------|-------|
+| `JOB_BROKER_URL` | e.g. `amqp://guest:guest@localhost:5672/` |
+| `JOB_BROKER_QUEUE` | default `actira.jobs` |
+
+Publishes wake-ups on enqueue; **Mongo remains the claim source of truth**. Soft-dep: `pip install pika`.
+
+### SPA replay
+
+- **Ingest Logs**: Replay + Artifacts buttons per job  
+- **Incident → TI**: “Replay enrich” re-runs TI on stored IoCs  
+
 ## Auth & session
 
 | Variable                            | Default         | Notes                     |

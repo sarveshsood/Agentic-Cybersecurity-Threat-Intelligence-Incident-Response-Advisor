@@ -42,6 +42,27 @@ RECOMMENDED_SETTINGS_OPS = {
     "failed_login_lockout": 5,
     "incident_retention_days": 180,
     "enrichment_cache_ttl_hours": 12,
+    # Platform / enterprise
+    "max_enrich_iocs": 50,
+    "enrich_concurrency": 8,
+    "parse_concurrency": 4,
+    "ti_http_timeout": 10.0,
+    "ti_http_retries": 3,
+    "ti_http_backoff_base": 0.4,
+    "ti_circuit_failures": 5,
+    "ti_circuit_cooldown_seconds": 60,
+    "log_format": "json",
+    "log_file_format": "json",
+    "log_level": "INFO",
+    "log_to_file": True,
+    "log_archive_enabled": True,
+    "log_archive_retain_days": 30,
+    "job_artifacts_enabled": True,
+    "job_payload_retain": False,
+    "job_artifacts_retain_hours": 168,
+    "audit_worm_enabled": True,
+    "job_broker_enabled": False,
+    "job_broker_queue": "actira.jobs",
 }
 
 
@@ -93,6 +114,8 @@ async def public_settings_payload() -> Dict[str, Any]:
         "incident_retention_days": s.get("incident_retention_days", 90),
         "enrichment_cache_ttl_hours": s.get("enrichment_cache_ttl_hours", 24),
         "cohere_rerank_enabled": bool(s.get("cohere_rerank_enabled", True)),
+        "llm_technique_refine": bool(s.get("llm_technique_refine", False)),
+        "llm_redact_iocs": bool(s.get("llm_redact_iocs", False)),
         "has_anthropic": has_secret(s, "anthropic_api_key", "ANTHROPIC_API_KEY"),
         "has_openai": has_secret(s, "openai_api_key", "OPENAI_API_KEY"),
         "has_gemini": has_secret(s, "gemini_api_key", "GEMINI_API_KEY"),
@@ -109,6 +132,12 @@ async def public_settings_payload() -> Dict[str, Any]:
         "email_alerts_to": email_val,
         "has_email": bool(email_val),
     }
+    try:
+        from backend.platform_settings import public_platform_payload
+
+        payload.update(public_platform_payload(s))
+    except Exception:
+        pass
     try:
         from backend.llm_usage import usage_snapshot
 

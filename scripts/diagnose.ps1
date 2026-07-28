@@ -19,7 +19,16 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+# Prefer $PSScriptRoot (reliable when invoked as .\scripts\diagnose.ps1)
+if ($PSScriptRoot) {
+  $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+} else {
+  $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+}
+if (-not (Test-Path (Join-Path $root "backend\server.py"))) {
+  Write-Host "ERROR: cannot resolve repo root (expected backend\server.py under $root)" -ForegroundColor Red
+  exit 1
+}
 Set-Location $root
 
 $script:results = [System.Collections.Generic.List[object]]::new()
@@ -317,7 +326,7 @@ if ($apiUp) {
     Add-Result fail "svc.api.health" "GET /api/health" $_.Exception.Message "Check Mongo + uvicorn logs"
   }
 } else {
-  Add-Result warn "svc.api.port" "Backend :8001" "not listening" ".\scripts\start-demo.ps1  OR  uvicorn server:app --port 8001"
+  Add-Result warn "svc.api.port" "Backend :8001" "not listening" ".\scripts\start-demo.ps1  OR  (repo root) `$env:PYTHONPATH=(Get-Location).Path; python -m uvicorn backend.server:app --port 8001"
 }
 
 $uiUp = Test-ListeningPort 3000

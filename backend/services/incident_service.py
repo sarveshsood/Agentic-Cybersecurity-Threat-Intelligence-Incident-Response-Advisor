@@ -45,6 +45,27 @@ async def get_incident(incident_id: str) -> Dict[str, Any]:
     doc = await incidents_repo.find_by_id(incident_id)
     if not doc:
         raise HTTPException(404, "Incident not found")
+    # Analyst opens a case: promote new → in_progress so the queue graph reflects work.
+    # Does not touch pending_review / approved / rejected / closed (HiTL integrity).
+    if (doc.get("status") or "").strip().lower() == "new":
+        try:
+            from backend.database import db
+            from backend.models import utc_now
+
+            res = await db.incidents.update_one(
+                {"id": incident_id, "status": "new"},
+                {"$set": {"status": "in_progress", "opened_at": utc_now()}},
+            )
+            if res.modified_count:
+                doc = {**doc, "status": "in_progress"}
+                try:
+                    from backend.services import analytics_cache as cache
+
+                    cache.invalidate("kpis:")
+                except Exception:
+                    pass
+        except Exception:
+            pass
     return doc
 
 

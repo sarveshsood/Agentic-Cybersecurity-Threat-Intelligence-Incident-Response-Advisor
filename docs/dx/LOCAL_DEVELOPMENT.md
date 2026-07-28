@@ -2,12 +2,26 @@
 
 ## Day-to-day
 
-**Terminal A — API**
+**One-command (preferred)**
+
+```powershell
+.\scripts\start-demo.ps1 -SkipDocker   # Windows
+# ./scripts/start-demo.sh --skip-docker  # Unix
+```
+
+**Terminal A — API** (from **repository root** — package imports require `backend.*`)
 
 ```bash
-cd backend
-uvicorn server:app --reload --host 0.0.0.0 --port 8001
+export PYTHONPATH=.
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
 ```
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
+```
+
+> Do **not** run `cd backend && uvicorn server:app` — absolute `from backend.*` imports will fail.
 
 **Terminal B — UI**
 

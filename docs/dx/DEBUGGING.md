@@ -10,8 +10,10 @@
 
 ### PyCharm / VS Code
 
-- Launch: module `uvicorn`, args `server:app --port 8001`, cwd `backend`
-- Breakpoints in `pipeline.py`, `playbook_agent.py`, `hitl_gate.py`
+- Launch from **repo root**: module `uvicorn`, args `backend.server:app --host 0.0.0.0 --port 8001 --reload`,
+  env `PYTHONPATH=<repo root>` (or working directory = repo root)
+- Do **not** set cwd to `backend/` with `server:app` — that breaks `from backend.*` imports
+- Breakpoints in `backend/pipeline.py`, `backend/playbook_agent.py`, `backend/hitl_gate.py`
 
 ## Frontend
 

@@ -36,7 +36,7 @@ explainable multi-agent AI as the differentiator (why suspicious, how connected,
 - **Backend**: FastAPI + Motor (MongoDB), BackgroundTasks pipeline (parse → extract → enrich → correlate → RAG → LLM
   playbook → HiTL gate)
 - **Frontend**: React 19, react-router-dom v7, TanStack Query, Tailwind, shadcn/ui, sonner, phosphor icons, IBM Plex
-  Mono for IoCs/hashes, Outfit for headings
+  Mono for IoCs/hashes, system/design-system sans for UI (see `design_guidelines.json` / theme tokens)
 - **DB collections**: `users`, `incidents`, `log_jobs`, `settings`, `audit_log`
 - **KB**: Static in-code corpus (MITRE ATT&CK subset + NIST SP 800-61 + CISA KEV + internal playbooks), BM25 retriever
 - **Testids**: All interactive elements tagged with `data-testid`

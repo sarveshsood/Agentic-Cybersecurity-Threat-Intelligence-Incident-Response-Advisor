@@ -69,10 +69,16 @@ async def record_usage(
         return n
     mid = month_id()
     try:
+        prov = (provider or "unknown").strip().lower() or "unknown"
         await db.llm_usage.update_one(
             {"id": mid},
             {
-                "$inc": {"tokens": n, "calls": 1},
+                "$inc": {
+                    "tokens": n,
+                    "calls": 1,
+                    f"by_provider.{prov}.tokens": n,
+                    f"by_provider.{prov}.calls": 1,
+                },
                 "$set": {
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                     "last_provider": provider or "",
@@ -132,6 +138,31 @@ async def usage_snapshot(settings: Optional[dict] = None, db=None) -> Dict[str, 
     percent_used = None
     if budget > 0:
         percent_used = round(min(100.0, 100.0 * used / budget), 1)
+    from backend.llm_cost import estimate_usd, price_table_public
+
+    cost = estimate_usd(used, provider=last_provider, model=last_model)
+    by_provider: Dict[str, Any] = {}
+    db = db if db is not None else _db
+    if db is not None:
+        try:
+            doc = await db.llm_usage.find_one(
+                {"id": month_id()},
+                {"_id": 0, "by_provider": 1},
+            )
+            raw_bp = (doc or {}).get("by_provider") or {}
+            if isinstance(raw_bp, dict):
+                for pk, pv in raw_bp.items():
+                    tok = int((pv or {}).get("tokens") or 0) if isinstance(pv, dict) else int(pv or 0)
+                    cl = int((pv or {}).get("calls") or 0) if isinstance(pv, dict) else 0
+                    est = estimate_usd(tok, provider=str(pk), model="")
+                    by_provider[str(pk)] = {
+                        "tokens": tok,
+                        "calls": cl,
+                        "estimated_usd": est["estimated_usd"],
+                    }
+        except Exception as e:
+            logger.warning("llm_usage by_provider failed: %s", e)
+
     return {
         "month": month_id(),
         "tokens_used": used,
@@ -143,4 +174,8 @@ async def usage_snapshot(settings: Optional[dict] = None, db=None) -> Dict[str, 
         "exhausted": budget > 0 and used >= budget,
         "last_provider": last_provider,
         "last_model": last_model,
+        "estimated_usd": cost["estimated_usd"],
+        "cost": cost,
+        "by_provider": by_provider,
+        "price_table": price_table_public(),
     }

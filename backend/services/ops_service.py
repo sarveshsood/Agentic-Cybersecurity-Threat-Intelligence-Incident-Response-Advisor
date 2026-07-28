@@ -108,6 +108,86 @@ async def ops_status() -> Dict[str, Any]:
     if env_name in ("dev", "test", "local"):
         ha_hints.append("ENV is non-production — multi-replica checklist is optional for local demos.")
 
+    anomaly = None
+    try:
+        from backend.ops_anomaly import build_anomaly_report
+        from backend.ti_http import circuit_states
+        from backend.metrics_registry import snapshot as metrics_snapshot
+
+        # Prefer more rows for baseline than the UI strip
+        timing_rows = list(recent_timings)
+        if mongo_up:
+            try:
+                cursor = (
+                    db.log_jobs.find(
+                        {"pipeline_total_ms": {"$exists": True, "$gt": 0}},
+                        {
+                            "_id": 0,
+                            "id": 1,
+                            "status": 1,
+                            "pipeline_total_ms": 1,
+                            "stage_timings.by_stage_ms": 1,
+                        },
+                    )
+                    .sort([("pipeline_total_ms", -1)])
+                    .limit(40)
+                )
+                raw = await cursor.to_list(40)
+                timing_rows = [
+                    {
+                        "id": r.get("id"),
+                        "status": r.get("status"),
+                        "pipeline_total_ms": r.get("pipeline_total_ms"),
+                        "by_stage_ms": (r.get("stage_timings") or {}).get("by_stage_ms")
+                        or {},
+                    }
+                    for r in raw
+                ]
+            except Exception:
+                pass
+        anomaly = build_anomaly_report(
+            timings=timing_rows,
+            queue=queue_counts,
+            ti_circuits=circuit_states(),
+            metrics_snapshot=metrics_snapshot(),
+        )
+    except Exception as e:
+        anomaly = {"overall": "unknown", "error": str(e)[:200]}
+
+    broker = {}
+    try:
+        from backend.broker_queue import broker_status
+
+        broker = broker_status()
+    except Exception:
+        broker = {"enabled": False}
+
+    worm = {}
+    try:
+        from backend.audit_export import worm_status
+
+        worm = worm_status()
+    except Exception:
+        worm = {}
+
+    logging_info: Dict[str, Any] = {}
+    try:
+        from backend.logging_setup import log_file_path, resolve_log_path
+
+        path = log_file_path() or resolve_log_path()
+        logging_info = {
+            "to_file": _env("LOG_TO_FILE", "1").lower() not in ("0", "false", "no", "off"),
+            "path": str(path) if path else None,
+            "level": _env("LOG_LEVEL", "INFO") or "INFO",
+            "format": _env("LOG_FORMAT", "text") or "text",
+            "file_format": _env("LOG_FILE_FORMAT") or _env("LOG_FORMAT", "text") or "text",
+            "includes_user": True,
+            "includes_request_id": True,
+            "note": "Every line carries [user=email] [uid=…] [role=…] for audit greps",
+        }
+    except Exception as e:
+        logging_info = {"error": str(e)[:200]}
+
     return {
         "service": "ACTIRA",
         "env": env_name,
@@ -146,6 +226,10 @@ async def ops_status() -> Dict[str, Any]:
         "queue": queue_counts,
         "llm_usage": llm_usage,
         "recent_job_timings": recent_timings,
+        "anomaly": anomaly,
+        "broker": broker,
+        "audit_worm": worm,
+        "logging": logging_info,
         "ha_hints": ha_hints,
         "docs": {
             "ha_validation": "docs/operations/HA_VALIDATION.md",

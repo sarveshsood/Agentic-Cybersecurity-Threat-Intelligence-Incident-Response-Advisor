@@ -55,6 +55,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dump.rdb
+backend/logs/*
+!backend/logs/.gitkeep
+logs/
+*.log
 
 # System files
 .DS_Store
@@ -78,12 +82,17 @@ chainlit.md
 # Data and databases
 agenthub/agents/youtube/db
 
-# ACTIRA runtime data (may contain IoCs / PII) — A-N2 / A-S7
+# ACTIRA runtime data (may contain IoCs / PII / artifacts / WORM export) — never commit
+backend/data/**
+!backend/data/.gitkeep
+# legacy path patterns (kept for older trees)
 backend/data/email_outbox/
 backend/data/job_failures/
 backend/data/job_payloads/
 backend/data/lora_adapters/
 backend/data/lancedb/
+backend/data/job_artifacts/
+backend/data/audit_worm/
 backend/.env
 frontend/.env.local
 

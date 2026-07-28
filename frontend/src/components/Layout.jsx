@@ -5,179 +5,24 @@ import {useTheme} from "../lib/theme";
 import {api} from "../lib/api";
 import {loadFeatures} from "../lib/features";
 import {
-    BookBookmark,
     CaretLeft,
     CaretRight,
-    ChartBar,
     Circle,
-    Crosshair,
     Cpu,
     Desktop,
-    FileText,
-    Flask,
-    Gauge,
-    GearSix,
-    Heartbeat,
-    ListChecks,
-    MapTrifold,
     Moon,
-    ShieldCheck,
-    ShieldWarning,
     SidebarSimple,
     SignOut,
     Sun,
-    UploadSimple,
     X,
 } from "@phosphor-icons/react";
 import {BRAND} from "../constants/branding";
+import {groupNav, navForRole} from "../constants/nav";
 import {countLiveIntel, liveIntelLabels, TI_HAS_FLAGS, TI_PROVIDERS,} from "../constants/threatIntel";
 import {Tip} from "./HelpTip";
 import CommandPalette from "./CommandPalette";
 import {formatDateTime, loadUiPrefs, saveRoutePrefs} from "../lib/uiPrefs";
 import {cn} from "../lib/utils";
-
-/**
- * Left-rail order = IR workflow, then intel, then governance, then admin.
- * Keep CommandPalette NAV_COMMANDS in the same order.
- */
-const NAV = [
-    // —— Operate ——
-    {
-        to: "/",
-        label: "Dashboard",
-        icon: Gauge,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "SOC KPIs, recent activity, ATT&CK heatmap",
-        section: "Operate",
-        colorClass: "text-blue-600 bg-blue-50 dark:bg-blue-950/30",
-    },
-    {
-        to: "/upload",
-        label: "Ingest Logs",
-        icon: UploadSimple,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "Upload logs or multi-file incident packages",
-        section: "Operate",
-        colorClass: "text-primary bg-primary/10",
-    },
-    {
-        to: "/incidents",
-        label: "Incidents",
-        icon: ShieldWarning,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "Browse and open IR cases",
-        section: "Operate",
-        colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30",
-    },
-    {
-        to: "/review",
-        label: "Review Queue",
-        icon: ListChecks,
-        roles: ["senior_reviewer", "admin"],
-        tip: "Human-in-the-loop playbook approval queue",
-        section: "Operate",
-        colorClass: "text-amber-600 bg-amber-50 dark:bg-amber-950/30",
-    },
-    {
-        to: "/hunt",
-        label: "Threat Hunt",
-        icon: Crosshair,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "Natural-language hunt across recent incidents",
-        section: "Operate",
-        colorClass: "text-primary bg-primary/10",
-    },
-    // —— Analyze ——
-    {
-        to: "/analytics",
-        label: "Analytics",
-        icon: ChartBar,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "EDA charts, IoC trends, BM25 vs LanceDB retrieval comparison",
-        section: "Analyze",
-        colorClass: "text-blue-500 bg-blue-50 dark:bg-blue-950/30",
-    },
-    {
-        to: "/knowledge",
-        label: "Knowledge Base",
-        icon: BookBookmark,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "Search MITRE/NIST/CISA KB (BM25, dense, hybrid)",
-        section: "Analyze",
-        colorClass: "text-teal-600 bg-teal-50 dark:bg-teal-950/30",
-    },
-    // —— Govern ——
-    {
-        to: "/audit",
-        label: "Audit Trail",
-        icon: FileText,
-        roles: ["senior_reviewer", "admin"],
-        tip: "Hash-chained platform audit log (reviews, settings, ingest) — best-effort, not WORM",
-        section: "Govern",
-        colorClass: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30",
-    },
-    {
-        to: "/compliance",
-        label: "Compliance",
-        icon: ShieldCheck,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "Product-alignment score (not certification) — gaps, evidence pack, executive export",
-        section: "Govern",
-        colorClass: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30",
-    },
-    {
-        to: "/roadmap",
-        label: "Roadmap",
-        icon: MapTrifold,
-        roles: ["analyst", "senior_reviewer", "admin"],
-        tip: "Product roadmap and progress",
-        section: "Govern",
-        colorClass: "text-sky-600 bg-sky-50 dark:bg-sky-950/30",
-    },
-    // —— Admin ——
-    {
-        to: "/benchmark",
-        label: "Golden Eval",
-        icon: Flask,
-        roles: ["admin"],
-        tip: "Offline golden IR quality gates (admin)",
-        section: "Admin",
-        colorClass: "text-slate-600 bg-slate-100 dark:bg-slate-800",
-    },
-    {
-        to: "/ops",
-        label: "Ops & Health",
-        icon: Heartbeat,
-        roles: ["admin"],
-        tip: "Multi-replica flags, queue, pipeline timings, LLM budget",
-        section: "Admin",
-        colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30",
-    },
-    {
-        to: "/settings",
-        label: "Settings",
-        icon: GearSix,
-        roles: ["admin"],
-        tip: "LLM, TI keys, pipeline, and retention",
-        section: "Admin",
-        colorClass: "text-slate-500 bg-slate-100 dark:bg-slate-800",
-    },
-];
-
-/** Group visible nav items by section for left-rail labels. */
-function groupNav(items) {
-    const groups = [];
-    let current = null;
-    for (const item of items) {
-        const sec = item.section || "App";
-        if (!current || current.label !== sec) {
-            current = {label: sec, items: []};
-            groups.push(current);
-        }
-        current.items.push(item);
-    }
-    return groups;
-}
 
 const PROVIDER_KEY_FLAG = {
     anthropic: "has_anthropic",
@@ -186,12 +31,72 @@ const PROVIDER_KEY_FLAG = {
     groq: "has_groq",
 };
 
+/** Compact model label for top-bar chip (handles provider/ prefixes like openai/gpt-oss-120b). */
 function shortModel(model) {
     if (!model) return "—";
-    return model
+    let m = String(model).trim();
+    // Strip org/provider path prefix (Groq free-tier ids often look like openai/gpt-oss-120b)
+    if (m.includes("/")) m = m.split("/").pop() || m;
+    m = m
         .replace(/^claude-/, "")
         .replace(/^gemini-/, "gem-")
-        .replace(/^llama-/, "llama-");
+        .replace(/^llama-/, "llama-")
+        .replace(/^gpt-oss-/, "oss-");
+    // Cap length so the status strip never wraps into a second "user" column
+    if (m.length > 22) m = `${m.slice(0, 20)}…`;
+    return m;
+}
+
+function formatRole(role) {
+    if (!role) return "—";
+    const map = {
+        analyst: "Analyst",
+        senior_reviewer: "Senior reviewer",
+        admin: "Admin",
+    };
+    return map[role] || String(role).replace(/_/g, " ");
+}
+
+/** Status chip — fixed height, never wraps the top-bar into a messy stack. */
+function StatusChip({
+    testid,
+    title,
+    tip,
+    children,
+    tone = "default",
+    className = "",
+    onClick,
+    as: As = "span",
+}) {
+    const toneCls =
+        tone === "ok"
+            ? "text-success border-[var(--success-border,var(--border))]"
+            : tone === "warn"
+              ? "text-warning border-[var(--warning-border,var(--border))]"
+              : tone === "error"
+                ? "text-error border-[var(--error-border,var(--border))]"
+                : tone === "primary"
+                  ? "text-primary border-primary/30"
+                  : "text-muted-foreground theme-border";
+    const el = (
+        <As
+            type={As === "button" ? "button" : undefined}
+            data-testid={testid}
+            title={title}
+            onClick={onClick}
+            className={cn(
+                "inline-flex items-center gap-1.5 h-8 max-w-[min(100%,18rem)] shrink-0 px-2.5 rounded-md border theme-chip",
+                "text-[11px] font-medium whitespace-nowrap overflow-hidden",
+                As === "button" && "hover:border-primary/40 hover:text-primary transition-colors cursor-pointer",
+                toneCls,
+                className,
+            )}
+        >
+            {children}
+        </As>
+    );
+    if (tip) return <Tip content={tip}>{el}</Tip>;
+    return el;
 }
 
 function readCollapsed() {
@@ -218,9 +123,21 @@ export default function Layout({children}) {
     const [tiLive, setTiLive] = useState(0);
     const [tiNames, setTiNames] = useState([]);
     const tiTotal = TI_HAS_FLAGS.length;
-    const [pipelineOk, setPipelineOk] = useState(true);
-    const [llm, setLlm] = useState({provider: null, model: null, keyReady: false, effective: null});
+    /** API reachability from GET /health (not /settings — settings 403 for non-admin is fine). */
+    const [apiOk, setApiOk] = useState(null);
+    const [llm, setLlm] = useState({
+        provider: null,
+        model: null,
+        keyReady: false,
+        effective: null,
+        hasGroq: false,
+        fallbackEnabled: true,
+        fallbackProvider: null,
+    });
     const [now, setNow] = useState(() => new Date());
+    const isMac =
+        typeof navigator !== "undefined" &&
+        /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || "");
 
     useEffect(() => {
         const id = setInterval(() => setNow(new Date()), 60_000);
@@ -278,16 +195,26 @@ export default function Layout({children}) {
         }
     }, [pathname]);
 
+    // Health + settings status strip (floor 30s when auto-refresh enabled)
     useEffect(() => {
         let cancelled = false;
-        const load = async () => {
+
+        const loadHealth = async () => {
+            try {
+                await api.get("/health");
+                if (!cancelled) setApiOk(true);
+            } catch {
+                if (!cancelled) setApiOk(false);
+            }
+        };
+
+        const loadSettings = async () => {
             try {
                 const r = await api.get("/settings");
                 if (cancelled) return;
                 const data = r.data || {};
                 setTiLive(countLiveIntel(data));
                 setTiNames(liveIntelLabels(data));
-                setPipelineOk(true);
                 const provider = data.llm_provider || "anthropic";
                 const model = data.llm_model || "claude-sonnet-4-6";
                 const flag = PROVIDER_KEY_FLAG[provider];
@@ -297,21 +224,29 @@ export default function Layout({children}) {
                     provider,
                     model,
                     keyReady: flag ? Boolean(data[flag]) : false,
+                    hasGroq: Boolean(data.has_groq),
+                    fallbackEnabled: data.llm_fallback_enabled !== false,
+                    fallbackProvider: data.llm_fallback_provider || null,
                     effective:
                         effectiveProvider && effectiveProvider !== provider
                             ? {provider: effectiveProvider, model: effectiveModel}
                             : null,
                 });
             } catch {
-                if (!cancelled) setPipelineOk(false);
+                // Non-admin may not read full settings — keep last known TI/LLM; do not mark API down here
             }
         };
-        load();
-        // Floor at 30s so ad-hoc prefs cannot hammer /settings
+
+        const loadAll = () => {
+            loadHealth();
+            loadSettings();
+        };
+        loadAll();
+
         const refreshMs = Number(loadUiPrefs().status_refresh_ms);
         let id = null;
         if (refreshMs > 0) {
-            id = setInterval(load, Math.max(30_000, refreshMs));
+            id = setInterval(loadAll, Math.max(30_000, refreshMs));
         }
         return () => {
             cancelled = true;
@@ -319,28 +254,43 @@ export default function Layout({children}) {
         };
     }, []);
 
-    const items = NAV.filter((n) => n.roles.includes(user?.role));
+    const items = navForRole(user?.role);
     const groups = groupNav(items);
     const intelLive = tiLive > 0;
-    const intelLabel = intelLive
-        ? `LIVE INTEL · ${tiLive}/${tiTotal}`
-        : "MOCK INTEL";
+    const intelLabel = intelLive ? `INTEL ${tiLive}/${tiTotal}` : "MOCK INTEL";
     const configuredSet = new Set(tiNames);
     const notConfigured = TI_PROVIDERS.map(([label]) => label).filter((l) => !configuredSet.has(l));
-    const intelTitle = intelLive
-        ? `${tiLive} of ${tiTotal} keys configured (matches Settings → Threat intel). Live: ${tiNames.join(", ") || "—"}${notConfigured.length ? `. Missing: ${notConfigured.join(", ")}` : ""}.`
-        : "No threat-intel API keys configured — enrichment uses mock scores";
+    const intelTip = intelLive
+        ? `${tiLive} of ${tiTotal} TI keys configured (Settings → Threat intel). Live: ${tiNames.join(", ") || "—"}${notConfigured.length ? `. Missing: ${notConfigured.join(", ")}` : ""}.`
+        : "No threat-intel API keys — enrichment uses mock scores (lab/demo).";
 
     const displayProvider = llm.effective?.provider || llm.provider;
     const displayModel = llm.effective?.model || llm.model;
     const llmLabel = displayProvider
-        ? `${displayProvider.toUpperCase()} · ${shortModel(displayModel)}`
+        ? `${String(displayProvider).toUpperCase()} · ${shortModel(displayModel)}`
         : "LLM …";
-    const llmTitle = llm.provider
-        ? llm.effective
-            ? `Configured: ${llm.provider}/${llm.model} · Effective after fallback: ${llm.effective.provider}/${llm.effective.model || "—"}`
-            : `Active LLM: ${llm.provider} / ${llm.model}${llm.keyReady ? " (API key configured)" : " (key missing — playbook may use template fallback)"}`
+    const llmTip = llm.provider
+        ? [
+              llm.effective
+                  ? `Configured ${llm.provider}/${llm.model}. Effective after fallback: ${llm.effective.provider}/${llm.effective.model || "—"}.`
+                  : `Active LLM: ${llm.provider} / ${llm.model}${llm.keyReady ? " (key ready)" : " (key missing — playbooks may use template fallback)"}.`,
+              llm.hasGroq
+                  ? "Groq backup key is stored (last in auto fallback chain · default model openai/gpt-oss-120b)."
+                  : "Groq backup: no key (optional low-latency fallback · openai/gpt-oss-120b).",
+              llm.fallbackEnabled
+                  ? `Cross-provider fallback: on${llm.fallbackProvider ? ` · preferred ${llm.fallbackProvider}` : ""}.`
+                  : "Cross-provider fallback: off.",
+          ].join(" ")
         : "Loading LLM settings…";
+
+    const apiLabel =
+        apiOk === null ? "API …" : apiOk ? "API ONLINE" : "API DOWN";
+    const apiTip =
+        apiOk === null
+            ? "Checking API health…"
+            : apiOk
+              ? "GET /api/health succeeded — backend reachable (Mongo status may still be degraded; see Ops Health)."
+              : "GET /api/health failed — backend unreachable. Start API or check REACT_APP_BACKEND_URL.";
 
     const themeMeta = {
         dark: {
@@ -368,6 +318,7 @@ export default function Layout({children}) {
         next: "light",
     };
     const ThemeIcon = themeMeta.Icon;
+    const roleLabel = formatRole(user?.role);
 
     return (
         <div
@@ -530,12 +481,17 @@ export default function Layout({children}) {
             </aside>
 
             <main id="main-content" className="flex-1 min-w-0 overflow-y-auto" tabIndex={-1}>
-                <div
-                    className="border-b theme-border px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between backdrop-blur-md theme-topbar sticky top-0 z-30 min-h-[48px] gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
+                {/* Top status strip — three zones: session | ops chips | user chrome */}
+                <header
+                    className="border-b theme-border px-3 sm:px-5 lg:px-6 py-2 flex items-center gap-2 sm:gap-3 backdrop-blur-md theme-topbar sticky top-0 z-30 h-14 min-h-14"
+                    data-testid="app-topbar"
+                    role="banner"
+                >
+                    {/* Zone 1 — mobile nav + session clock */}
+                    <div className="flex items-center gap-2 shrink-0 min-w-0 max-w-[40%] sm:max-w-none">
                         <button
                             type="button"
-                            className="md:hidden p-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary transition-colors flex items-center justify-center"
+                            className="md:hidden p-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary transition-colors flex items-center justify-center shrink-0"
                             onClick={() => setMobileNavOpen((v) => !v)}
                             aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
                             aria-expanded={mobileNavOpen}
@@ -543,97 +499,160 @@ export default function Layout({children}) {
                         >
                             <SidebarSimple size={18} weight="bold"/>
                         </button>
-                        <div className="soc-label truncate text-[12px]">Live Session
-                            · {formatDateTime(now, {withSeconds: false})}</div>
-                    </div>
-                    <div
-                        className="flex items-center justify-center gap-2 sm:gap-3 text-[12px] text-muted-foreground flex-wrap font-medium">
-                        <CommandPalette/>
-                        <span
-                            className="hidden sm:flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md border theme-border theme-chip font-mono text-[12px] font-medium"
-                            data-testid="llm-active-badge"
-                            title={llmTitle}
+                        <div
+                            className="soc-label truncate text-[11px] sm:text-[12px] hidden sm:block"
+                            title="Local session clock (UI prefs timezone)"
+                            data-testid="session-clock"
                         >
-              <Cpu size={14} weight="bold" className={llm.keyReady || llm.effective ? "text-primary" : "text-warning"}/>
-              <span className={llm.keyReady || llm.effective ? "text-primary" : "text-warning"}>
-                {llmLabel}
-              </span>
+                            <span className="hidden lg:inline">Session · </span>
+                            {formatDateTime(now, {withSeconds: false})}
+                        </div>
+                    </div>
+
+                    {/* Zone 2 — ops status chips (scroll horizontally if needed; never wrap under user block) */}
+                    <div
+                        className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 overflow-x-auto overflow-y-hidden py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                        data-testid="topbar-status-chips"
+                        aria-label="Platform status"
+                    >
+                        <CommandPalette shortcutLabel={isMac ? "⌘K" : "Ctrl+K"}/>
+
+                        <StatusChip
+                            testid="llm-active-badge"
+                            tip={llmTip}
+                            title={llmTip}
+                            tone={llm.keyReady || llm.effective ? "primary" : llm.provider ? "warn" : "default"}
+                        >
+                            <Cpu size={13} weight="bold" className="shrink-0" aria-hidden/>
+                            <span className="font-mono truncate max-w-[11rem] sm:max-w-[14rem]">{llmLabel}</span>
                             {llm.effective && (
                                 <span
-                                    className="text-[10px] uppercase tracking-wider text-primary font-semibold"
+                                    className="text-[9px] uppercase tracking-wide font-bold text-primary shrink-0"
                                     data-testid="llm-effective-badge"
                                 >
-                                    via fallback
+                                    fb
                                 </span>
                             )}
                             {!llm.keyReady && llm.provider && !llm.effective && (
-                                <span
-                                    className="text-[10px] uppercase tracking-wider text-warning font-semibold">no key</span>
+                                <span className="text-[9px] uppercase tracking-wide font-bold text-warning shrink-0">
+                                    no key
+                                </span>
                             )}
-            </span>
+                        </StatusChip>
 
-                        <span className="flex items-center gap-1.5"
-                              title={pipelineOk ? "API reachable" : "API unreachable"}>
-              <span className={`status-dot ${pipelineOk ? "bg-[var(--success)] status-dot-live" : "bg-[var(--error)]"}`}
-                    aria-hidden/>
-              <span className="hidden md:inline">{pipelineOk ? "PIPELINE ONLINE" : "PIPELINE DOWN"}</span>
-            </span>
-                        <span className="hidden lg:flex items-center gap-1.5"
-                              title="In-memory BM25 local knowledge base (MITRE / NIST / CISA KEV / playbooks)">
-              <span className="status-dot bg-primary" aria-hidden/>
-              RAG · LOCAL KB
-            </span>
-                        <span
-                            className="flex items-center gap-1.5"
-                            data-testid="intel-mode-badge"
-                            title={intelTitle}
+                        {llm.hasGroq && String(displayProvider || "").toLowerCase() !== "groq" && (
+                            <StatusChip
+                                testid="llm-groq-backup-chip"
+                                tip={`Groq backup ready (last in auto fallback chain). Default free-tier model: openai/gpt-oss-120b. Preferred fallback: ${llm.fallbackProvider || "auto"}. See Settings → LLM → Active stack.`}
+                                title="Groq backup · openai/gpt-oss-120b"
+                                tone="ok"
+                                className="hidden md:inline-flex"
+                            >
+                                <span className="font-mono text-[10px] truncate max-w-[11rem]">
+                                    GROQ · {shortModel("openai/gpt-oss-120b")}
+                                </span>
+                            </StatusChip>
+                        )}
+
+                        <StatusChip
+                            testid="api-health-badge"
+                            tip={apiTip}
+                            title={apiTip}
+                            tone={apiOk === true ? "ok" : apiOk === false ? "error" : "default"}
                         >
-              <span className={`status-dot ${intelLive ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} aria-hidden/>
-              <span className="hidden sm:inline">{intelLabel}</span>
-            </span>
+                            <span
+                                className={cn(
+                                    "status-dot shrink-0",
+                                    apiOk === true && "bg-[var(--success)] status-dot-live",
+                                    apiOk === false && "bg-[var(--error)]",
+                                    apiOk === null && "bg-muted-foreground",
+                                )}
+                                aria-hidden
+                            />
+                            <span className="hidden sm:inline">{apiLabel}</span>
+                        </StatusChip>
 
+                        <StatusChip
+                            testid="rag-mode-badge"
+                            tip="Hybrid RAG: BM25 + local LanceDB vectors (MITRE / NIST / CISA KEV / custom). Not a cloud SIEM lake."
+                            title="Local knowledge base"
+                            tone="primary"
+                            className="hidden lg:inline-flex"
+                        >
+                            <span className="status-dot bg-primary shrink-0" aria-hidden/>
+                            RAG · LOCAL
+                        </StatusChip>
+
+                        <StatusChip
+                            testid="intel-mode-badge"
+                            tip={intelTip}
+                            title={intelTip}
+                            tone={intelLive ? "ok" : "warn"}
+                        >
+                            <span
+                                className={cn(
+                                    "status-dot shrink-0",
+                                    intelLive ? "bg-[var(--success)]" : "bg-[var(--warning)]",
+                                )}
+                                aria-hidden
+                            />
+                            <span className="hidden sm:inline">{intelLabel}</span>
+                        </StatusChip>
+                    </div>
+
+                    {/* Zone 3 — theme + identity + sign out (always visible, never wraps into chips) */}
+                    <div
+                        className="flex items-center gap-1.5 sm:gap-2 shrink-0 pl-1 sm:pl-2 border-l theme-border"
+                        data-testid="topbar-user-chrome"
+                    >
                         <Tip content={themeMeta.title}>
                             <button
                                 type="button"
                                 data-testid="theme-toggle"
                                 onClick={() => toggleTheme()}
                                 title={themeMeta.title}
-                                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary hover:border-primary/40 transition-all font-medium"
+                                className="inline-flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors font-medium"
                                 aria-label={`Theme ${themeMeta.label}. Switch to ${themeMeta.next}`}
                             >
-                                <ThemeIcon size={16} weight="bold"/>
-                                <span
-                                    className="uppercase tracking-[0.12em] text-[11px] hidden sm:inline font-semibold">
-                  {themeMeta.label}
-                </span>
+                                <ThemeIcon size={15} weight="bold"/>
+                                <span className="uppercase tracking-[0.1em] text-[10px] hidden md:inline font-semibold">
+                                    {themeMeta.label}
+                                </span>
                             </button>
                         </Tip>
 
-                        <div className="border-l theme-border pl-2 ml-1 flex items-center justify-center gap-2">
-                            <div className="hidden sm:flex flex-col items-center gap-0.5">
-                                <div className="text-[12px] font-semibold text-[var(--shell-text)]">{user?.name}</div>
-                                <div
-                                    className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground font-medium">{user?.role}</div>
+                        <div
+                            className="hidden sm:flex flex-col items-end justify-center leading-tight min-w-0 max-w-[9rem]"
+                            title={user?.email || user?.name || ""}
+                            data-testid="topbar-user-identity"
+                        >
+                            <div className="text-[12px] font-semibold text-[var(--shell-text)] truncate max-w-full">
+                                {user?.name || user?.email || "User"}
                             </div>
-                            <Tip content="Sign out">
-                                <button
-                                    type="button"
-                                    data-testid="logout-btn"
-                                    onClick={() => {
-                                        logout();
-                                        nav("/login");
-                                    }}
-                                    className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-error hover:border-error/40 transition-all"
-                                    aria-label="Sign out"
-                                >
-                                    <SignOut size={16} weight="bold"/>
-                                    <span
-                                        className="text-[11px] uppercase tracking-[0.1em] hidden md:inline font-semibold">Sign out</span>
-                                </button>
-                            </Tip>
+                            <div className="text-[10px] text-muted-foreground font-medium truncate max-w-full">
+                                {roleLabel}
+                            </div>
                         </div>
+
+                        <Tip content="Sign out of ACTIRA">
+                            <button
+                                type="button"
+                                data-testid="logout-btn"
+                                onClick={() => {
+                                    logout();
+                                    nav("/login");
+                                }}
+                                className="inline-flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-md border theme-border theme-chip text-muted-foreground hover:text-error hover:border-error/40 transition-colors"
+                                aria-label="Sign out"
+                            >
+                                <SignOut size={15} weight="bold"/>
+                                <span className="text-[10px] uppercase tracking-[0.08em] hidden lg:inline font-semibold">
+                                    Sign out
+                                </span>
+                            </button>
+                        </Tip>
                     </div>
-                </div>
+                </header>
                 <div className="p-4 sm:p-6 lg:p-8">{children}</div>
             </main>
         </div>

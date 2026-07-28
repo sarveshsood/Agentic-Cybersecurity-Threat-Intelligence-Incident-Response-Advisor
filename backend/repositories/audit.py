@@ -132,20 +132,26 @@ class AuditRepository:
             detail=detail_doc,
             prev_hash=prev_hash,
         )
-        await self.col.insert_one(
-            {
-                "id": entry_id,
-                "ts": ts,
-                "actor_id": actor_id,
-                "actor_email": actor_email,
-                "action": action,
-                "target_type": target_type,
-                "target_id": target_id,
-                "detail": detail_doc,
-                "prev_hash": prev_hash,
-                "entry_hash": entry_hash,
-            }
-        )
+        doc = {
+            "id": entry_id,
+            "ts": ts,
+            "actor_id": actor_id,
+            "actor_email": actor_email,
+            "action": action,
+            "target_type": target_type,
+            "target_id": target_id,
+            "detail": detail_doc,
+            "prev_hash": prev_hash,
+            "entry_hash": entry_hash,
+        }
+        await self.col.insert_one(doc)
+        # Append-only local JSONL + optional SIEM webhook (best-effort)
+        try:
+            from backend.audit_export import on_audit_inserted
+
+            on_audit_inserted({k: v for k, v in doc.items()})
+        except Exception:
+            pass
         return entry_id
 
     async def list_recent(self, *, limit: int = 500) -> list:

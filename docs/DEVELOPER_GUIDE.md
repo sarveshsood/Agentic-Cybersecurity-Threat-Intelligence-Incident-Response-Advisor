@@ -7,16 +7,17 @@ See [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) and [ARCHITECTURE.md](ARCHITECTUR
 ## Local loop
 
 ```bash
-# API
-cd backend
-pip install -r requirements.txt -r ../requirements-test.txt
-uvicorn server:app --reload --port 8001
+# API (from repository root — package imports require backend.*)
+cd backend && pip install -r requirements.txt -r ../requirements-test.txt && cd ..
+export PYTHONPATH=.
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
+# Or: ./scripts/start-demo.sh --skip-docker --api-only
 
 # UI
 cd frontend && npm start
 
-# Tests
-cd backend && pytest tests -n 0 -m "not integration and not e2e and not requires_llm"
+# Tests (from repo root)
+PYTHONPATH=. pytest backend/tests -n 0 -m "not integration and not e2e and not requires_llm"
 # or: make unit  (from root)
 ```
 

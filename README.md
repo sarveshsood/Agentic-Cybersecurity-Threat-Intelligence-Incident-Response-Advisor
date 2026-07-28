@@ -1,15 +1,16 @@
 # ACTIRA — Agentic Cybersecurity Threat Intelligence & Incident Response Advisor
 
-A multi-agent AI SOC platform that ingests raw security logs, extracts and enriches IoCs, correlates them into attack
+An AI SOC platform that ingests raw security logs, extracts and enriches IoCs, correlates them into attack
 narratives mapped to MITRE ATT&CK, and generates citation-grounded incident response playbooks — with a mandatory
-Human-in-the-Loop (HiTL) approval gate for critical incidents.
+Human-in-the-Loop (HiTL) approval gate for critical incidents. Investigation uses a **controlled multi-stage pipeline**
+(named stage agents / copilot framing), not an unconstrained multi-agent or A2A swarm.
 
 **Product mark:** ACTIRA (short UI name). Full project name appears on the login screen, browser title, and API docs.
 
 ![Stack](https://img.shields.io/badge/stack-React%2019%20%2B%20FastAPI%20%2B%20MongoDB-0B0F19)
 ![LLM](https://img.shields.io/badge/LLM-Claude%20Sonnet%204.6-8b5cf6)
-![Maturity](https://img.shields.io/badge/maturity-Enterprise%20Demo%20Ready%20v1.0-0ea5e9)
-![Score](https://img.shields.io/badge/board%20score-89%2F100-14b8a6)
+![Maturity](https://img.shields.io/badge/maturity-Enterprise%20Demo%20Ready%20v1.6+-0ea5e9)
+![Entry](https://img.shields.io/badge/API-backend.server%3Aapp-6366f1)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 > **Positioning:** Single-tenant AI IR advisor for demos, education, and controlled pilots — **not** a full SIEM/XDR
@@ -17,16 +18,24 @@ Human-in-the-Loop (HiTL) approval gate for critical incidents.
 > **v1.0
 pack:** [presentation/](presentation/) · [diagrams/](diagrams/) · [deployments/](deployments/) · [ENTERPRISE_REVIEW.md](ENTERPRISE_REVIEW.md) · [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 
-### One-command demo (Docker)
+### One-command demo
 
 ```powershell
-# Windows
+# Windows (Docker Compose when available; otherwise local API + UI)
 .\scripts\start-demo.ps1
-# Unix
-# ./scripts/start-demo.sh
+# .\scripts\start-demo.ps1 -SkipDocker   # force local uvicorn + npm
+# .\scripts\start-demo.ps1 -ApiOnly      # API only
 ```
 
-Then open http://localhost:3000 — lab users in [samples/demo/PERSONAS.md](samples/demo/PERSONAS.md).
+```bash
+# Unix
+./scripts/start-demo.sh
+# ./scripts/start-demo.sh --skip-docker
+# ./scripts/start-demo.sh --api-only
+```
+
+Then open http://localhost:3000 — lab users in [samples/demo/PERSONAS.md](samples/demo/PERSONAS.md).  
+Self-check: `.\scripts\diagnose.ps1` (Windows) or `./scripts/diagnose.sh`.
 
 ---
 
@@ -39,14 +48,20 @@ Then open http://localhost:3000 — lab users in [samples/demo/PERSONAS.md](samp
 - **MITRE ATT&CK mapping** — keyword-heuristic technique inference
 - **Hybrid RAG** — BM25 + local LanceDB ANN (RRF) + optional Cohere re-rank; hash embedder default; optional sbert
   (`BAAI/bge-small-en-v1.5`)
-- **LLM playbook generation** — your own Anthropic/OpenAI/Gemini API key (defaults to Claude Sonnet 4.6, swappable) with
-  citation-grounded prompting and grounding-score validation
+- **LLM playbook generation** — Anthropic / OpenAI / Gemini / Groq (defaults to Claude Sonnet 4.6) with
+  citation-grounded prompting, grounding-score validation, and optional cross-provider fallback (Groq as low-latency backup)
+- **Pipeline concurrency** — stages stay **sequential for audit**, but multi-file **parse** and IoC **enrich** use
+  bounded pools (`PARSE_CONCURRENCY` / `ENRICH_CONCURRENCY`, also Admin → Settings → Platform). Correlate → RAG →
+  playbook → HiTL remain single-threaded per job.
 - **HiTL gate** — routes incidents at/above Settings `hitl_severity_min` (default `critical`) or low grounding to the
   reviewer queue; auto-approve never bypasses the severity gate; concurrent reviews are race-safe (HTTP 409)
 - **RBAC** — `analyst` / `senior_reviewer` / `admin` with JWT auth (public register always creates `analyst` only)
 - **Hardened settings secrets** — `GET /settings` never returns raw API keys (only `has_*` booleans)
-- **Analyst dashboard** — KPI cards, incident timeline, ATT&CK heatmap, playbook viewer with inline citation chips
-  (Popover shows KB source snippet)
+- **Analyst dashboard** — KPI cards, live analyst-queue lifecycle chart (status distribution, cache-aware refresh),
+  ATT&CK heatmap; opening a `new` case promotes it to `in_progress`
+- **Knowledge search** — left-pane retrieval mode, top_k, corpus filters, min confidence, sort, vector status, history
+- **LLM fallback honesty** — topbar + Settings Active stack show Groq backup (`openai/gpt-oss-120b`) readiness
+- **Agent honesty** — pipeline-first architecture; **not** A2A multi-agent (see [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md))
 
 ---
 
@@ -56,14 +71,19 @@ Then open http://localhost:3000 — lab users in [samples/demo/PERSONAS.md](samp
 
 - React 19 · react-router-dom v7 · TanStack Query
 - Tailwind CSS + shadcn/ui · sonner · @phosphor-icons/react
-- IBM Plex Sans / Mono + Outfit (Google Fonts)
+- Inter + IBM Plex Mono (enterprise design system — see `design_guidelines.json`)
 
 **Backend**
 
 - FastAPI · Motor (async MongoDB) · Pydantic v2
-- `rank-bm25` for retrieval
-- Official `anthropic` / `openai` / `google-genai` SDKs for LLM calls (Claude / GPT / Gemini)
+- `rank-bm25` for retrieval · LanceDB hybrid RAG
+- Official `anthropic` / `openai` / `google-genai` (+ Groq-compatible) SDKs for LLM calls
 - JWT auth (`pyjwt` + `bcrypt`)
+
+**Design system**
+
+- Canonical tokens and UX guardrails: [`design_guidelines.json`](design_guidelines.json)
+- Agent honesty & A2A stance: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md)
 
 ---
 
@@ -78,23 +98,28 @@ Then open http://localhost:3000 — lab users in [samples/demo/PERSONAS.md](samp
 ### 1. Clone & configure
 
 ```bash
-git clone https://github.com/<your-username>/soc-console.git
-cd soc-console
+git clone https://github.com/<your-username>/soc-playbook-ai-v2.git
+cd soc-playbook-ai-v2
 ```
 
 ### 2. Backend
 
+Install deps from the **repository root** (or activate a venv first):
+
 ```bash
-cd backend
-pip install -r requirements.txt
+python -m venv .venv
+# Windows: .\.venv\Scripts\Activate.ps1
+# Unix:    source .venv/bin/activate
+pip install -r backend/requirements.txt
 ```
 
 Create `backend/.env` from the full template (recommended):
 
 ```bash
-cd backend
-Copy-Item .env.example .env   # Windows PowerShell
-# cp .env.example .env        # Unix
+# Windows PowerShell (repo root)
+Copy-Item backend\.env.example backend\.env
+# Unix
+# cp backend/.env.example backend/.env
 ```
 
 `backend/.env.example` documents every bootstrap key: LLM, HiTL/pipeline, threat intel, Slack/email, security, data
@@ -122,13 +147,21 @@ ANTHROPIC_API_KEY=sk-ant-...
 **Two-layer config:** MongoDB (Admin → Settings) is source of truth at runtime; values also sync to `backend/.env` so a
 wiped DB can re-seed. Secret fields in the UI always show blank after load — look for “✓ configured”, not the raw key.
 
-Run (in its own terminal window — keep it open):
+Run from the **repository root** (package-style import — required for `from backend.*`):
 
 ```powershell
-# Windows PowerShell
-cd backend
-uvicorn server:app --reload --host 0.0.0.0 --port 8001
+# Windows PowerShell (repo root)
+$env:PYTHONPATH = (Get-Location).Path
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
 ```
+
+```bash
+# Unix (repo root)
+export PYTHONPATH=.
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
+```
+
+Or use `.\scripts\start-demo.ps1 -SkipDocker` / `./scripts/start-demo.sh --skip-docker`.
 
 Verify backend is reachable (in another shell or browser):
 
@@ -146,8 +179,8 @@ can switch display to browser-local time or a fixed IANA timezone such as `Asia/
 ### 3. Frontend
 
 ```bash
-cd ../frontend
-yarn install   # or npm install
+cd frontend
+npm install    # yarn works too
 ```
 
 Create `frontend/.env` (if not present):
@@ -160,7 +193,7 @@ Run (in a **second separate terminal window** — keep both open):
 
 ```powershell
 cd frontend
-yarn start     # or npm start
+npm start
 ```
 
 Once you see "webpack compiled successfully", open:
@@ -205,7 +238,7 @@ Click any demo card on the login screen to auto-fill.
 ```
 soc-playbook-ai-v2/
 ├── backend/                   # FastAPI API + pipeline + agents
-│   ├── server.py              # App shell (lifespan, middleware) — uvicorn server:app
+│   ├── server.py              # App shell (lifespan, middleware) — uvicorn backend.server:app
 │   ├── core/                  # database + shared services
 │   ├── routers/               # Domain routes (/api + /api/v1)
 │   ├── pipeline.py            # Multi-file / ZIP orchestration
@@ -217,19 +250,41 @@ soc-playbook-ai-v2/
 │   ├── vector_store.py        # LanceDB
 │   ├── secrets_util.py        # Secret resolve / .env sync
 │   ├── secret_vault.py        # Encrypt-at-rest
+│   ├── logging_setup.py       # Console + rotating file logs (user/rid fields)
+│   ├── platform_settings.py   # Enterprise knobs → env sync
 │   └── tests/                 # Offline unit + golden + modularization suites
 ├── frontend/src/              # React SOC console
 │   ├── App.js                 # Router + role gating
 │   ├── lib/api.js             # Axios (cookie credentials)
 │   ├── lib/auth.jsx           # Auth context (httpOnly cookie first)
-│   ├── pages/                 # Login, Dashboard, Upload, Incidents, …
+│   ├── pages/                 # Login, Dashboard, Upload, Incidents, Knowledge, …
+│   ├── constants/nav.js       # Left-rail + Jump (command palette) single source
 │   └── components/            # Layout, heatmaps, shadcn UI
-├── docs/                      # Architecture, ops, enterprise review
+├── scripts/                   # start-demo.ps1/.sh, diagnose.ps1/.sh
+├── docs/                      # Architecture, ops, agent honesty, configuration
 ├── tests/                     # Cross-cutting api/security/perf
 ├── .github/workflows/         # CI, security, e2e, golden, openapi
 ├── docker-compose.yml
 └── Makefile
 ```
+
+### Pipeline parallelization (what is / isn’t concurrent)
+
+| Stage | Parallel? | Config |
+|-------|-----------|--------|
+| Multi-file parse | Yes (per job) | Settings → Platform `parse_concurrency` / `PARSE_CONCURRENCY` (1–16) |
+| IoC enrich | Yes (per job) | Settings → Platform `enrich_concurrency` / `ENRICH_CONCURRENCY` (1–32) |
+| Correlate, ATT&CK, RAG, playbook, HiTL | No | Sequential for evidence chain |
+| Multiple jobs | Yes | Job worker claims one job at a time per process; scale with workers |
+
+Full detail: [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) · [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+### A2A / multi-agent
+
+**Not implemented and not planned for demos.** ACTIRA is a **controlled IR pipeline** with one playbook LLM step +
+scoped investigator Q&A. Google A2A / agent meshes would add negotiation surface without auditability gains until SOAR
+actions exist. See [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §11.
+
 
 ---
 

@@ -30,7 +30,9 @@ Do not disable Mongo for multi-worker deploys.
 
 1. **Local / small deploy (recommended)**
    ```bash
-   uvicorn server:app --host 0.0.0.0 --port 8001 --workers 1
+   # From repository root
+   export PYTHONPATH=.
+   python -m uvicorn backend.server:app --host 0.0.0.0 --port 8001 --workers 1
    ```
 
 2. **Multiple API workers**

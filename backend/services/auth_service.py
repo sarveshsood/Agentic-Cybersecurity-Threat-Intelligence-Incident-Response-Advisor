@@ -135,6 +135,16 @@ async def login(body: LoginRequest) -> JSONResponse:
     await clear_login_failures(db, email_key)
     session_hours = await svc.session_hours()
     token = create_access_token(doc["id"], doc["email"], doc["role"], expire_hours=session_hours)
+    try:
+        await svc.audit(
+            {"sub": doc["id"], "email": doc.get("email"), "role": doc.get("role")},
+            "auth.login",
+            "user",
+            doc["id"],
+            {"email": doc.get("email"), "role": doc.get("role")},
+        )
+    except Exception:
+        pass
     return _token_response(token, doc, session_hours)
 
 

@@ -15,6 +15,7 @@ async def run_hunt(
     limit: int = 25,
     severity: Optional[str] = None,
     status: Optional[str] = None,
+    user: Optional[dict] = None,
 ) -> Dict[str, Any]:
     q = (query or "").strip()
     if not q:
@@ -41,4 +42,27 @@ async def run_hunt(
             "Scores newest up to 500 incidents matching optional severity/status filters — "
             "not a full SIEM log-lake search."
         )
+    if user:
+        try:
+            from backend.core import services as svc
+
+            hits = 0
+            if isinstance(out, dict):
+                hits = len(out.get("results") or out.get("items") or out.get("matches") or [])
+            await svc.audit(
+                user,
+                "hunt.query",
+                "hunt",
+                "nl",
+                {
+                    "query": q[:200],
+                    "limit": limit,
+                    "severity": severity,
+                    "status": status,
+                    "hits": hits,
+                    "pool": len(pool),
+                },
+            )
+        except Exception:
+            pass
     return out

@@ -162,6 +162,31 @@ def test_timeline_pipeline_fallback():
     assert out["events"][0]["kind"] == "pipeline"
 
 
+def test_timeline_empty_correlation_falls_back_to_pipeline():
+    """Correlation shell with empty chain/CES must not blank the Investigation tab."""
+    from backend.investigation_views import build_investigation_timeline
+
+    out = build_investigation_timeline(
+        {
+            "correlation": {
+                "attack_chain": [],
+                "timeline": [],
+                "correlations": [],
+                "entities": {},
+                "stats": {},
+            },
+            "timeline": [
+                {"label": "Files ingested", "detail": "3 file(s)", "ts": "2024-06-01T00:00:00Z"},
+                {"label": "Playbook generated", "detail": "grounding 1.0"},
+            ],
+        }
+    )
+    assert out["source"] == "pipeline"
+    assert len(out["events"]) == 2
+    assert out["events"][0]["kind"] == "pipeline"
+    assert out["events"][0]["label"] == "Files ingested"
+
+
 def test_timeline_dense_ces_groups():
     from backend.investigation_views import CES_GROUP_THRESHOLD, build_investigation_timeline
 

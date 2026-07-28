@@ -88,3 +88,55 @@ async def post_audit_telemetry(
         k: v for k, v in (body or {}).items() if k not in ("event", "action")
     }
     return await audit_service.record_telemetry(actor=user, event=event, detail=detail)
+
+
+@router.get("/audit/export")
+async def export_audit(
+    limit: int = Query(500, ge=1, le=2000),
+    action: Optional[str] = Query(None),
+    user=Depends(require_roles("admin")),
+):
+    """Export recent audit rows as JSON + append to local WORM JSONL path."""
+    from backend.audit_export import export_range_jsonl, worm_status
+    from backend.repositories.audit import audit_repo
+
+    rows = await audit_service.list_audit(
+        skip=0, limit=limit, action=action, normalize=False
+    )
+    # list_audit may return {items: ...}
+    if isinstance(rows, dict):
+        items = rows.get("items") or rows.get("logs") or []
+    else:
+        items = rows or []
+    path = export_range_jsonl(list(items))
+    return {
+        "ok": True,
+        "count": len(items),
+        "path": str(path),
+        "worm": worm_status(),
+    }
+
+
+@router.get("/audit/worm-status")
+async def audit_worm_status(user=Depends(require_roles("admin"))):
+    from backend.audit_export import worm_status
+
+    return worm_status()
+
+
+@router.post("/audit/siem-test")
+async def audit_siem_test(user=Depends(require_roles("admin"))):
+    """Send a synthetic audit event to AUDIT_SIEM_WEBHOOK_URL (if configured)."""
+    from backend.audit_export import forward_siem, siem_webhook
+
+    if not siem_webhook():
+        return {"ok": False, "error": "AUDIT_SIEM_WEBHOOK_URL not set"}
+    result = forward_siem(
+        {
+            "id": "siem-test",
+            "action": "audit.siem_test",
+            "actor_email": (user or {}).get("email"),
+            "detail": {"source": "ops"},
+        }
+    )
+    return result

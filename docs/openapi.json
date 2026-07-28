@@ -1766,6 +1766,71 @@
         ]
       }
     },
+    "/api/audit/export": {
+      "get": {
+        "description": "Export recent audit rows as JSON + append to local WORM JSONL path.",
+        "operationId": "export_audit_api_audit_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 2000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
     "/api/audit/integrity": {
       "get": {
         "description": "Best-effort hash/chain verification over recent entries.",
@@ -1896,6 +1961,31 @@
         ]
       }
     },
+    "/api/audit/siem-test": {
+      "post": {
+        "description": "Send a synthetic audit event to AUDIT_SIEM_WEBHOOK_URL (if configured).",
+        "operationId": "audit_siem_test_api_audit_siem_test_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Audit Siem Test",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
     "/api/audit/summary": {
       "get": {
         "description": "Rule-based audit intelligence summary.",
@@ -1987,6 +2077,30 @@
           }
         ],
         "summary": "Post Audit Telemetry",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/audit/worm-status": {
+      "get": {
+        "operationId": "audit_worm_status_api_audit_worm_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Audit Worm Status",
         "tags": [
           "audit"
         ]
@@ -3068,6 +3182,64 @@
         "summary": "List Investigations",
         "tags": [
           "investigate"
+        ]
+      }
+    },
+    "/api/incidents/{incident_id}/replay-enrich": {
+      "post": {
+        "description": "Partial pipeline replay: re-enrich stored IoCs and update threat scores.",
+        "operationId": "replay_enrich_api_incidents__incident_id__replay_enrich_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Force mock TI (offline/deterministic)",
+            "in": "query",
+            "name": "force_mock",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Force mock TI (offline/deterministic)",
+              "title": "Force Mock",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replay Enrich",
+        "tags": [
+          "incidents"
         ]
       }
     },
@@ -4406,6 +4578,105 @@
         ]
       }
     },
+    "/api/logs/jobs/{job_id}/artifacts": {
+      "get": {
+        "operationId": "job_artifacts_api_logs_jobs__job_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Job Artifacts",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
+    "/api/logs/jobs/{job_id}/artifacts/{name}": {
+      "get": {
+        "operationId": "job_artifact_detail_api_logs_jobs__job_id__artifacts__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Job Artifact Detail",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
     "/api/logs/jobs/{job_id}/events": {
       "get": {
         "operationId": "job_phase_events_api_logs_jobs__job_id__events_get",
@@ -4448,6 +4719,52 @@
         "summary": "Job Phase Events",
         "tags": [
           "investigate"
+        ]
+      }
+    },
+    "/api/logs/jobs/{job_id}/replay": {
+      "post": {
+        "description": "Full pipeline replay when upload payload retained; else artifact-only guidance.",
+        "operationId": "replay_job_api_logs_jobs__job_id__replay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replay Job",
+        "tags": [
+          "logs"
         ]
       }
     },
@@ -5880,6 +6197,100 @@
         ]
       }
     },
+    "/api/settings/versions": {
+      "get": {
+        "description": "Append-only settings version history (ops snapshot; secrets redacted).",
+        "operationId": "settings_versions_api_settings_versions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Settings Versions",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/settings/versions/{version}": {
+      "get": {
+        "operationId": "settings_version_detail_api_settings_versions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Settings Version Detail",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
     "/api/v1/": {
       "get": {
         "operationId": "root_api_v1__get",
@@ -6287,6 +6698,71 @@
         ]
       }
     },
+    "/api/v1/audit/export": {
+      "get": {
+        "description": "Export recent audit rows as JSON + append to local WORM JSONL path.",
+        "operationId": "export_audit_api_v1_audit_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 2000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
     "/api/v1/audit/integrity": {
       "get": {
         "description": "Best-effort hash/chain verification over recent entries.",
@@ -6417,6 +6893,31 @@
         ]
       }
     },
+    "/api/v1/audit/siem-test": {
+      "post": {
+        "description": "Send a synthetic audit event to AUDIT_SIEM_WEBHOOK_URL (if configured).",
+        "operationId": "audit_siem_test_api_v1_audit_siem_test_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Audit Siem Test",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
     "/api/v1/audit/summary": {
       "get": {
         "description": "Rule-based audit intelligence summary.",
@@ -6508,6 +7009,30 @@
           }
         ],
         "summary": "Post Audit Telemetry",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit/worm-status": {
+      "get": {
+        "operationId": "audit_worm_status_api_v1_audit_worm_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Audit Worm Status",
         "tags": [
           "audit"
         ]
@@ -7589,6 +8114,64 @@
         "summary": "List Investigations",
         "tags": [
           "investigate"
+        ]
+      }
+    },
+    "/api/v1/incidents/{incident_id}/replay-enrich": {
+      "post": {
+        "description": "Partial pipeline replay: re-enrich stored IoCs and update threat scores.",
+        "operationId": "replay_enrich_api_v1_incidents__incident_id__replay_enrich_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Force mock TI (offline/deterministic)",
+            "in": "query",
+            "name": "force_mock",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Force mock TI (offline/deterministic)",
+              "title": "Force Mock",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replay Enrich",
+        "tags": [
+          "incidents"
         ]
       }
     },
@@ -8927,6 +9510,105 @@
         ]
       }
     },
+    "/api/v1/logs/jobs/{job_id}/artifacts": {
+      "get": {
+        "operationId": "job_artifacts_api_v1_logs_jobs__job_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Job Artifacts",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
+    "/api/v1/logs/jobs/{job_id}/artifacts/{name}": {
+      "get": {
+        "operationId": "job_artifact_detail_api_v1_logs_jobs__job_id__artifacts__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Job Artifact Detail",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
     "/api/v1/logs/jobs/{job_id}/events": {
       "get": {
         "operationId": "job_phase_events_api_v1_logs_jobs__job_id__events_get",
@@ -8969,6 +9651,52 @@
         "summary": "Job Phase Events",
         "tags": [
           "investigate"
+        ]
+      }
+    },
+    "/api/v1/logs/jobs/{job_id}/replay": {
+      "post": {
+        "description": "Full pipeline replay when upload payload retained; else artifact-only guidance.",
+        "operationId": "replay_job_api_v1_logs_jobs__job_id__replay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replay Job",
+        "tags": [
+          "logs"
         ]
       }
     },
@@ -10401,6 +11129,100 @@
         ]
       }
     },
+    "/api/v1/settings/versions": {
+      "get": {
+        "description": "Append-only settings version history (ops snapshot; secrets redacted).",
+        "operationId": "settings_versions_api_v1_settings_versions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Settings Versions",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/versions/{version}": {
+      "get": {
+        "operationId": "settings_version_detail_api_v1_settings_versions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Settings Version Detail",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
     "/api/v1/version": {
       "get": {
         "operationId": "version_api_api_v1_version_get",
@@ -10515,7 +11337,7 @@
     },
     "/metrics": {
       "get": {
-        "description": "Basic metrics (admin JWT or X-Metrics-Token only).",
+        "description": "Metrics \u2014 admin JWT or X-Metrics-Token.\n\n- Default / ``?format=json`` \u2192 JSON gauges (legacy)\n- ``?format=prometheus`` or ``Accept: text/plain`` \u2192 Prometheus text exposition",
         "operationId": "metrics_metrics_get",
         "responses": {
           "200": {

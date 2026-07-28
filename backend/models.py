@@ -312,6 +312,8 @@ SECRET_SETTINGS_FIELDS = (
     "shodan_api_key",
     "cohere_api_key",
     "slack_webhook_url",
+    "audit_siem_webhook_url",
+    "job_broker_url",
 )
 
 
@@ -361,6 +363,34 @@ class Settings(BaseModel):
     # Data retention
     incident_retention_days: int = 90
     enrichment_cache_ttl_hours: int = 24
+    # —— Platform / enterprise (Admin → Settings → Platform) ——
+    # Enrichment pool + multi-file parse + TI HTTP resilience
+    max_enrich_iocs: int = 50
+    enrich_concurrency: int = 8
+    parse_concurrency: int = 4  # parallel multi-file detect_and_parse workers (1–16)
+    ti_http_timeout: float = 8.0
+    ti_http_retries: int = 2
+    ti_http_backoff_base: float = 0.4
+    ti_circuit_failures: int = 5
+    ti_circuit_cooldown_seconds: int = 60
+    # Logging
+    log_format: Literal["text", "json"] = "text"
+    log_file_format: Literal["text", "json", ""] = ""  # empty = same as log_format
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_to_file: bool = True
+    log_archive_enabled: bool = True
+    log_archive_retain_days: int = 30
+    # Jobs / replay
+    job_artifacts_enabled: bool = False
+    job_payload_retain: bool = False
+    job_artifacts_retain_hours: int = 168
+    # Audit export
+    audit_worm_enabled: bool = True
+    audit_siem_webhook_url: Optional[str] = None  # secret
+    # Optional AMQP broker
+    job_broker_enabled: bool = False
+    job_broker_url: Optional[str] = None  # secret
+    job_broker_queue: str = "actira.jobs"
 
 
 # Explicit clear sentinel for secret fields on PUT /settings (blank keeps previous).

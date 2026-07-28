@@ -31,18 +31,22 @@ export {
     DataTable,
 } from "./components";
 
-/** Tooltip prerequisite primitives — prefer these over ad-hoc title= attributes */
+/** Tooltip UI primitives — prefer these over ad-hoc title= attributes */
 export {
     HelpTip,
     Tip,
     PaneLabel,
     ActionTip,
     resolveHelpTipNode,
+} from "../components/HelpTip";
+
+/** Tooltip policy helpers live in tooltipPrerequisite (not re-exported via HelpTip — webpack ESM). */
+export {
     hasTipContent,
     helpTipPropsFrom,
     warnMissingTooltip,
     defaultTipCopy,
-} from "../components/HelpTip";
+} from "../lib/tooltipPrerequisite";
 
 export {
     IocCard,

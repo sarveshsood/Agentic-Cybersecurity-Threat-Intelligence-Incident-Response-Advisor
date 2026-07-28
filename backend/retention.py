@@ -43,7 +43,7 @@ async def purge_old_incidents(db, retention_days: int) -> int:
 
 
 async def purge_from_settings(db, settings: Optional[dict] = None) -> dict[str, Any]:
-    """Run incident purge using settings or default 90 days."""
+    """Run incident purge + log archival lifecycle using settings or defaults."""
     days = 90
     if settings:
         try:
@@ -51,4 +51,15 @@ async def purge_from_settings(db, settings: Optional[dict] = None) -> dict[str, 
         except (TypeError, ValueError):
             days = 90
     n = await purge_old_incidents(db, days)
-    return {"incident_retention_days": days, "incidents_deleted": n}
+    archival: dict[str, Any] = {}
+    try:
+        from backend.log_archival import run_archival
+
+        archival = run_archival()
+    except Exception as e:
+        archival = {"error": str(e)[:200]}
+    return {
+        "incident_retention_days": days,
+        "incidents_deleted": n,
+        "log_archival": archival,
+    }

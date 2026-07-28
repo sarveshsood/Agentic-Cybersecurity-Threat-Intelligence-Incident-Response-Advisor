@@ -115,3 +115,30 @@ async def test_slack_alert(
     user=Depends(require_roles("admin")),
 ):
     return await settings_service.test_slack(body, user)
+
+
+@router.get("/settings/versions")
+async def settings_versions(
+    limit: int = Query(50, ge=1, le=200),
+    user=Depends(require_roles("admin")),
+):
+    """Append-only settings version history (ops snapshot; secrets redacted)."""
+    from backend.database import db
+    from backend.settings_versions import list_versions
+
+    return {"items": await list_versions(db, limit=limit)}
+
+
+@router.get("/settings/versions/{version}")
+async def settings_version_detail(
+    version: int,
+    user=Depends(require_roles("admin")),
+):
+    from backend.database import db
+    from backend.settings_versions import get_version
+    from fastapi import HTTPException
+
+    row = await get_version(db, version)
+    if not row:
+        raise HTTPException(404, "Version not found")
+    return row

@@ -723,7 +723,7 @@ export default function IncidentDetail() {
 
                 {activeTab === "ti" && (
                     <div className="soc-card p-0 overflow-hidden">
-                        <div className="px-4 py-3 border-b border-border">
+                        <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
                             <PaneLabel
                                 title="Threat intelligence"
                                 body="Extracted IoCs with enrichment scores. Live TI APIs apply when keys are configured in Settings; otherwise mock/heuristic scores."
@@ -731,6 +731,36 @@ export default function IncidentDetail() {
                             >
                                 Indicators of Compromise ({inc.iocs?.length || 0})
                             </PaneLabel>
+                            {(inc.iocs?.length || 0) > 0 && (
+                                <Tip content="Re-run threat-intel enrichment on stored IoCs (partial pipeline replay)">
+                                    <button
+                                        type="button"
+                                        data-testid="replay-enrich-btn"
+                                        className="text-[11px] px-2.5 py-1 rounded border border-primary/30 bg-primary/10 text-primary font-medium hover:bg-primary/20"
+                                        onClick={async () => {
+                                            try {
+                                                const r = await api.post(
+                                                    `/incidents/${inc.id}/replay-enrich`,
+                                                );
+                                                toast.success(
+                                                    `Re-enriched ${r.data?.ioc_count ?? "?"} IoCs · score ${r.data?.threat_score ?? "—"}`,
+                                                );
+                                                // reload incident
+                                                const again = await api.get(`/incidents/${inc.id}`);
+                                                setInc(again.data);
+                                            } catch (e) {
+                                                toast.error(
+                                                    e?.userMessage ||
+                                                        e?.response?.data?.detail ||
+                                                        "Replay enrich failed",
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        Replay enrich
+                                    </button>
+                                </Tip>
+                            )}
                         </div>
                         <div className="max-h-[520px] overflow-y-auto divide-y divide-border">
                             {inc.iocs?.map((i) => (

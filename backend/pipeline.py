@@ -84,31 +84,28 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
             {"$set": {"expanded_files": [n for n, _ in expanded]}},
         )
 
-        # 2. Detect + parse every file → CES events (isolate per-file failures)
+        # 2. Detect + parse every file → CES events (bounded parallel pool)
         await update_job("extracting", 25)
         all_events = []
         per_file_meta = []
-        with trace.stage("parse", files=len(expanded)):
-            for name, data in expanded:
-                try:
-                    fmt, evts = detect_and_parse(data, name)
-                    per_file_meta.append({
-                        "file": name, "format": fmt, "events": len(evts), "size": len(data),
-                    })
-                    all_events.extend(evts)
-                except Exception as parse_err:
-                    logger.warning(
-                        "[job %s] parse failed for %s: %s",
-                        job_id, name, parse_err,
-                    )
-                    per_file_meta.append({
-                        "file": name,
-                        "format": "error",
-                        "events": 0,
-                        "size": len(data) if data is not None else 0,
-                        "error": str(parse_err)[:500],
-                    })
-        logger.info(f"[job {job_id}] parsed {len(all_events)} CES events across {len(expanded)} files")
+        try:
+            parse_pool = int(
+                settings.get("parse_concurrency")
+                or __import__("os").environ.get("PARSE_CONCURRENCY")
+                or 4
+            )
+        except (TypeError, ValueError):
+            parse_pool = 4
+        parse_pool = max(1, min(16, parse_pool))
+        with trace.stage("parse", files=len(expanded), concurrency=parse_pool):
+            parsed_rows = await _parse_all(expanded, concurrency=parse_pool)
+            for row in parsed_rows:
+                per_file_meta.append(row["meta"])
+                all_events.extend(row.get("events") or [])
+        logger.info(
+            "[job %s] parsed %s CES events across %s files (parse_concurrency=%s)",
+            job_id, len(all_events), len(expanded), parse_pool,
+        )
 
         # 3. Correlate across files (A-P1: honour correlation_window_minutes)
         await update_job("correlating", 45)
@@ -142,6 +139,29 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
         await update_job("enriching", 60)
         with trace.stage("enrich", ioc_count=len(iocs)):
             enriched = await _enrich_all(iocs, settings, db=db)
+        try:
+            from backend.job_artifacts import save_artifact
+
+            save_artifact(
+                job_id,
+                "parsed_meta",
+                {"files": per_file_meta, "event_count": len(all_events)},
+            )
+            save_artifact(
+                job_id,
+                "enriched_iocs",
+                [
+                    {
+                        "type": getattr(x, "type", None),
+                        "value": getattr(x, "value", None),
+                        "threat_score": getattr(x, "threat_score", None),
+                        "enrichment": getattr(x, "enrichment", None),
+                    }
+                    for x in (enriched or [])[:200]
+                ],
+            )
+        except Exception:
+            pass
 
         # 6. Infer ATT&CK techniques (sub-techniques + CES evidence + optional LLM refine)
         with trace.stage("attack_map"):
@@ -253,6 +273,12 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
 
         doc = to_mongo_doc(incident)
         await db.incidents.insert_one(doc)
+        try:
+            from backend.services import analytics_cache as cache
+
+            cache.invalidate("kpis:")
+        except Exception:
+            pass
 
         # Best-effort: index incident narrative into local LanceDB for similar-case search
         try:
@@ -313,10 +339,43 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
                     "hitl_severity_min": settings.get("hitl_severity_min", "critical"),
                     "files": len(expanded),
                     "pipeline_total_ms": timing.get("total_ms"),
+                    "job_id": job_id,
+                    "stages": timing.get("stages") or timing.get("by_stage"),
+                },
+            )
+            await audit_repo.insert(
+                actor={"sub": user_id or "system", "email": "system"},
+                action="pipeline.completed",
+                target_type="log_job",
+                target_id=job_id,
+                detail={
+                    "incident_id": incident.id,
+                    "status": status,
+                    "pipeline_total_ms": timing.get("total_ms"),
+                    "ioc_count": len(enriched or []),
+                    "files": len(expanded),
                 },
             )
         except Exception as audit_err:
             logger.warning("[job %s] audit insert skipped: %s", job_id, audit_err)
+        try:
+            from backend.job_artifacts import save_artifact
+
+            pb = playbook.model_dump(mode="json") if hasattr(playbook, "model_dump") else {}
+            # Never persist raw prompts/secrets — summary fields only
+            save_artifact(
+                job_id,
+                "playbook_summary",
+                {
+                    "grounding_score": pb.get("grounding_score"),
+                    "llm_provider": pb.get("llm_provider"),
+                    "llm_model": pb.get("llm_model"),
+                    "title": pb.get("title") or getattr(playbook, "title", None),
+                    "steps_count": len(pb.get("steps") or pb.get("actions") or []),
+                },
+            )
+        except Exception:
+            pass
 
         # Critical / high / HiTL → Slack + email (best-effort; never fail the job)
         try:
@@ -348,6 +407,51 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
             str(e),
             **fail_extra,
         )
+
+
+async def _parse_all(
+    files: List[Tuple[str, bytes]],
+    *,
+    concurrency: int = 4,
+) -> List[dict]:
+    """Parse uploaded files with a bounded worker pool (CPU-bound → to_thread).
+
+    Preserves input order in the returned list. Each item:
+      {"meta": {...}, "events": list}
+    Failures are isolated per file (meta.format == "error").
+    """
+    if not files:
+        return []
+    pool = max(1, min(16, int(concurrency or 4)))
+    sem = asyncio.Semaphore(pool)
+
+    async def _one(name: str, data: bytes) -> dict:
+        async with sem:
+            try:
+                fmt, evts = await asyncio.to_thread(detect_and_parse, data, name)
+                return {
+                    "meta": {
+                        "file": name,
+                        "format": fmt,
+                        "events": len(evts),
+                        "size": len(data) if data is not None else 0,
+                    },
+                    "events": list(evts or []),
+                }
+            except Exception as parse_err:
+                logger.warning("parse failed for %s: %s", name, parse_err)
+                return {
+                    "meta": {
+                        "file": name,
+                        "format": "error",
+                        "events": 0,
+                        "size": len(data) if data is not None else 0,
+                        "error": str(parse_err)[:500],
+                    },
+                    "events": [],
+                }
+
+    return list(await asyncio.gather(*[_one(n, d) for n, d in files]))
 
 
 async def _enrich_all(iocs: List[IoC], settings: dict, db=None) -> List[IoC]:
@@ -409,8 +513,27 @@ async def _enrich_all(iocs: List[IoC], settings: dict, db=None) -> List[IoC]:
 
     results_map: Dict[str, IoC] = {}
     if need:
+        import os
+        import time as _time
+
+        try:
+            pool = int(
+                settings.get("enrich_concurrency")
+                or os.environ.get("ENRICH_CONCURRENCY")
+                or 8
+            )
+        except (TypeError, ValueError):
+            pool = 8
+        pool = max(1, min(32, pool))
+        sem = asyncio.Semaphore(pool)
+        t_batch = _time.perf_counter()
+
+        async def _one(ioc: IoC) -> IoC:
+            async with sem:
+                return await asyncio.to_thread(enrich_ioc, ioc, settings)
+
         results = await asyncio.gather(
-            *[asyncio.to_thread(enrich_ioc, i, settings) for i in need],
+            *[_one(i) for i in need],
             return_exceptions=True,
         )
         for original, result in zip(need, results):
@@ -443,6 +566,16 @@ async def _enrich_all(iocs: List[IoC], settings: dict, db=None) -> List[IoC]:
                     mem_put(key, snap, ttl)
                     if db is not None:
                         await mongo_put(db, key, snap, ttl)
+        try:
+            from backend.metrics_registry import record_enrichment_batch
+
+            record_enrichment_batch(
+                len(need),
+                _time.perf_counter() - t_batch,
+                cached=len(cached_out),
+            )
+        except Exception:
+            pass
 
     # rebuild original order
     out: List[IoC] = []

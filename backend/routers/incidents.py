@@ -72,3 +72,18 @@ async def similar_incidents(
 ):
     """LanceDB ANN over incident embeddings — similar past cases (excludes self)."""
     return await incident_service.similar_incidents(incident_id, top_k=top_k)
+
+
+@router.post("/incidents/{incident_id}/replay-enrich")
+async def replay_enrich(
+    incident_id: str,
+    force_mock: bool = Query(False, description="Force mock TI (offline/deterministic)"),
+    user=Depends(get_current_user),
+):
+    """Partial pipeline replay: re-enrich stored IoCs and update threat scores."""
+    from backend.database import db
+    from backend.pipeline_replay import replay_enrich_incident
+
+    return await replay_enrich_incident(
+        db, incident_id, user, force_mock=force_mock
+    )
