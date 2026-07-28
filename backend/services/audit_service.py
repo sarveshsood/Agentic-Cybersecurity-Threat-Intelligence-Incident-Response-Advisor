@@ -81,22 +81,35 @@ async def list_audit(
     actor: Optional[str] = None,
     target_type: Optional[str] = None,
     normalize: bool = True,
-) -> List[Dict[str, Any]]:
+    include_meta: bool = False,
+):
     try:
-        rows = await audit_repo.list_filtered(
+        raw = await audit_repo.list_filtered(
             skip=skip,
             limit=limit,
             action=action,
             actor=actor,
             target_type=target_type,
             q=q,
+            with_total=include_meta,
         )
     except Exception as e:
         logger.exception("audit list failed")
         raise HTTPException(status_code=503, detail="Audit log temporarily unavailable") from e
-    if not normalize:
+    if include_meta:
+        rows, total = raw
+    else:
+        rows, total = raw, None
+    if normalize:
+        rows = [normalize_audit_row(r) for r in rows]
+    if not include_meta:
         return rows
-    return [normalize_audit_row(r) for r in rows]
+    return {
+        "items": rows,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
 
 
 async def list_audit_logs(
@@ -107,6 +120,20 @@ async def list_audit_logs(
 ) -> List[Dict[str, Any]]:
     """Compatibility shape for Audit Trail UI (GET /audit/logs)."""
     return await list_audit(skip=0, limit=limit, q=q, action=action, normalize=True)
+
+
+async def list_actions(*, limit: int = 200) -> Dict[str, Any]:
+    """Dynamic action vocabulary for Audit filter dropdowns."""
+    try:
+        actions = await audit_repo.distinct_actions(limit=limit)
+    except Exception as e:
+        logger.exception("audit distinct actions failed")
+        raise HTTPException(status_code=503, detail="Audit actions unavailable") from e
+    return {
+        "actions": actions,
+        "count": len(actions),
+        "source": "mongo_distinct",
+    }
 
 
 def _parse_ts(value: str) -> Optional[datetime]:

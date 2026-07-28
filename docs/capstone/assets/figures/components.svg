@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" fill="#F8FAFC"/>
+  <text x="40" y="42" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700">ACTIRA — Component architecture</text>
+  <text x="40" y="70" fill="#2563EB" font-family="Segoe UI, Arial, sans-serif" font-size="14">Modular monolith · dual API mounts · clear router/service/engine boundaries</text>
+
+  <!-- Frontend -->
+  <rect x="40" y="100" width="280" height="280" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="60" y="132" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">FRONTEND (React SPA)</text>
+  <rect x="60" y="150" width="240" height="40" rx="8" fill="#DBEAFE"/>
+  <text x="78" y="175" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">Pages (Dashboard…Settings)</text>
+  <rect x="60" y="200" width="240" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="78" y="225" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">api.js · Auth context · SSE</text>
+  <rect x="60" y="250" width="240" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="78" y="275" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">Design system · HelpTips</text>
+  <rect x="60" y="300" width="240" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="78" y="325" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">Theme · RBAC-aware UI</text>
+
+  <!-- API -->
+  <rect x="360" y="100" width="300" height="280" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="380" y="132" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">API (FastAPI :8001)</text>
+  <rect x="380" y="150" width="260" height="40" rx="8" fill="#DBEAFE"/>
+  <text x="398" y="175" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">/api + /api/v1 dual mounts</text>
+  <rect x="380" y="200" width="260" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="398" y="225" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">Auth · throttle · RBAC</text>
+  <rect x="380" y="250" width="260" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="398" y="275" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">Jobs · pipeline orchestration</text>
+  <rect x="380" y="300" width="260" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="398" y="325" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">Review · Hunt · Audit · Eval</text>
+
+  <!-- Engines -->
+  <rect x="700" y="100" width="460" height="280" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="720" y="132" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">ENGINES / SERVICES</text>
+  <rect x="720" y="150" width="200" height="40" rx="8" fill="#CFFAFE"/>
+  <text x="738" y="175" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">Parsers · IoC extract</text>
+  <rect x="940" y="150" width="200" height="40" rx="8" fill="#CFFAFE"/>
+  <text x="958" y="175" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">TI enrichment</text>
+  <rect x="720" y="200" width="200" height="40" rx="8" fill="#CFFAFE"/>
+  <text x="738" y="225" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">ATT&amp;CK mapping</text>
+  <rect x="940" y="200" width="200" height="40" rx="8" fill="#D1FAE5"/>
+  <text x="958" y="225" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">Hybrid RAG (RRF)</text>
+  <rect x="720" y="250" width="200" height="40" rx="8" fill="#D1FAE5"/>
+  <text x="738" y="275" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">Playbook agent</text>
+  <rect x="940" y="250" width="200" height="40" rx="8" fill="#FEF3C7"/>
+  <text x="958" y="275" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">HiTL gate</text>
+  <rect x="720" y="300" width="200" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="738" y="325" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">Secret vault</text>
+  <rect x="940" y="300" width="200" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="958" y="325" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">AI investigator SSE</text>
+
+  <!-- Data -->
+  <rect x="40" y="420" width="560" height="180" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="60" y="452" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">DATA PLANE</text>
+  <rect x="60" y="470" width="240" height="50" rx="8" fill="#DBEAFE"/>
+  <text x="78" y="500" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">MongoDB — cases, users, audit</text>
+  <rect x="320" y="470" width="240" height="50" rx="8" fill="#CFFAFE"/>
+  <text x="338" y="500" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">LanceDB — BM25 + vectors</text>
+  <rect x="60" y="535" width="500" height="40" rx="8" fill="#F1F5F9"/>
+  <text x="78" y="560" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">Job payloads / outbox · optional file evidence store</text>
+
+  <!-- External -->
+  <rect x="640" y="420" width="520" height="180" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="660" y="452" fill="#2563EB" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">EXTERNAL (OPTIONAL)</text>
+  <rect x="660" y="470" width="150" height="50" rx="8" fill="#F1F5F9"/>
+  <text x="688" y="500" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">LLM providers</text>
+  <rect x="825" y="470" width="150" height="50" rx="8" fill="#F1F5F9"/>
+  <text x="865" y="500" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">TI APIs</text>
+  <rect x="990" y="470" width="140" height="50" rx="8" fill="#F1F5F9"/>
+  <text x="1015" y="500" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">Slack/Email</text>
+  <text x="660" y="560" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">Offline path: template playbooks + mock TI (golden eval)</text>
+
+  <text x="40" y="640" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">ADR 0001: modular monolith preferred over premature microservices for pilot reliability.</text>
+  <text x="40" y="665" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">Complements SIEM/XDR dual-run pilots — does not replace Sentinel, Splunk ES, Falcon, or XSIAM.</text>
+</svg>

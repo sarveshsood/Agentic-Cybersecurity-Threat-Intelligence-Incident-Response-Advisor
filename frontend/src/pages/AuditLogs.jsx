@@ -253,15 +253,18 @@ export default function AuditLogs() {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [logs, setLogs] = useState([]);
+    const [serverTotal, setServerTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(null);
     const [summary, setSummary] = useState(null);
     const [integrity, setIntegrity] = useState(null);
+    const [dynamicActions, setDynamicActions] = useState([]);
     const [selected, setSelected] = useState(null);
 
     const [q, setQ] = useState(searchParams.get("q") || "");
     const [actionFilter, setActionFilter] = useState(searchParams.get("action") || "");
     const [page, setPage] = useState(1);
+    const [qDebounced, setQDebounced] = useState(q);
 
     const pageSize = 25;
     const compact = prefs.compact_tables;
@@ -269,34 +272,51 @@ export default function AuditLogs() {
     const initialSort = parseSortSpec(prefs.audit_default_sort) || {key: "timestamp", dir: "desc"};
     const {sorted, sort, toggleSort} = useSortableData(logs, initialSort, ACCESSORS);
 
+    // Debounce free-text so we don't hit API on every keystroke
+    useEffect(() => {
+        const t = setTimeout(() => setQDebounced(q), 300);
+        return () => clearTimeout(t);
+    }, [q]);
+
     const fetchAuditLogs = useCallback(() => {
         setLoading(true);
+        const skip = (page - 1) * pageSize;
         api
-            .get("/audit/logs", {
+            .get("/audit", {
                 params: {
-                    q: q.trim() || undefined,
+                    q: qDebounced.trim() || undefined,
                     action: actionFilter || undefined,
+                    skip,
+                    limit: pageSize,
+                    include_meta: true,
                 },
             })
             .then((r) => {
                 const dataList = Array.isArray(r.data) ? r.data : r.data?.items || [];
                 setLogs(dataList);
+                setServerTotal(
+                    typeof r.data?.total === "number" ? r.data.total : dataList.length,
+                );
                 setLoadError(null);
             })
             .catch((e) => {
                 setLogs([]);
+                setServerTotal(0);
                 setLoadError(e?.userMessage || e?.response?.data?.detail || "Could not load compliance audit logs stream.");
             })
             .finally(() => setLoading(false));
-    }, [q, actionFilter]);
+    }, [qDebounced, actionFilter, page, pageSize]);
 
     const fetchIntelligence = useCallback(() => {
         Promise.all([
             api.get("/audit/summary", {params: {days: 7}}).catch(() => null),
             api.get("/audit/integrity", {params: {sample: 100}}).catch(() => null),
-        ]).then(([sumRes, intRes]) => {
+            api.get("/audit/actions", {params: {limit: 200}}).catch(() => null),
+        ]).then(([sumRes, intRes, actRes]) => {
             setSummary(sumRes?.data || null);
             setIntegrity(intRes?.data || null);
+            const acts = actRes?.data?.actions;
+            setDynamicActions(Array.isArray(acts) ? acts.filter(Boolean) : []);
         });
     }, []);
 
@@ -318,6 +338,7 @@ export default function AuditLogs() {
 
     const handleSearchChange = (val) => {
         setQ(val);
+        setPage(1);
         const nextParams = new URLSearchParams(searchParams);
         if (val.trim()) {
             nextParams.set("q", val.trim());
@@ -327,52 +348,38 @@ export default function AuditLogs() {
         setSearchParams(nextParams, {replace: true});
     };
 
-    const filtered = useMemo(() => {
-        let list = [...sorted];
-        if (actionFilter) {
-            list = list.filter((item) => (item.action || "").toLowerCase() === actionFilter.toLowerCase());
-        }
-        const needle = q.trim().toLowerCase();
-        if (needle) {
-            list = list.filter((item) => {
-                const hay = [
-                    item.incident_id,
-                    item.id,
-                    item.action,
-                    item.analyst,
-                    item.user_id,
-                    item.comment,
-                    item.entry_hash,
-                    item.target_id,
-                    item.target_type,
-                ]
-                    .join(" ")
-                    .toLowerCase();
-                return hay.includes(needle);
-            });
-        }
+    // Server already filters; client sort only on current page
+    const pageRows = sorted;
 
-        list.sort((a, b) => {
-            if (!sort?.key) return 0;
-            const valA = ACCESSORS[sort.key] ? ACCESSORS[sort.key](a) : 0;
-            const valB = ACCESSORS[sort.key] ? ACCESSORS[sort.key](b) : 0;
-            if (valA !== valB) {
-                return sort.dir === "asc" ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
-            }
-            return (a.incident_id || "").localeCompare(b.incident_id || "");
-        });
-
-        return list;
-    }, [sorted, actionFilter, q, sort]);
+    // Dynamic actions: Mongo distinct → summary top actions → static fallback
+    const actionOptions = useMemo(() => {
+        const raw = summary?.by_action;
+        let fromSum = [];
+        if (Array.isArray(raw)) {
+            fromSum = raw.map((x) =>
+                typeof x === "string" ? x : x?.action || x?.key || (Array.isArray(x) ? x[0] : null),
+            ).filter(Boolean);
+        } else if (raw && typeof raw === "object") {
+            fromSum = Object.keys(raw);
+        }
+        const fallback = [
+            "review.approve",
+            "review.reject",
+            "incident.created",
+            "settings.update",
+            "workspace.note.create",
+            "kb.ingest",
+            "kb.delete",
+            "client_event",
+        ];
+        const set = new Set([...dynamicActions, ...fromSum, ...fallback]);
+        if (actionFilter) set.add(actionFilter);
+        return Array.from(set).sort();
+    }, [dynamicActions, summary, actionFilter]);
 
     useEffect(() => {
         setPage(1);
-    }, [q, actionFilter, sort?.key, sort?.dir]);
-
-    const pageRows = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return filtered.slice(start, start + pageSize);
-    }, [filtered, page, pageSize]);
+    }, [qDebounced, actionFilter]);
 
     const exportAuditCsv = () => {
         const headers = [
@@ -386,7 +393,7 @@ export default function AuditLogs() {
             "target_type",
             "target_id",
         ];
-        const rows = filtered.map((item) => [
+        const rows = pageRows.map((item) => [
             formatDateTime(item.timestamp || item.created_at),
             item.incident_id || item.id || "—",
             item.action || "—",
@@ -398,7 +405,7 @@ export default function AuditLogs() {
             item.target_id || "",
         ]);
         downloadCsv(`actira-compliance-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
-        toast.success(`Exported ${rows.length} compliance audit record(s).`);
+        toast.success(`Exported ${rows.length} compliance audit record(s) (current page).`);
     };
 
     const clearFilters = () => {
@@ -441,9 +448,9 @@ export default function AuditLogs() {
                 }
                 subtitle={
                     <>
-                        Showing {filtered.length} record{filtered.length === 1 ? "" : "s"}
-                        {logs.length !== filtered.length ? ` (filtered from ${logs.length} total)` : ""}.
-                        {" "}Click a row to inspect hashes and detail JSON.
+                        Page {page}: {pageRows.length} row{pageRows.length === 1 ? "" : "s"}
+                        {serverTotal != null ? ` · ${serverTotal} total matching` : ""}.
+                        {" "}Server-paged · hash-chained (not WORM). Click a row to inspect.
                     </>
                 }
                 actions={
@@ -452,7 +459,7 @@ export default function AuditLogs() {
                             type="button"
                             data-testid="audit-export-btn"
                             onClick={exportAuditCsv}
-                            disabled={!filtered.length || loading}
+                            disabled={!pageRows.length || loading}
                             className="soc-btn-secondary !text-xs !px-3 !py-1.5 !h-8 disabled:opacity-50"
                         >
                             <DownloadSimple size={14}/>
@@ -522,7 +529,7 @@ export default function AuditLogs() {
                         onChange={(e) => handleSearchChange(e.target.value)}
                         placeholder="Search ID, comment, analyst, hash…"
                         className="bg-background border border-border pl-7 pr-3 py-1.5 rounded w-full text-xs focus:ring-1 focus:ring-primary outline-none"
-                        title="Client-side filter over loaded rows (ID, action, actor, comment, hash)"
+                        title="Server-side search (ID, action, actor, comment, hash) — debounced"
                     />
                 </div>
 
@@ -531,21 +538,19 @@ export default function AuditLogs() {
                     value={actionFilter}
                     onChange={(e) => {
                         setActionFilter(e.target.value);
+                        setPage(1);
                         const next = new URLSearchParams(searchParams);
                         if (e.target.value) next.set("action", e.target.value);
                         else next.delete("action");
                         setSearchParams(next, {replace: true});
                     }}
                     className="bg-background border border-border px-2.5 py-1.5 rounded text-xs"
-                    title="Filter by audit action (review.approve, incident.created, …)"
+                    title="Filter by audit action (dynamic from 7d summary + common actions)"
                 >
                     <option value="">All actions</option>
-                    <option value="review.approve">review.approve</option>
-                    <option value="review.reject">review.reject</option>
-                    <option value="incident.created">incident.created</option>
-                    <option value="settings.update">settings.update</option>
-                    <option value="approve">approve (legacy)</option>
-                    <option value="reject">reject (legacy)</option>
+                    {actionOptions.map((a) => (
+                        <option key={a} value={a}>{a}</option>
+                    ))}
                 </select>
 
                 {(q || actionFilter) && (
@@ -564,17 +569,17 @@ export default function AuditLogs() {
                 <ListState variant="error" testid="audit-load-error" message={loadError}/>
             )}
             {loading && (
-                <ListState variant="loading" testid="audit-loading" message="Loading immutable audit records…"/>
+                <ListState variant="loading" testid="audit-loading" message="Loading audit records…"/>
             )}
-            {!loading && !loadError && filtered.length === 0 && (
+            {!loading && !loadError && pageRows.length === 0 && (
                 <ListState
                     variant="empty"
                     testid="audit-empty"
-                    message={logs.length ? "No audit records match your filters." : "No review actions recorded in the audit trail yet."}
+                    message={serverTotal ? "No audit records on this page." : "No audit records match your filters (or trail is empty)."}
                 />
             )}
 
-            {!loading && !loadError && filtered.length > 0 && (
+            {!loading && !loadError && pageRows.length > 0 && (
                 <div
                     className="soc-card overflow-hidden p-0 w-full flex-1 flex flex-col border border-border rounded-lg shadow-sm bg-card">
                     <DataTable
@@ -657,7 +662,7 @@ export default function AuditLogs() {
                         <PaginationBar
                             page={page}
                             pageSize={pageSize}
-                            total={filtered.length}
+                            total={serverTotal}
                             onPageChange={setPage}
                             testid="audit-pagination"
                         />

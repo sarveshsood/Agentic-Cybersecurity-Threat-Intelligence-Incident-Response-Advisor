@@ -25,6 +25,8 @@ An **AI-powered SOC operations platform** that runs the full incident lifecycle�
 
 **Claim carefully:** workflow and investigation parity for capstone and pilot demos—not feature-for-feature parity with hyperscale SIEMs.
 
+**Binding non-claims catalog:** [`docs/product/PRODUCT_HONESTY.md`](./PRODUCT_HONESTY.md) (Hunt ≠ SIEM, compliance ≠ certification, hash embedder default, audit ≠ WORM, pipeline ≠ LangGraph swarm product).
+
 ---
 
 ## Personas

@@ -22,11 +22,23 @@ async def run_hunt(
     if len(q) > 500:
         raise HTTPException(400, "query too long (max 500 characters)")
 
-    # Pull a working set (newest first); hunt scores in-process for MVP
+    # Working set (newest first); score in-process. Cap is honesty-surfaced as total_candidates.
     pool = await incidents_repo.list_filtered(
         status=status,
         severity=severity,
         skip=0,
-        limit=200,
+        limit=500,
     )
-    return hunt_incidents(pool, q, limit=limit)
+    out = hunt_incidents(pool, q, limit=limit)
+    # Honesty fields for UI (pool may be smaller than 500 when corpus is small)
+    if isinstance(out, dict):
+        out.setdefault("pool_limit", 500)
+        out.setdefault("pool_filters", {
+            "severity": severity or None,
+            "status": status or None,
+        })
+        out["honesty"] = (
+            "Scores newest up to 500 incidents matching optional severity/status filters — "
+            "not a full SIEM log-lake search."
+        )
+    return out

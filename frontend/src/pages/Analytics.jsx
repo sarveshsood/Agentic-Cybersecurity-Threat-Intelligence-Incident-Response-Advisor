@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useState} from "react";
+import {Link} from "react-router-dom";
 import {api} from "../lib/api";
 import {
     Area,
@@ -203,7 +204,7 @@ function ChipList({ids, empty = "—"}) {
     );
 }
 
-function TopTable({title, items, icon: Icon, accent, testid, helpKey}) {
+function TopTable({title, items, icon: Icon, accent, testid, helpKey, linkFor}) {
     const colorMap = {
         primary: "text-primary",
         info: "text-primary",
@@ -228,12 +229,24 @@ function TopTable({title, items, icon: Icon, accent, testid, helpKey}) {
                 <div className="text-xs text-muted-foreground text-center py-4">No data</div>
             ) : (
                 <div className="space-y-1.5">
-                    {items.slice(0, 8).map((e, i) => (
-                        <div key={`${e.value}-${i}`} className="flex items-center justify-between text-[11px] gap-2">
+                    {items.slice(0, 8).map((e, i) => {
+                        const href = linkFor ? linkFor(e) : null;
+                        const label = (
                             <span className="soc-mono text-foreground/90 truncate">{e.value}</span>
-                            <span className={`font-mono ${colorMap[accent]}`}>{e.count}</span>
-                        </div>
-                    ))}
+                        );
+                        return (
+                            <div key={`${e.value}-${i}`} className="flex items-center justify-between text-[11px] gap-2">
+                                {href ? (
+                                    <Link to={href} className="text-primary hover:underline truncate min-w-0">
+                                        {label}
+                                    </Link>
+                                ) : (
+                                    label
+                                )}
+                                <span className={`font-mono ${colorMap[accent]}`}>{e.count}</span>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -254,12 +267,15 @@ export default function Analytics() {
     const [retrievalBusy, setRetrievalBusy] = useState(false);
     const [topK, setTopK] = useState(5);
     const [showRetrievalPanel, setShowRetrievalPanel] = useState(showRetrieval);
+    const [forceRefresh, setForceRefresh] = useState(0);
 
     useEffect(() => {
         setLoading(true);
         setLoadError(null);
+        const params = {window_days: days};
+        if (forceRefresh > 0) params.force_refresh = true;
         api
-            .get(`/analytics?window_days=${days}`)
+            .get("/analytics", {params})
             .then((r) => {
                 setData(r.data);
                 setLoadError(null);
@@ -269,7 +285,7 @@ export default function Analytics() {
                 setLoadError(e?.userMessage || e?.response?.data?.detail || e?.message || "Analytics unavailable");
             })
             .finally(() => setLoading(false));
-    }, [days]);
+    }, [days, forceRefresh]);
 
     const loadRetrievalCompare = () => {
         setRetrievalBusy(true);
@@ -310,7 +326,16 @@ export default function Analytics() {
             const payload = JSON.stringify({
                 window_days: days,
                 totals: data?.totals,
-                timestamp: new Date().toISOString()
+                timeline: data?.timeline || [],
+                by_severity: data?.by_severity || data?.severity || null,
+                by_status: data?.by_status || data?.status || null,
+                top_techniques: data?.top_techniques || data?.techniques || [],
+                top_ips: data?.top_ips || data?.top_source_ips || [],
+                top_domains: data?.top_domains || [],
+                top_hashes: data?.top_hashes || [],
+                engine: data?.engine,
+                cache: data?.cache,
+                timestamp: new Date().toISOString(),
             }, null, 2);
             const blob = new Blob([payload], {type: "application/json"});
             const url = URL.createObjectURL(blob);
@@ -319,7 +344,7 @@ export default function Analytics() {
             link.download = `soc-analytics-executive-report-${days}d.json`;
             link.click();
             URL.revokeObjectURL(url);
-            toast.success("Executive telemetry package exported successfully.");
+            toast.success("Analytics export (totals + timeline + tops) ready.");
         } catch {
             toast.error("Failed to export telemetry snapshot.");
         }
@@ -397,9 +422,19 @@ export default function Analytics() {
                         )}
                         <button
                             type="button"
+                            onClick={() => setForceRefresh((n) => n + 1)}
+                            className="soc-btn-ghost !text-xs !px-3 !py-1.5 !h-8"
+                            title="Bypass analytics cache (force_refresh=true)"
+                            data-testid="analytics-force-refresh"
+                        >
+                            Refresh now
+                        </button>
+                        <button
+                            type="button"
                             onClick={exportAnalyticsReport}
                             className="soc-btn-secondary !text-xs !px-3 !py-1.5 !h-8 flex items-center gap-1"
-                            title="Download executive JSON compliance snapshot"
+                            title="Download analytics JSON (totals, timeline, tops)"
+                            data-testid="analytics-export-btn"
                         >
                             <DownloadSimple size={14}/>
                             Export Snapshot
@@ -440,7 +475,12 @@ export default function Analytics() {
                     </div>
                     <ShieldCheck size={22} className="text-primary/80"/>
                 </div>
-                <div className="soc-card p-3 flex items-center justify-between border-l-4 border-l-warning bg-card">
+                <Link
+                    to="/incidents?status=pending_review"
+                    className="soc-card p-3 flex items-center justify-between border-l-4 border-l-warning bg-card hover:bg-muted/30 transition-colors"
+                    data-testid="analytics-drill-hitl"
+                    title="Open incidents pending HiTL review"
+                >
                     <div>
                         <div className="text-[10px] uppercase font-mono text-muted-foreground">Queue Pressure (HiTL)
                         </div>
@@ -449,15 +489,20 @@ export default function Analytics() {
                         </div>
                     </div>
                     <Warning size={22} className="text-warning/80"/>
-                </div>
-                <div className="soc-card p-3 flex items-center justify-between border-l-4 border-l-destructive bg-card">
+                </Link>
+                <Link
+                    to="/incidents?severity=critical"
+                    className="soc-card p-3 flex items-center justify-between border-l-4 border-l-destructive bg-card hover:bg-muted/30 transition-colors"
+                    data-testid="analytics-drill-critical"
+                    title="Open critical-severity incidents"
+                >
                     <div>
                         <div className="text-[10px] uppercase font-mono text-muted-foreground">Critical Exposure Ratio
                         </div>
                         <div className="text-lg font-mono font-bold text-error mt-0.5">{critPct}% of Total Volume</div>
                     </div>
                     <TrendUp size={22} className="text-error/80"/>
-                </div>
+                </Link>
             </div>
 
             {/* Retrieval comparison — BM25 vs LanceDB hybrid */}
@@ -866,15 +911,89 @@ export default function Analytics() {
                 </Card>
             )}
 
-            {/* Row 3: Top-N tables */}
+            {/* Row 3: Top-N tables — drill-through to Hunt / Incidents */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <TopTable testid="top-ips" title="Top source IPs" icon={Globe} items={data.top_source_ips}
-                          accent="primary" helpKey="top_ips"/>
-                <TopTable testid="top-domains" title="Top domains" icon={Globe} items={data.top_domains}
-                          accent="primary" helpKey="top_domains"/>
-                <TopTable testid="top-hashes" title="Top file hashes" icon={Fingerprint} items={data.top_hashes}
-                          accent="error" helpKey="top_hashes"/>
+                <TopTable
+                    testid="top-ips"
+                    title="Top source IPs"
+                    icon={Globe}
+                    items={data.top_source_ips}
+                    accent="primary"
+                    helpKey="top_ips"
+                    linkFor={(e) => `/hunt?q=${encodeURIComponent(String(e.value || ""))}`}
+                />
+                <TopTable
+                    testid="top-domains"
+                    title="Top domains"
+                    icon={Globe}
+                    items={data.top_domains}
+                    accent="primary"
+                    helpKey="top_domains"
+                    linkFor={(e) => `/hunt?q=${encodeURIComponent(String(e.value || ""))}`}
+                />
+                <TopTable
+                    testid="top-hashes"
+                    title="Top file hashes"
+                    icon={Fingerprint}
+                    items={data.top_hashes}
+                    accent="error"
+                    helpKey="top_hashes"
+                    linkFor={(e) => `/hunt?q=${encodeURIComponent(String(e.value || ""))}`}
+                />
             </div>
+
+            {/* Cache honesty footer — short-lived in-process cache, not live stream */}
+            {(() => {
+                const cm = data.cache_meta || {};
+                const status = cm.status || data.cache || "unknown";
+                const ttl = cm.ttl_seconds;
+                const age = cm.age_seconds;
+                const expiresIn = cm.expires_in_seconds;
+                const isHit = status === "hit";
+                return (
+                    <footer
+                        className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground font-mono"
+                        data-testid="analytics-cache-footer"
+                        role="status"
+                    >
+                        <span
+                            className={`inline-flex items-center gap-1.5 font-semibold ${
+                                isHit ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"
+                            }`}
+                        >
+                            <span
+                                className={`w-1.5 h-1.5 rounded-full ${isHit ? "bg-amber-500" : "bg-emerald-500"}`}
+                                aria-hidden
+                            />
+                            {isHit ? "Served from cache" : "Fresh compute (cache miss)"}
+                        </span>
+                        <span aria-hidden>·</span>
+                        <span>status={status}</span>
+                        {ttl != null && (
+                            <>
+                                <span aria-hidden>·</span>
+                                <span>TTL {ttl}s</span>
+                            </>
+                        )}
+                        {age != null && isHit && (
+                            <>
+                                <span aria-hidden>·</span>
+                                <span>age ~{age}s</span>
+                            </>
+                        )}
+                        {expiresIn != null && isHit && (
+                            <>
+                                <span aria-hidden>·</span>
+                                <span>expires in ~{expiresIn}s</span>
+                            </>
+                        )}
+                        <span aria-hidden>·</span>
+                        <span className="text-muted-foreground/90 normal-case font-sans">
+                            In-process only — not a live SIEM stream. Use <strong className="font-semibold">Refresh now</strong> to bypass.
+                        </span>
+                    </footer>
+                );
+            })()}
         </div>
     );
 }

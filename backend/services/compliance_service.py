@@ -78,6 +78,46 @@ def collect_evidence(settings: Optional[dict] = None) -> Dict[str, bool]:
     }
 
 
+# Evidence keys probed at request time (Mongo / live APIs).
+LIVE_VERIFIED_KEYS = frozenset({"audit_integrity", "golden_eval_pass"})
+# Evidence keys derived from env / settings (not product always-true assumptions).
+ENV_CHECKED_KEYS = frozenset(
+    {
+        "oidc_configured",
+        "register_policy",
+        "secret_vault",
+        "otel_or_metrics",
+        "llm_redact",
+        "llm_budget",
+    }
+)
+
+
+def evidence_key_provenance(key: str) -> str:
+    """Classify a single evidence key: verified | env | assumed."""
+    if key in LIVE_VERIFIED_KEYS:
+        return "verified"
+    if key in ENV_CHECKED_KEYS:
+        return "env"
+    return "assumed"
+
+
+def control_verification(keys: List[str]) -> str:
+    """Aggregate provenance for a control: verified | env | assumed | mixed.
+
+    - verified: all keys live-probed (audit integrity / golden last run)
+    - env: all keys config/env-checked
+    - assumed: all keys product always-on assumptions (no live probe)
+    - mixed: combination of the above
+    """
+    if not keys:
+        return "assumed"
+    kinds = {evidence_key_provenance(k) for k in keys}
+    if len(kinds) == 1:
+        return next(iter(kinds))
+    return "mixed"
+
+
 async def apply_live_evidence(evidence: Dict[str, bool]) -> Dict[str, Any]:
     """Enrich evidence flags from Mongo audit integrity + last golden run.
 
@@ -127,9 +167,10 @@ async def apply_live_evidence(evidence: Dict[str, bool]) -> Dict[str, Any]:
 
 
 def _eval_control(control: dict, evidence: Dict[str, bool]) -> Dict[str, Any]:
-    keys = control.get("evidence_keys") or []
+    keys = list(control.get("evidence_keys") or [])
     missing = [k for k in keys if not evidence.get(k)]
     passed = len(missing) == 0
+    verification = control_verification(keys)
     return {
         "id": control["id"],
         "framework": control["framework"],
@@ -140,6 +181,13 @@ def _eval_control(control: dict, evidence: Dict[str, bool]) -> Dict[str, Any]:
         "evidence_keys": keys,
         "missing_evidence": missing,
         "remediation": control.get("remediation") or "",
+        "verification": verification,
+        "verification_label": {
+            "verified": "Live verified",
+            "env": "Config-checked",
+            "assumed": "Assumed",
+            "mixed": "Mixed",
+        }.get(verification, verification),
     }
 
 
@@ -211,6 +259,18 @@ def _evaluate_from_evidence(
         else "Critical gaps"
     )
 
+    verification_summary: Dict[str, int] = {
+        "assumed": 0,
+        "env": 0,
+        "verified": 0,
+        "mixed": 0,
+    }
+    for r in results:
+        k = r.get("verification") or "assumed"
+        if k not in verification_summary:
+            verification_summary[k] = 0
+        verification_summary[k] += 1
+
     out = {
         "score": overall,
         "readiness": readiness,
@@ -220,12 +280,20 @@ def _evaluate_from_evidence(
         "gaps": gaps,
         "gap_count": len(gaps),
         "evidence": evidence,
+        "verification_summary": verification_summary,
+        "verification_legend": {
+            "assumed": "Product capability assumed present (no live probe this request).",
+            "env": "Checked against process env / settings at runtime.",
+            "verified": "Live-probed this request (audit chain sample and/or golden last run).",
+            "mixed": "Control mixes assumed, env, and/or live-verified evidence keys.",
+        },
         "disclaimer": (
             "Product-alignment score for ACTIRA runtime controls mapped to ISO / "
             "SOC 2 / NIST CSF / CIS-style catalog items — not a formal ISO, SOC 2, "
             "NIST, CIS, or other third-party certification. Gaps and evidence packs "
             "support pilot GRC conversations only; engage an accredited auditor for "
-            "certification."
+            "certification. Most controls are assumed product features; only a subset "
+            "are live-verified or config-checked each request."
         ),
         "last_audit": datetime.now(timezone.utc).isoformat(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -275,6 +343,8 @@ async def status_live(settings: Optional[dict] = None) -> Dict[str, Any]:
         "disclaimer": full["disclaimer"],
         "last_audit": full["last_audit"],
         "live_signals": full.get("live_signals") or {},
+        "verification_summary": full.get("verification_summary") or {},
+        "verification_legend": full.get("verification_legend") or {},
     }
 
 
@@ -305,6 +375,8 @@ async def gaps_live(settings: Optional[dict] = None) -> Dict[str, Any]:
         "score": full["score"],
         "gap_count": full["gap_count"],
         "gaps": full["gaps"],
+        "verification_summary": full.get("verification_summary") or {},
+        "verification_legend": full.get("verification_legend") or {},
         "remediation_priority": [
             {
                 "id": g["id"],
