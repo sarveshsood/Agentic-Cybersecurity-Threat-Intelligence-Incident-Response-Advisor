@@ -21,6 +21,8 @@ import {groupNav, navForRole} from "../constants/nav";
 import {countLiveIntel, liveIntelLabels, TI_HAS_FLAGS, TI_PROVIDERS,} from "../constants/threatIntel";
 import {Tip} from "./HelpTip";
 import CommandPalette from "./CommandPalette";
+import {NotificationBell} from "./collab/NotificationCenter";
+import {isFeatureEnabled} from "../lib/features";
 import {formatDateTime, loadUiPrefs, saveRoutePrefs} from "../lib/uiPrefs";
 import {cn} from "../lib/utils";
 
@@ -516,6 +518,9 @@ export default function Layout({children}) {
                         aria-label="Platform status"
                     >
                         <CommandPalette shortcutLabel={isMac ? "⌘K" : "Ctrl+K"}/>
+                        {isFeatureEnabled("notification_center") && (
+                            <NotificationBell className="shrink-0"/>
+                        )}
 
                         <StatusChip
                             testid="llm-active-badge"

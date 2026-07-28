@@ -609,6 +609,26 @@ async def mark_queue_done(db, job_id: str, *, failed: bool = False) -> None:
             }
         },
     )
+    # H-07: in-app inbox for job owner (best-effort; flag-gated inside emit)
+    try:
+        job = await db.log_jobs.find_one(
+            {"id": job_id},
+            {"_id": 0, "created_by": 1, "filename": 1, "status": 1},
+        )
+        owner = (job or {}).get("created_by")
+        if owner:
+            from backend.services.notification_inbox_service import emit
+
+            await emit(
+                user_id=str(owner),
+                kind="job_failed" if failed else "job_done",
+                title="Pipeline job failed" if failed else "Pipeline job completed",
+                body=(job or {}).get("filename") or job_id,
+                actor_id=None,
+                meta={"job_id": job_id},
+            )
+    except Exception:
+        pass
     # Retain upload bytes when operators want full re-queue replay
     retain = (os.environ.get("JOB_PAYLOAD_RETAIN") or "").strip().lower() in (
         "1",

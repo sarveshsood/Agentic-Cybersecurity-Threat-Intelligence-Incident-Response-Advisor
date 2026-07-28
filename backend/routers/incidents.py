@@ -19,6 +19,14 @@ async def list_incidents(
         None,
         description="Filter by ATT&CK technique or parent (e.g. T1110 or T1110.003)",
     ),
+    assignee: Optional[str] = Query(
+        None,
+        description="H-07: me | user_id — matches primary or secondary assignee",
+    ),
+    unassigned: bool = Query(
+        False,
+        description="H-07: both primary and secondary empty",
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     include_meta: bool = Query(
@@ -31,6 +39,9 @@ async def list_incidents(
         status=status,
         severity=severity,
         technique=technique,
+        assignee=assignee,
+        unassigned=unassigned,
+        current_user_sub=user.get("sub") or user.get("id"),
         skip=skip,
         limit=limit,
         include_meta=include_meta,

@@ -29,6 +29,22 @@ async def purge_old_incidents(db, retention_days: int) -> int:
 
     cutoff = retention_cutoff_iso(days)
     try:
+        # Cascade H-07 comments + inbox for incidents about to be purged
+        try:
+            old_docs = await db.incidents.find(
+                {"created_at": {"$lt": cutoff}},
+                {"_id": 0, "id": 1},
+            ).to_list(50_000)
+            old_ids = [d["id"] for d in old_docs if d.get("id")]
+            if old_ids:
+                from backend.repositories.comments import comments_repo
+                from backend.repositories.app_notifications import app_notifications_repo
+
+                await comments_repo.delete_for_incidents(old_ids)
+                await app_notifications_repo.delete_for_incidents(old_ids)
+        except Exception as ce:
+            logger.warning("collab cascade before purge failed: %s", ce)
+
         result = await db.incidents.delete_many({"created_at": {"$lt": cutoff}})
         n = int(getattr(result, "deleted_count", 0) or 0)
         if n:

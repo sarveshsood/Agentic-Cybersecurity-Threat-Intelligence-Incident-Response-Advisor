@@ -43,7 +43,7 @@
 | Multi-agent roster UX        | Roadmap (v1.7 Wave D) |
 | Global API rate limit        | Roadmap (tech enhancement) |
 | Server-side incident pagination | Yes (`include_meta` + skip/limit + total) |
-| Assign / comments / in-app inbox | Roadmap H-07 — design + **PR-1 feature flags** (`GET /meta/features`, flags default off) |
-| Saved filters / favorites / pins | Roadmap H-08 — design + same feature-flag snapshot (implementation later) |
+| Assign / comments / in-app inbox | **Yes (v2)** — H-07 implemented behind `FEATURE_*` flags (`GET /meta/features`, default off) |
+| Saved filters / favorites / pins | **Yes (v2)** — H-08 saved filters + pins behind `FEATURE_SAVED_FILTERS` / `FEATURE_PINS` |
 | SIEM/XDR connectors          | Future                         |
 | Multi-tenant                 | Future (v2.0)                  |

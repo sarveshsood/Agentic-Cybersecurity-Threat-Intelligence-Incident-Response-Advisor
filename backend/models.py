@@ -262,6 +262,16 @@ class Incident(BaseModel):
     correlation: Optional[Dict[str, Any]] = None
     files_meta: List[Dict[str, Any]] = []
     workspace: Optional[Workspace] = None
+    # H-07 assignment (optional; old docs valid with extra="ignore")
+    assignee_id: Optional[str] = None
+    assignee_email: Optional[str] = None
+    secondary_assignee_id: Optional[str] = None
+    secondary_assignee_email: Optional[str] = None
+    due_at: Optional[datetime] = None
+    sla_hint_hours: Optional[int] = Field(None, ge=1, le=720)
+    assigned_at: Optional[datetime] = None
+    assigned_by_id: Optional[str] = None
+    org_id: Optional[str] = None
 
 
 # ---------- Log Jobs ----------
@@ -395,6 +405,51 @@ class Settings(BaseModel):
 
 # Explicit clear sentinel for secret fields on PUT /settings (blank keeps previous).
 SETTINGS_CLEAR_SENTINEL = "__CLEAR__"
+
+
+# ---------- H-07 / H-08 Collaboration & Productivity ----------
+class AssignmentUpdate(BaseModel):
+    """Partial assignment PATCH. Service uses model_dump(exclude_unset=True)."""
+    model_config = ConfigDict(extra="ignore")
+    assignee_id: Optional[str] = None
+    secondary_assignee_id: Optional[str] = None
+    due_at: Optional[datetime] = None
+    sla_hint_hours: Optional[int] = Field(None, ge=1, le=720)
+    clear_due: bool = False
+    clear_sla_hint: bool = False
+
+
+class IncidentCommentCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(..., min_length=1, max_length=8000)
+    parent_id: Optional[str] = None  # root only (depth ≤ 1)
+
+
+class IncidentCommentUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(..., min_length=1, max_length=8000)
+
+
+class SavedFilterCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str = Field(..., min_length=1, max_length=80)
+    page: Literal["incidents", "review", "hunt"] = "incidents"
+    filter: Dict[str, Any] = Field(default_factory=dict)
+    is_default: bool = False
+
+
+class SavedFilterUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: Optional[str] = Field(None, min_length=1, max_length=80)
+    filter: Optional[Dict[str, Any]] = None
+    is_default: Optional[bool] = None
+
+
+class UserPinCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    target_type: Literal["incident", "saved_filter", "workspace_tab"]
+    target_id: str = Field(..., min_length=1, max_length=120)
+    label: Optional[str] = Field(None, max_length=200)
 
 
 # ---------- Review Actions ----------

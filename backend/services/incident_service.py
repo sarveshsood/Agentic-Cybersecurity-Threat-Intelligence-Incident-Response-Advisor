@@ -14,6 +14,9 @@ async def list_incidents(
     status: Optional[str] = None,
     severity: Optional[str] = None,
     technique: Optional[str] = None,
+    assignee: Optional[str] = None,
+    unassigned: bool = False,
+    current_user_sub: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
     include_meta: bool = False,
@@ -23,6 +26,9 @@ async def list_incidents(
         status=status,
         severity=severity,
         technique=technique,
+        assignee=assignee,
+        unassigned=unassigned,
+        current_user_sub=current_user_sub,
         skip=skip,
         limit=limit,
     )
@@ -32,6 +38,9 @@ async def list_incidents(
         status=status,
         severity=severity,
         technique=technique,
+        assignee=assignee,
+        unassigned=unassigned,
+        current_user_sub=current_user_sub,
     )
     return {
         "items": items,

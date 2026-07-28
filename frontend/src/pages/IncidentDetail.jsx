@@ -29,6 +29,10 @@ import {PageHeader} from "../design-system";
 import {HelpTip, PaneLabel, Tip} from "../components/HelpTip";
 import {pushRecentIncident} from "../lib/recentActivity";
 import {formatDateTime} from "../lib/uiPrefs";
+import {isFeatureEnabled} from "../lib/features";
+import AssignPanel from "../components/collab/AssignPanel";
+import CommentsPanel from "../components/collab/CommentsPanel";
+import PinButton from "../components/collab/PinButton";
 
 const PHASE_META = {
     containment: {color: "text-warning border-[var(--warning-border)] bg-warning-soft", label: "Containment"},
@@ -342,6 +346,9 @@ export default function IncidentDetail() {
                 }
                 actions={
                     <div className="flex items-center gap-3">
+                        {isFeatureEnabled("pins") && (
+                            <PinButton targetType="incident" targetId={inc.id} label={inc.title}/>
+                        )}
                         <Tip content="Reload this incident from the server">
                             <button
                                 type="button"
@@ -425,6 +432,16 @@ export default function IncidentDetail() {
             <WorkspaceTabs active={activeTab} onChange={setActiveTab}/>
 
             <div className="pt-4 space-y-6" data-testid={`workspace-panel-${activeTab}`}>
+                {activeTab === "case" && (isFeatureEnabled("collab_assign") || isFeatureEnabled("collab_comments")) && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-testid="collab-case-row">
+                        {isFeatureEnabled("collab_assign") && (
+                            <AssignPanel incident={inc} onUpdated={(d) => setInc((prev) => ({...prev, ...d}))}/>
+                        )}
+                        {isFeatureEnabled("collab_comments") && (
+                            <CommentsPanel incidentId={inc.id}/>
+                        )}
+                    </div>
+                )}
                 {/* HiTL always available on Case / Playbooks when pending */}
                 {canReview && (activeTab === "case" || activeTab === "playbooks") && (
                     <div className="soc-card p-4 border border-[var(--warning-border)]" data-testid="hitl-panel">

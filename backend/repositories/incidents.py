@@ -28,20 +28,75 @@ class IncidentRepository:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         technique: Optional[str] = None,
+        assignee: Optional[str] = None,
+        unassigned: bool = False,
+        current_user_sub: Optional[str] = None,
     ) -> Dict[str, Any]:
-        query: Dict[str, Any] = {}
+        """Compose list filters with ``$and`` so technique/assignee ``$or`` never stomp."""
+        and_terms: List[Dict[str, Any]] = []
         if status:
-            query["status"] = status
+            and_terms.append({"status": status})
         if severity:
-            query["severity"] = severity
+            and_terms.append({"severity": severity})
         if technique:
             tid = technique.strip().upper()
-            query["$or"] = [
-                {"techniques.technique_id": tid},
-                {"techniques.parent_id": tid},
-                {"techniques.technique_id": {"$regex": f"^{re.escape(tid)}\\."}},
-            ]
-        return query
+            and_terms.append(
+                {
+                    "$or": [
+                        {"techniques.technique_id": tid},
+                        {"techniques.parent_id": tid},
+                        {
+                            "techniques.technique_id": {
+                                "$regex": f"^{re.escape(tid)}\\."
+                            }
+                        },
+                    ]
+                }
+            )
+        if unassigned:
+            # BOTH primary and secondary empty
+            and_terms.append(
+                {
+                    "$and": [
+                        {
+                            "$or": [
+                                {"assignee_id": {"$exists": False}},
+                                {"assignee_id": None},
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"secondary_assignee_id": {"$exists": False}},
+                                {"secondary_assignee_id": None},
+                            ]
+                        },
+                    ]
+                }
+            )
+        elif assignee == "me" and current_user_sub:
+            and_terms.append(
+                {
+                    "$or": [
+                        {"assignee_id": current_user_sub},
+                        {"secondary_assignee_id": current_user_sub},
+                    ]
+                }
+            )
+        elif assignee:
+            and_terms.append(
+                {
+                    "$or": [
+                        {"assignee_id": assignee},
+                        {"secondary_assignee_id": assignee},
+                    ]
+                }
+            )
+
+        if not and_terms:
+            return {}
+        if len(and_terms) == 1:
+            return and_terms[0]
+        return {"$and": and_terms}
 
     async def count_filtered(
         self,
@@ -49,8 +104,18 @@ class IncidentRepository:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         technique: Optional[str] = None,
+        assignee: Optional[str] = None,
+        unassigned: bool = False,
+        current_user_sub: Optional[str] = None,
     ) -> int:
-        query = self._filter_query(status=status, severity=severity, technique=technique)
+        query = self._filter_query(
+            status=status,
+            severity=severity,
+            technique=technique,
+            assignee=assignee,
+            unassigned=unassigned,
+            current_user_sub=current_user_sub,
+        )
         return int(await self.col.count_documents(query))
 
     async def list_filtered(
@@ -59,12 +124,34 @@ class IncidentRepository:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         technique: Optional[str] = None,
+        assignee: Optional[str] = None,
+        unassigned: bool = False,
+        current_user_sub: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
-        query = self._filter_query(status=status, severity=severity, technique=technique)
+        query = self._filter_query(
+            status=status,
+            severity=severity,
+            technique=technique,
+            assignee=assignee,
+            unassigned=unassigned,
+            current_user_sub=current_user_sub,
+        )
         cursor = self.col.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
         return await cursor.to_list(limit)
+
+    async def update_assignment_fields(
+        self, incident_id: str, fields: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        if not fields:
+            return await self.find_by_id(incident_id)
+        return await self.col.find_one_and_update(
+            {"id": incident_id},
+            {"$set": fields},
+            projection={"_id": 0},
+            return_document=True,
+        )
 
     async def list_pending_review(self, *, skip: int = 0, limit: int = 50) -> List[Dict[str, Any]]:
         cursor = (
