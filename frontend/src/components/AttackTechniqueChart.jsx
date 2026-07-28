@@ -265,6 +265,21 @@ export function AttackTechniqueChart({topTechniques = [], help}) {
                         </button>
                     </>
                 )}
+                {(level === "technique" || level === "subtechnique") && (activeTechnique || chartData[0]?.id) && (
+                    <>
+                        <span className="text-border">·</span>
+                        <Link
+                            to={`/incidents?technique=${encodeURIComponent(
+                                (activeTechnique || chartData.find((r) => r.id)?.id || "").toString(),
+                            )}`}
+                            className="text-primary hover:underline font-mono"
+                            data-testid="attack-drill-incidents-link"
+                            title="Filter incidents by technique"
+                        >
+                            View incidents
+                        </Link>
+                    </>
+                )}
                 {level === "subtechnique" && activeTechnique && (
                     <>
                         <span>/</span>

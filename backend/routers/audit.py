@@ -21,6 +21,10 @@ async def get_audit(
     action: Optional[str] = Query(None),
     actor: Optional[str] = Query(None),
     target_type: Optional[str] = Query(None),
+    include_meta: bool = Query(
+        False,
+        description="When true, return {items,total,skip,limit} for server-side pagination",
+    ),
     user=Depends(require_roles(*_READ_ROLES)),
 ):
     """Normalized audit entries (who/what/when + integrity flags)."""
@@ -31,6 +35,7 @@ async def get_audit(
         action=action,
         actor=actor,
         target_type=target_type,
+        include_meta=include_meta,
     )
 
 
@@ -43,6 +48,15 @@ async def get_audit_logs(
 ):
     """Audit Trail UI compatibility endpoint."""
     return await audit_service.list_audit_logs(q=q, action=action, limit=limit)
+
+
+@router.get("/audit/actions")
+async def get_audit_actions(
+    limit: int = Query(200, ge=1, le=500),
+    user=Depends(require_roles(*_READ_ROLES)),
+):
+    """Distinct audit action names for dynamic UI filters."""
+    return await audit_service.list_actions(limit=limit)
 
 
 @router.get("/audit/summary")

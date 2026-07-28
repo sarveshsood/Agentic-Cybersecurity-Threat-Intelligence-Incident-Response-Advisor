@@ -1,8 +1,8 @@
 import {createContext, useContext, useEffect, useMemo, useState} from "react";
 
 const ThemeContext = createContext({
-    theme: "dark",
-    resolvedTheme: "dark",
+    theme: "light",
+    resolvedTheme: "light",
     toggle: () => {
     },
     setTheme: () => {
@@ -10,10 +10,11 @@ const ThemeContext = createContext({
 });
 
 const STORAGE_KEY = "soc_theme";
-const THEMES = ["dark", "light", "system"];
+// Light-first enterprise default (matches index.css / capstone submission pack).
+const THEMES = ["light", "dark", "system"];
 
 function getSystemTheme() {
-    if (typeof window === "undefined" || !window.matchMedia) return "dark";
+    if (typeof window === "undefined" || !window.matchMedia) return "light";
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
@@ -28,7 +29,7 @@ function readStoredTheme() {
     } catch {
         /* ignore */
     }
-    return "dark";
+    return "light";
 }
 
 function applyDomTheme(resolved) {
@@ -83,6 +84,30 @@ export function ThemeProvider({children}) {
         return () => mq.removeListener(onChange);
     }, [theme]);
 
+    // Capstone capture/record scripts can force light without fighting React state.
+    // Playwright injects localStorage + CSS; without this hook ThemeProvider re-applies dark.
+    useEffect(() => {
+        const setFromCapture = (preference) => {
+            if (THEMES.includes(preference)) {
+                setThemeState(preference);
+            }
+        };
+        const onForce = (event) => {
+            const next = event?.detail?.theme || "light";
+            setFromCapture(next);
+        };
+        window.addEventListener("actira-force-theme", onForce);
+        window.__ACTIRA_SET_THEME__ = setFromCapture;
+        return () => {
+            window.removeEventListener("actira-force-theme", onForce);
+            try {
+                delete window.__ACTIRA_SET_THEME__;
+            } catch {
+                /* ignore */
+            }
+        };
+    }, []);
+
     const value = useMemo(
         () => ({
             /** User preference: "light" | "dark" | "system" */
@@ -90,7 +115,7 @@ export function ThemeProvider({children}) {
             /** Effective palette applied to the DOM: "light" | "dark" */
             resolvedTheme,
             setTheme: setThemeState,
-            /** Cycle dark → light → system → dark */
+            /** Cycle light → dark → system → light */
             toggle: () =>
                 setThemeState((t) => {
                     const i = THEMES.indexOf(t);

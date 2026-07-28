@@ -161,7 +161,9 @@ class AuditRepository:
         actor: Optional[str] = None,
         target_type: Optional[str] = None,
         q: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        with_total: bool = False,
+    ):
+        """Return rows, or (rows, total) when with_total=True for server pagination."""
         query: Dict[str, Any] = {}
         if action:
             query["action"] = action
@@ -172,11 +174,12 @@ class AuditRepository:
             ]
         if target_type:
             query["target_type"] = target_type
-        # Pull a wider window when q is set so we can filter in-process
-        fetch_limit = min(max(limit + skip, limit * 5), 2000) if q else (skip + limit)
-        cursor = self.col.find(query, {"_id": 0}).sort("ts", -1).limit(fetch_limit)
-        rows = await cursor.to_list(fetch_limit)
+
         if q:
+            # Free-text: scan a bounded newest window then filter in-process
+            fetch_limit = min(max(limit + skip, 500), 2000)
+            cursor = self.col.find(query, {"_id": 0}).sort("ts", -1).limit(fetch_limit)
+            rows = await cursor.to_list(fetch_limit)
             needle = q.strip().lower()
             rows = [
                 r
@@ -194,7 +197,23 @@ class AuditRepository:
                     ]
                 ).lower()
             ]
-        return rows[skip : skip + limit]
+            total = len(rows)
+            page = rows[skip : skip + limit]
+            return (page, total) if with_total else page
+
+        total = int(await self.col.count_documents(query)) if with_total else 0
+        cursor = self.col.find(query, {"_id": 0}).sort("ts", -1).skip(skip).limit(limit)
+        page = await cursor.to_list(limit)
+        return (page, total) if with_total else page
+
+    async def distinct_actions(self, *, limit: int = 200) -> List[str]:
+        """Distinct action names for dynamic Audit UI filters (newest-agnostic)."""
+        try:
+            raw = await self.col.distinct("action")
+        except Exception:
+            return []
+        out = sorted({str(v).strip() for v in (raw or []) if v and str(v).strip()})
+        return out[: max(1, min(int(limit or 200), 500))]
 
 
 audit_repo = AuditRepository()

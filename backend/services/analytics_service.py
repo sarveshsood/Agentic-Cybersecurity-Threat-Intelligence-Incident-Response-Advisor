@@ -447,14 +447,45 @@ async def _kpis_legacy() -> Dict[str, Any]:
     }
 
 
+def _analytics_cache_meta(
+    *,
+    status: str,
+    ttl: float,
+    expires_in: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Honesty metadata for UI cache footer (hit/miss, TTL, age)."""
+    ttl_s = float(ttl or 0)
+    if status == "hit" and expires_in is not None and ttl_s > 0:
+        rem = max(0.0, float(expires_in))
+        age = max(0.0, ttl_s - rem)
+    elif status == "miss":
+        rem = ttl_s
+        age = 0.0
+    else:
+        rem = float(expires_in) if expires_in is not None else None
+        age = None
+    return {
+        "status": status,
+        "ttl_seconds": round(ttl_s, 1),
+        "expires_in_seconds": None if rem is None else round(rem, 1),
+        "age_seconds": None if age is None else round(age, 1),
+    }
+
+
 async def analytics(window_days: int = 30, *, force_refresh: bool = False) -> Dict[str, Any]:
     window_days = max(1, min(int(window_days or 30), 365))
     cache_key = f"analytics:v1:{window_days}"
+    ttl = cache.analytics_ttl()
     if not force_refresh:
-        hit = cache.get(cache_key)
-        if hit is not None:
-            out = dict(hit)
+        meta = cache.get_meta(cache_key)
+        if meta is not None:
+            out = dict(meta["value"])
             out["cache"] = "hit"
+            out["cache_meta"] = _analytics_cache_meta(
+                status="hit",
+                ttl=ttl,
+                expires_in=meta.get("expires_in_seconds"),
+            )
             return out
 
     from backend.analytics import compute_analytics
@@ -462,10 +493,15 @@ async def analytics(window_days: int = 30, *, force_refresh: bool = False) -> Di
     payload = await compute_analytics(db, window_days=window_days)
     payload = dict(payload)
     payload["cache"] = "miss"
+    payload["cache_meta"] = _analytics_cache_meta(status="miss", ttl=ttl)
     cache.set(
         cache_key,
-        {k: v for k, v in payload.items() if k != "cache"},
-        ttl=cache.analytics_ttl(),
+        {
+            k: v
+            for k, v in payload.items()
+            if k not in ("cache", "cache_meta")
+        },
+        ttl=ttl,
     )
     return payload
 

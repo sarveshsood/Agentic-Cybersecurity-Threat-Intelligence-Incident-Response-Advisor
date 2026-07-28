@@ -248,6 +248,7 @@ In-app seeds: `rm-next-trust-qa`, `rm-next-platform-hardening`, `rm-v1-7-agent-r
 | ID   | Activity | Outcome | Priority | Status |
 |------|----------|---------|----------|--------|
 | T-01 | **Trust UX** — DEMO banners, hard error states, login tokens, mobile nav, palette Audit/Compliance | Never mask empty/fail as healthy | P0 | ✅ |
+| T-01b | **Trust UX surface wins** — Hunt filters/honesty, Audit paging + dynamic actions, Analytics cache footer + drill-through, KB hash banner + custom manager, Compliance assumed-vs-verified + live probes | Capstone honesty | P0 | ✅ (2026-07-27) |
 | T-02 | **API scale & edge security** — server-side incident pagination, global rate limit + metrics, CSP/HSTS | Internet-ready pilot | P1 | ✅ |
 | T-03 | **QA depth** — repair smoke testids; Playwright for workspace / hunt / compliance / audit | CI truth for new surfaces | P1 | ✅ |
 | T-04 | **Wave D product** — multi-agent roster UX + executive risk dashboard | Persona command surfaces | P1 | ✅ |
@@ -315,6 +316,11 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping (canonical �
 | Enterprise board (demo) | `docs/ENTERPRISE_REVIEW.md`                   |
 | Enterprise board (pilot lens) | `docs/ENTERPRISE_REVIEW_BOARD_2026-07-26.md` |
 | Capstone pack           | `docs/capstone/`                              |
+| Capstone board review   | `docs/capstone/board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md` |
+| Capstone report + PDF   | `docs/capstone/PROJECT_REPORT.md` · `PROJECT_REPORT.pdf` |
+| Capstone PPTX           | `docs/capstone/presentation/ACTIRA_Capstone_Presentation.pptx` |
+| Capstone demo video     | `docs/capstone/assets/video/` · script `DEMO_VIDEO_5MIN.md` |
+| **Product honesty**     | `docs/product/PRODUCT_HONESTY.md` (**T-01 / T-01b** binding) |
 | Capstone UX review      | `docs/product/CAPSTONE_ENHANCEMENT_REVIEW.md` |
 | Feature inventory       | `docs/product/FEATURE_INVENTORY.md`           |
 | E2E capability truth    | `docs/product/E2E_CAPABILITY_MATRIX.md`       |
@@ -322,3 +328,12 @@ See full narrative in `docs/product/VISION.md`. Engineering mapping (canonical �
 | Release notes           | `RELEASE_NOTES.md`                            |
 | Changelog               | `CHANGELOG.md`                                |
 | Doc index               | `DOCUMENTATION_INDEX.md`                      |
+
+### Submission close (capstone)
+
+| Item | Status |
+|------|--------|
+| T-01 / T-01b Trust UX surface wins | ✅ |
+| PRODUCT_HONESTY + report PDF + PPTX + screenshots | ✅ |
+| Stretch: default SBERT, Hunt/Lance hybrid, continuous compliance | 🔮 **Non-blocking** (documented) |
+| 5-minute demo video | ✅ UI track in `docs/capstone/assets/video/` + `DEMO_VIDEO_5MIN.md` (optional VO dub) |

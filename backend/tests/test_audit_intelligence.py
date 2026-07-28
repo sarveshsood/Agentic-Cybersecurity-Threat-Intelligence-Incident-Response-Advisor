@@ -44,6 +44,21 @@ def test_compute_and_verify_entry_hash():
     assert not verify_entry_hash(doc)
 
 
+@pytest.mark.asyncio
+async def test_list_actions_shape(monkeypatch):
+    from backend.services import audit_service as asvc
+    from backend.repositories import audit as arepo
+
+    async def fake_distinct(*, limit=200):
+        return ["review.approve", "settings.update", "kb.ingest"]
+
+    monkeypatch.setattr(arepo.audit_repo, "distinct_actions", fake_distinct)
+    out = await asvc.list_actions(limit=50)
+    assert out["count"] == 3
+    assert "review.approve" in out["actions"]
+    assert out["source"] == "mongo_distinct"
+
+
 def test_normalize_audit_row_maps_ui_fields():
     from backend.services.audit_service import normalize_audit_row
     from backend.repositories.audit import compute_entry_hash
@@ -91,3 +106,4 @@ def test_audit_routes_registered():
     assert "/audit/summary" in paths
     assert "/audit/integrity" in paths
     assert "/audit/telemetry" in paths
+    assert "/audit/actions" in paths

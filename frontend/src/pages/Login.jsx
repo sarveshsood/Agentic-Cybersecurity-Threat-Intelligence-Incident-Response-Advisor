@@ -346,7 +346,11 @@ export default function Login() {
             {/* LEFT HERO SECTION */}
             <div
                 className="hidden lg:flex lg:col-span-3 flex-col justify-between p-10 xl:p-16 relative overflow-y-auto max-h-screen scrollbar-thin border-r theme-border"
-                style={{background: "color-mix(in srgb, var(--shell-bg) 92%, hsl(var(--primary)) 8%)"}}
+                style={{
+                    // Light enterprise: soft slate canvas (avoid dark navy "blue skin").
+                    // Dark theme still tints via CSS variables on .theme-shell.
+                    background: "var(--shell-bg)",
+                }}
             >
                 <div
                     className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(37,99,235,0.08),_transparent_55%)] -z-10"/>
@@ -455,7 +459,11 @@ export default function Login() {
                     </div>
                 </div>
 
-                <div className="relative sbp-fade-up pt-6 border-t border-slate-200" style={{animationDelay: "0.3s"}}>
+                <div
+                    className="relative sbp-fade-up pt-6 border-t border-slate-200"
+                    style={{animationDelay: "0.3s"}}
+                    data-testid="login-project-team"
+                >
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                             <Users size={16} className="text-blue-600" aria-hidden/>
@@ -465,7 +473,7 @@ export default function Login() {
                         </div>
                         <span
                             className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[10px] text-blue-700 font-bold">
-              Enterprise Capstone
+              Final Capstone Project
             </span>
                     </div>
 

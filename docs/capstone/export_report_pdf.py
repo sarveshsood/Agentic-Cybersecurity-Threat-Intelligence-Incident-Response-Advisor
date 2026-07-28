@@ -50,19 +50,131 @@ MARGIN_R = 20
 MARGIN_T = 22
 MARGIN_B = 18
 
+# (filename, short caption, documentary narrative for evaluators)
 SCREENSHOTS = [
-    ("01_login.png", "Figure 1. Login — platform status probe (honest health, not fake KPIs)"),
-    ("02_dashboard.png", "Figure 2. Dashboard — live KPIs and ATT&CK heatmap"),
-    ("03_upload.png", "Figure 3. Upload / ingest — multi-format logs and job queue"),
-    ("04_incidents.png", "Figure 4. Incidents list — severity and filters"),
-    ("05_workspace.png", "Figure 5. Investigation workspace — case system of record"),
-    ("06_graph.png", "Figure 6. Entity graph / assets view"),
-    ("07_playbook.png", "Figure 7. IR playbook — phases, citations, grounding"),
-    ("08_review.png", "Figure 8. Human-in-the-Loop review queue"),
-    ("09_hunt.png", "Figure 9. Threat hunting"),
-    ("10_compliance.png", "Figure 10. Compliance alignment score (not certification)"),
-    ("11_settings_llm.png", "Figure 11. Settings — multi-provider LLM catalog"),
-    ("12_architecture.png", "Figure 12. System architecture overview (light)"),
+    (
+        "01_login.png",
+        "Figure 1. Login — platform status probe (honest health, not fake KPIs)",
+        "Entry surface for analysts, senior reviewers, and admins. The left pane documents product "
+        "capabilities; the right pane is the credential form with optional demo autofill (autofill does "
+        "not authenticate until Sign in). Status tiles probe live backend/Mongo health rather than "
+        "fabricating tenant KPIs — live metrics appear only after authentication on the Dashboard.",
+    ),
+    (
+        "02_dashboard.png",
+        "Figure 2. Dashboard — live KPIs and ATT&CK heatmap",
+        "Post-login home: severity mix, incident volume, IoC/event counters, and an ATT&CK technique "
+        "heatmap driven from Mongo-backed analytics (short-lived cache). Empty tenants show zeros, not "
+        "demo filler, unless an explicit demo-fallback flag is enabled and disclosed by banner.",
+    ),
+    (
+        "03_upload.png",
+        "Figure 3. Upload / ingest — multi-format logs and job queue",
+        "Analyst evidence intake: multi-file and ZIP upload, sample-bundle staging, and job-queue "
+        "visibility. The pipeline is asynchronous (parse, IoC, TI, ATT&CK, RAG, playbook) rather than a "
+        "chat session — matching the modular agentic design described in Chapter 4.",
+    ),
+    (
+        "04_incidents.png",
+        "Figure 4. Incidents list — severity and filters",
+        "Case inventory with severity filters, search, and deep links into the investigation workspace. "
+        "Each row is a first-class incident document in MongoDB — the product system of record for IR "
+        "narrative, not a transient chat thread.",
+    ),
+    (
+        "05_workspace.png",
+        "Figure 5. Investigation workspace — case system of record",
+        "Single-pane investigation: case metadata, evidence, timeline, techniques, notes, and AI "
+        "investigator stream. URL tab state supports shareable deep links for dual-run SIEM pilots.",
+    ),
+    (
+        "06_graph.png",
+        "Figure 6. Entity graph / assets view",
+        "Entity/assets graph derived from correlated CES events and IoCs. Complements timeline and MITRE "
+        "views so reviewers can see lateral relationships without leaving the case.",
+    ),
+    (
+        "07_playbook.png",
+        "Figure 7. IR playbook — phases, citations, grounding",
+        "Hybrid-RAG playbook with containment/eradication/recovery/lessons phases, citation chips bound "
+        "to the KB allow-list, and a grounding score. Low grounding or critical severity forces HiTL "
+        "pending_review before closure.",
+    ),
+    (
+        "08_review.png",
+        "Figure 8. Human-in-the-Loop review queue",
+        "Senior-reviewer queue for mandatory human gates. Approve/reject is race-safe (409 on double "
+        "claim). Decisions write audit events into the integrity chain — best-effort hash chain, not WORM.",
+    ),
+    (
+        "09_hunt.png",
+        "Figure 9. Threat hunting",
+        "Natural-language case hunt over a bounded recent incident window (not a SIEM log lake). "
+        "Honesty banners state scoring limits so evaluators do not confuse case hunt with lake-scale hunt.",
+    ),
+    (
+        "10_compliance.png",
+        "Figure 10. Compliance alignment score (not certification)",
+        "Product control-alignment score with assumed vs live-verified evidence and gap lists. Explicitly "
+        "not ISO/SOC2 certification — suitable for board narrative packs and pilot readiness stories.",
+    ),
+    (
+        "11_settings_llm.png",
+        "Figure 11. Settings — multi-provider LLM catalog",
+        "Admin LLM catalog: free/paid models, vaulted secrets (never returned raw), cross-provider "
+        "fallback, and template-playbook offline path for deterministic golden evaluation.",
+    ),
+    (
+        "12_architecture.png",
+        "Figure 12. System architecture overview (light enterprise poster)",
+        "Overall modular monolith: React SPA edge, FastAPI dual mounts (/api and /api/v1), MongoDB case/"
+        "audit store, LanceDB hybrid RAG, optional LLM/TI. See Architecture detail for data-flow, "
+        "component, RAG, and HiTL posters (Figures A-E).",
+    ),
+]
+
+# Detailed architecture posters (rendered from assets/figures/*.svg)
+ARCH_FIGURES = [
+    (
+        "12_architecture.png",
+        "Figure A. Overall architecture poster",
+        "Top-level context for evaluators: users (analyst/reviewer/admin/SIEM ingest), edge (React + "
+        "FastAPI), data plane (MongoDB + LanceDB), and optional external LLM/TI. The IR pipeline strip "
+        "states the job-queued path from upload through audit/compliance.",
+        SHOTS,
+    ),
+    (
+        "15_data_flow.png",
+        "Figure B. Data flow — upload to review",
+        "Ten-stage pipeline: Upload, Job, Parse (CES), IoC, TI (or mock), ATT&CK, Hybrid RAG playbook, "
+        "HiTL gate, Workspace, Audit/export. Offline golden evaluation keeps template playbooks and mock "
+        "TI so CI remains deterministic without live API keys.",
+        SHOTS,
+    ),
+    (
+        "16_components.png",
+        "Figure C. Component architecture",
+        "Frontend pages/design system, FastAPI routers (auth, jobs, review, hunt, audit), engines "
+        "(parsers, IoC, enrichment, ATT&CK, hybrid RAG, playbook agent, HiTL, vault, investigator SSE), "
+        "and data/external planes. ADR 0001 prefers modular monolith over premature microservices.",
+        SHOTS,
+    ),
+    (
+        "17_rag_pipeline.png",
+        "Figure D. Hybrid RAG playbook pipeline",
+        "Query construction from incident context, BM25 + LanceDB ANN fused by RRF, optional re-rank, "
+        "LLM or template generation, citation allow-list filter, and grounding score. Trust controls "
+        "are first-class: citations must subset retrieved KB IDs; low grounding triggers HiTL.",
+        SHOTS,
+    ),
+    (
+        "18_hitl_policy.png",
+        "Figure E. Human-in-the-Loop policy",
+        "Decision tree: severity gate, grounding threshold, optional auto-approve (never bypasses "
+        "severity), pending_review path, race-safe reviewer actions, and audit integrity notes. Roles: "
+        "analyst investigate, senior_reviewer approve, admin govern.",
+        SHOTS,
+    ),
 ]
 
 
@@ -81,8 +193,8 @@ class ReportPDF(FPDF):
         self.set_xy(MARGIN_L, 6)
         self.set_font("Helvetica", "", 8)
         self.set_text_color(*MUTED)
-        self.cell(110, 6, "ACTIRA  |  Capstone Project 4  |  Confidential for evaluation", align="L")
-        self.cell(self.epw - 110, 6, "Group 1", align="R")
+        self.cell(110, 6, "ACTIRA  |  Final Capstone Project  |  Confidential for evaluation", align="L")
+        self.cell(self.epw - 110, 6, "27 July 2026", align="R")
         self.set_y(18)
 
     def footer(self):
@@ -98,17 +210,102 @@ class ReportPDF(FPDF):
 
 
 def ascii_safe(s: str) -> str:
+    """Map common Unicode (box-drawing, math, emoji) so Helvetica never emits ????."""
+    if s is None:
+        return ""
+    s = str(s)
+    # Unescape common HTML entities that appear in markdown tables/cells
+    s = (
+        s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&nbsp;", " ")
+        .replace("&quot;", '"')
+        .replace("&#39;", "'")
+    )
     repl = {
-        "\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
-        "\u201c": '"', "\u201d": '"', "\u2022": "*", "\u2192": "->",
-        "\u2190": "<-", "\u2248": "~", "\u2265": ">=", "\u2264": "<=",
-        "\u00d7": "x", "\u2026": "...", "\u00b7": "-", "\u2713": "OK",
-        "\u2717": "X", "\u2011": "-", "\u00a0": " ", "\u2260": "!=",
-        "\u2191": "^", "\u2193": "v", "\ufe0f": "",
+        # dashes / quotes / spaces
+        "\u2014": "-", "\u2013": "-", "\u2012": "-", "\u2015": "-",
+        "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+        "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"',
+        "\u00a0": " ", "\u202f": " ", "\u2009": " ", "\u200a": " ",
+        "\u200b": "", "\u200c": "", "\u200d": "", "\ufeff": "",
+        "\u2011": "-", "\u2212": "-",
+        # bullets / misc
+        "\u2022": "*", "\u2023": "*", "\u2043": "-", "\u00b7": "-",
+        "\u2026": "...", "\u00d7": "x", "\u00f7": "/",
+        "\u2713": "OK", "\u2714": "OK", "\u2717": "X", "\u2718": "X",
+        "\u2705": "[OK]", "\u274c": "[X]", "\u26a0": "!", "\u2139": "i",
+        "\ufe0f": "", "\u2122": "(TM)", "\u00ae": "(R)", "\u00a9": "(C)",
+        # arrows (incl. heavy / double)
+        "\u2192": "->", "\u2190": "<-", "\u2191": "^", "\u2193": "v",
+        "\u21d2": "=>", "\u21d0": "<=", "\u2194": "<->", "\u27a1": "->",
+        "\u279c": "->", "\u2794": "->", "\u21a6": "->",
+        # comparisons / math / set theory
+        "\u2248": "~", "\u2265": ">=", "\u2264": "<=", "\u2260": "!=",
+        "\u2286": " subset-of ", "\u2282": " subset ", "\u2287": " superset-of ",
+        "\u2208": " in ", "\u2209": " not-in ", "\u221e": "inf", "\u00b1": "+/-",
+        "\u2243": "~", "\u223c": "~", "\u2229": " n ", "\u222a": " u ",
+        "\u22a5": "perp", "\u2211": "sum", "\u220f": "prod",
+        # box drawing (tree listings in report) — was the main ???? source
+        "\u2500": "-", "\u2501": "-", "\u2502": "|", "\u2503": "|",
+        "\u250c": "+", "\u2510": "+", "\u2514": "+", "\u2518": "+",
+        "\u251c": "+", "\u2524": "+", "\u252c": "+", "\u2534": "+",
+        "\u253c": "+", "\u2550": "=", "\u2551": "|",
+        "\u2554": "+", "\u2557": "+", "\u255a": "+", "\u255d": "+",
+        "\u2560": "+", "\u2563": "+", "\u2566": "+", "\u2569": "+",
+        "\u256c": "+", "\u2574": "-", "\u2575": "|", "\u2576": "-",
+        "\u2577": "|",
+        # light/heavy box variants often used in pack layout trees
+        "\u2504": "-", "\u2505": "-", "\u2506": "|", "\u2507": "|",
+        "\u2508": "-", "\u2509": "-", "\u250a": "|", "\u250b": "|",
+        "\u2511": "+", "\u2512": "+", "\u2513": "+", "\u2515": "+",
+        "\u2516": "+", "\u2517": "+", "\u2519": "+", "\u251a": "+",
+        "\u251b": "+", "\u251d": "+", "\u251e": "+", "\u251f": "+",
+        "\u2520": "+", "\u2521": "+", "\u2522": "+", "\u2523": "+",
+        "\u2525": "+", "\u2526": "+", "\u2527": "+", "\u2528": "+",
+        "\u2529": "+", "\u252a": "+", "\u252b": "+", "\u252d": "+",
+        "\u252e": "+", "\u252f": "+", "\u2530": "+", "\u2531": "+",
+        "\u2532": "+", "\u2533": "+", "\u2535": "+", "\u2536": "+",
+        "\u2537": "+", "\u2538": "+", "\u2539": "+", "\u253a": "+",
+        "\u253b": "+", "\u253d": "+", "\u253e": "+", "\u253f": "+",
+        "\u2540": "+", "\u2541": "+", "\u2542": "+", "\u2543": "+",
+        "\u2544": "+", "\u2545": "+", "\u2546": "+", "\u2547": "+",
+        "\u2548": "+", "\u2549": "+", "\u254a": "+", "\u254b": "+",
+        # triangles / shapes used in ASCII diagrams
+        "\u25bc": "v", "\u25b2": "^", "\u25b6": ">", "\u25c0": "<",
+        "\u25cf": "*", "\u25cb": "o", "\u25a0": "#", "\u25a1": "[]",
+        "\u25b8": ">", "\u25ba": ">", "\u25c2": "<", "\u25c4": "<",
+        # greek / common tech
+        "\u03b1": "a", "\u03b2": "b", "\u03bc": "u", "\u03c3": "s",
+        "\u0394": "Delta", "\u03c0": "pi",
+        # misc punctuation that sometimes slips into reports
+        "\u2032": "'", "\u2033": "''", "\u00b0": " deg",
+        "\u2197": "->", "\u2198": "->", "\u2196": "<-", "\u2199": "<-",
     }
     for a, b in repl.items():
         s = s.replace(a, b)
-    return s.encode("latin-1", errors="replace").decode("latin-1")
+    # Drop remaining non-latin-1 with a readable fallback (never bare ?)
+    out: list[str] = []
+    for ch in s:
+        o = ord(ch)
+        if o < 256:
+            out.append(ch)
+        elif 0x1F300 <= o <= 0x1FAFF or 0x2600 <= o <= 0x27BF:
+            out.append("")  # emoji / dingbats
+        elif 0x2500 <= o <= 0x257F:
+            out.append("-")  # any remaining box-drawing
+        else:
+            out.append(ch.encode("ascii", errors="ignore").decode("ascii") or "-")
+    # Final belt: only latin-1 codepoints Helvetica can render
+    safe: list[str] = []
+    for ch in "".join(out):
+        try:
+            ch.encode("latin-1")
+            safe.append(ch)
+        except UnicodeEncodeError:
+            safe.append("-")
+    return "".join(safe)
 
 
 def clean_inline(text: str) -> str:
@@ -208,7 +405,12 @@ def code_block(pdf: ReportPDF, lines: list[str]):
     pdf.set_draw_color(*BORDER)
     pdf.set_font("Courier", "", 8)
     pdf.set_text_color(*NAVY)
-    text = clean_inline("\n".join(lines)) or " "
+    # ascii_safe each line so box-drawing / arrows never become "????"
+    # Keep pure ASCII diagrams intact; only sanitize non-latin-1.
+    cleaned: list[str] = []
+    for ln in lines:
+        cleaned.append(ascii_safe(ln if ln is not None else ""))
+    text = "\n".join(cleaned) or " "
     pdf.set_x(pdf.l_margin)
     pdf.multi_cell(pdf.epw, 4.4, text, fill=True, border=0)
     pdf.ln(3)
@@ -222,6 +424,37 @@ def parse_table_row(line: str) -> list[str]:
 def is_sep_row(line: str) -> bool:
     core = line.replace("|", "").replace(":", "").replace("-", "").replace(" ", "")
     return core == ""
+
+
+def _wrap_cell_text(pdf: ReportPDF, text: str, max_w: float) -> list[str]:
+    """Word-wrap text to fit max_w without fpdf multi_cell Y side-effects."""
+    text = (text or " ").replace("\n", " ").strip() or " "
+    words = text.split()
+    lines: list[str] = []
+    cur = ""
+    for w in words:
+        trial = (cur + " " + w).strip()
+        if pdf.get_string_width(trial) <= max_w:
+            cur = trial
+        else:
+            if cur:
+                lines.append(cur)
+            # Hard-break very long tokens
+            if pdf.get_string_width(w) > max_w:
+                chunk = ""
+                for ch in w:
+                    t2 = chunk + ch
+                    if pdf.get_string_width(t2) > max_w and chunk:
+                        lines.append(chunk)
+                        chunk = ch
+                    else:
+                        chunk = t2
+                cur = chunk
+            else:
+                cur = w
+    if cur:
+        lines.append(cur)
+    return lines or [" "]
 
 
 def draw_table(pdf: ReportPDF, rows: list[list[str]]):
@@ -241,27 +474,20 @@ def draw_table(pdf: ReportPDF, rows: list[list[str]]):
     else:
         widths = [usable / cols] * cols
 
-    line_h = 4.8
-    pad_y = 1.6
+    line_h = 4.4
+    pad_y = 1.4
+    max_lines = 8  # keep rows readable; avoid clipping off page bottom
 
     for ri, row in enumerate(rows):
         pdf.set_font("Helvetica", "B" if ri == 0 else "", 8.5)
-        cell_heights = []
+        wrapped: list[list[str]] = []
         for ci, cell in enumerate(row):
-            # Wrap estimate using fpdf string width
             max_w = max(widths[ci] - 3, 10)
-            words = (cell or " ").split()
-            lines_est = 1
-            line = ""
-            for w in words:
-                trial = (line + " " + w).strip()
-                if pdf.get_string_width(trial) > max_w:
-                    lines_est += 1
-                    line = w
-                else:
-                    line = trial
-            cell_heights.append(max(line_h + pad_y * 2, lines_est * line_h + pad_y * 2))
-        rh = min(max(cell_heights), 36)
+            lines = _wrap_cell_text(pdf, cell, max_w)
+            if len(lines) > max_lines:
+                lines = lines[: max_lines - 1] + [lines[max_lines - 1][: max(1, len(lines[max_lines - 1]) - 1)] + "..."]
+            wrapped.append(lines)
+        rh = max(line_h + pad_y * 2, max(len(w) for w in wrapped) * line_h + pad_y * 2)
 
         if pdf.get_y() + rh > pdf.h - pdf.b_margin:
             pdf.add_page()
@@ -281,12 +507,20 @@ def draw_table(pdf: ReportPDF, rows: list[list[str]]):
             pdf.set_text_color(*SLATE)
             pdf.set_font("Helvetica", "", 8.5)
 
+        # Draw fills first
         x = x0
-        for ci, cell in enumerate(row):
-            pdf.set_xy(x, y0)
+        for ci in range(cols):
             pdf.rect(x, y0, widths[ci], rh, style="F")
-            pdf.set_xy(x + 1.5, y0 + pad_y)
-            pdf.multi_cell(widths[ci] - 3, line_h, (cell or "")[:500], border=0)
+            x += widths[ci]
+
+        # Draw text with fixed Y per line (no multi_cell overflow into next row)
+        x = x0
+        for ci, lines in enumerate(wrapped):
+            ty = y0 + pad_y
+            for ln in lines:
+                pdf.set_xy(x + 1.5, ty)
+                pdf.cell(widths[ci] - 3, line_h, ln[:200], border=0)
+                ty += line_h
             x += widths[ci]
 
         pdf.set_draw_color(*BORDER)
@@ -314,8 +548,15 @@ def image_display_size(path: Path, max_w: float, max_h: float) -> tuple[float, f
     return iw * scale, ih * scale
 
 
-def embed_figure(pdf: ReportPDF, path: Path, caption: str, *, new_page: bool = True):
-    """Place one screenshot with caption; prefer one figure per page for readability."""
+def embed_figure(
+    pdf: ReportPDF,
+    path: Path,
+    caption: str,
+    *,
+    narrative: str | None = None,
+    new_page: bool = True,
+):
+    """Place one screenshot with caption + optional documentary narrative."""
     if new_page:
         pdf.add_page()
     else:
@@ -324,15 +565,15 @@ def embed_figure(pdf: ReportPDF, path: Path, caption: str, *, new_page: bool = T
     # Caption bar
     pdf.set_fill_color(*SOFT_BLUE)
     pdf.set_x(pdf.l_margin)
-    y0 = pdf.get_y()
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_text_color(*NAVY)
     pdf.multi_cell(pdf.epw, 6, ascii_safe(caption), fill=True)
     pdf.ln(3)
 
     max_w = pdf.epw
-    # Leave room for footer + caption already used
-    max_h = min(150, pdf.h - pdf.get_y() - pdf.b_margin - 8)
+    # Reserve space for documentary narrative under the image when provided
+    narr_reserve = 28 if narrative else 8
+    max_h = min(145, pdf.h - pdf.get_y() - pdf.b_margin - narr_reserve)
     w, h = image_display_size(path, max_w, max_h)
     x = pdf.l_margin + (pdf.epw - w) / 2
 
@@ -345,6 +586,15 @@ def embed_figure(pdf: ReportPDF, path: Path, caption: str, *, new_page: bool = T
         pdf.set_y(pdf.get_y() + h + 4)
     except Exception as e:
         body(pdf, f"[Could not embed {path.name}: {e}]")
+
+    if narrative:
+        # Plain figure narration (no "Documentary note" label)
+        ensure_space(pdf, 18)
+        pdf.set_x(pdf.l_margin)
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(*SLATE)
+        pdf.multi_cell(pdf.epw, 4.6, ascii_safe(narrative))
+        pdf.ln(2)
 
 
 def title_page(pdf: ReportPDF):
@@ -363,7 +613,7 @@ def title_page(pdf: ReportPDF):
     pdf.set_xy(MARGIN_L, 26)
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(*WHITE)
-    pdf.cell(0, 7, "Agentic and Generative AI  |  Capstone Project 4")
+    pdf.cell(0, 7, "Agentic and Generative AI  |  Final Capstone Project")
 
     pdf.set_xy(MARGIN_L, 72)
     pdf.set_font("Helvetica", "B", 34)
@@ -387,36 +637,39 @@ def title_page(pdf: ReportPDF):
     pdf.line(MARGIN_L, 122, 72, 122)
 
     meta = [
+        ("Status", "Final Capstone Project submission pack"),
         ("Program", "TalentSprint / IISc track"),
-        ("Product maturity", "Enterprise Pilot Ready (single-tenant)"),
+        ("Maturity", "Enterprise Pilot Ready (single-tenant)"),
         ("Board score", "78 / 100"),
-        ("Golden IR suite", "37 cases  |  IoC F1 0.982  |  Technique recall 0.930"),
-        ("Formal test pack", "66 automated tests passed (2026-07-26)"),
-        ("UI figures", "Live light-theme captures (01-12)"),
-        ("Team", "Group 1 (see Appendix E)"),
-        ("Date", "26 July 2026"),
+        ("Golden IR", "37 cases | IoC F1 0.982 | Technique recall 0.930"),
+        ("Test pack", "66 automated tests passed (2026-07-27)"),
+        ("Coverage", "Architecture A-E, UI 01-18, demo video + voiceover"),
+        ("Date", "27 July 2026"),
     ]
-    y = 132
+    y = 130
     for label, val in meta:
         pdf.set_xy(MARGIN_L, y)
         pdf.set_font("Helvetica", "B", 9)
         pdf.set_text_color(*MUTED)
-        pdf.cell(42, 6.5, label.upper())
-        pdf.set_font("Helvetica", "", 10.5)
+        pdf.cell(36, 6.5, label.upper())
+        pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(*SLATE)
-        pdf.cell(0, 6.5, ascii_safe(val))
-        y += 9
+        # multi_cell so long values wrap instead of clipping off-page
+        pdf.set_xy(MARGIN_L + 36, y)
+        pdf.multi_cell(pdf.epw - 36, 5.5, ascii_safe(val))
+        y = max(y + 8.5, pdf.get_y() + 1.5)
 
-    pdf.set_xy(MARGIN_L, 248)
+    pdf.set_xy(MARGIN_L, min(y + 8, 250))
     pdf.set_font("Helvetica", "I", 9)
     pdf.set_text_color(*MUTED)
     pdf.multi_cell(
         pdf.epw,
         5,
         ascii_safe(
-            "Advisory AI platform with Human-in-the-Loop gates. "
+            "Final Capstone Project deliverable. Advisory AI with Human-in-the-Loop gates. "
             "Does not replace SIEM/XDR platforms of record (Sentinel, Splunk ES, Falcon, XSIAM). "
-            "Compliance scores are product alignment only — not formal certification."
+            "Compliance scores are product alignment only — not formal certification. "
+            "Appendix E lists roles for completeness only — product capabilities are the evaluation focus."
         ),
     )
     pdf._in_front = False
@@ -462,22 +715,26 @@ def figures_section(pdf: ReportPDF):
     body(
         pdf,
         "The following figures are live light-theme captures from the ACTIRA lab environment "
-        "(Playwright: docs/capstone/capture_screenshots.py) plus the architecture poster. "
-        "Each figure is placed on its own page for clear reading in print and PDF viewers.",
+        "(Playwright: docs/capstone/capture_screenshots.py) plus detailed architecture posters. "
+        "Each figure is placed on its own page with a short narration for evaluators.",
     )
     body(
         pdf,
-        "UI theme: light enterprise shell (default for this submission pack). "
-        "Architecture figure uses the same light palette as the product screenshots.",
+        "UI theme: light enterprise shell (default for this Final Capstone Project pack). "
+        "Architecture posters use the same light palette as the product screenshots. "
+        "Figures A-E in the Architecture detail section expand system design beyond Figure 12.",
     )
 
-    for fname, caption in SCREENSHOTS:
+    for item in SCREENSHOTS:
+        fname = item[0]
+        caption = item[1]
+        narrative = item[2] if len(item) > 2 else None
         path = SHOTS / fname
         if not path.exists():
             pdf.add_page()
             body(pdf, f"[Missing image: {fname} - re-run capture_screenshots.py]")
             continue
-        embed_figure(pdf, path, caption, new_page=True)
+        embed_figure(pdf, path, caption, narrative=narrative, new_page=True)
 
 
 def emit_structured_markdown(pdf: ReportPDF, text: str, *, stop_at_appendices: bool = False):
@@ -594,9 +851,9 @@ APPENDICES = [
 
 
 def architecture_detail_section(pdf: ReportPDF):
-    """Dedicated detailed architecture pages with poster + data-flow narrative."""
+    """Dedicated detailed architecture pages with full poster set + control tables."""
     pdf.add_page()
-    h1(pdf, "Architecture detail (submission poster)")
+    h1(pdf, "Architecture detail (submission posters)")
     body(
         pdf,
         "ACTIRA is a modular monolith optimized for single-tenant pilot reliability: "
@@ -611,26 +868,30 @@ def architecture_detail_section(pdf: ReportPDF):
         "Sentinel, Splunk ES, Falcon, or XSIAM. LLM and TI keys are optional - template playbooks "
         "and mock TI keep offline golden evaluation deterministic.",
     )
-    arch = SHOTS / "12_architecture.png"
-    if arch.exists():
-        embed_figure(
-            pdf,
-            arch,
-            "Figure A. Overall architecture (light enterprise poster)",
-            new_page=True,
-        )
-    # Render SVG figures if PNG siblings exist or convert via simple note
-    for fig_name, caption in [
-        ("data_flow.svg", "Data-flow diagram (Mermaid/SVG source under assets/figures/)"),
-        ("12_architecture.svg", "Editable SVG twin of the architecture poster"),
-    ]:
-        fig = FIGS / fig_name
-        if not fig.exists():
+    body(
+        pdf,
+        "The five posters below are the detailed architecture set used in the viva deck and demo "
+        "video. Editable SVG/Mermaid sources live under docs/capstone/assets/figures/. "
+        "PNG renders are produced by capture_screenshots.py (Playwright SVG -> PNG).",
+    )
+
+    # Full ARCH_FIGURES pack (A-E) with documentary narratives
+    twin_map = {
+        "12_architecture.png": "12_architecture.png",
+        "15_data_flow.png": "data_flow.png",
+        "16_components.png": "components.png",
+        "17_rag_pipeline.png": "rag_pipeline.png",
+        "18_hitl_policy.png": "hitl_policy.png",
+    }
+    for item in ARCH_FIGURES:
+        fname, caption, narrative, base = item[0], item[1], item[2], item[3]
+        candidates = [base / fname, FIGS / fname, FIGS / twin_map.get(fname, fname)]
+        path = next((p for p in candidates if p.exists()), None)
+        if not path:
+            pdf.add_page()
+            body(pdf, f"[Missing architecture figure: {fname} - re-run capture_screenshots.py]")
             continue
-        # fpdf cannot embed SVG; if a PNG twin exists use it, else skip with pointer
-        png_twin = fig.with_suffix(".png")
-        if png_twin.exists():
-            embed_figure(pdf, png_twin, caption, new_page=True)
+        embed_figure(pdf, path, caption, narrative=narrative, new_page=True)
 
     pdf.add_page()
     h2(pdf, "Layer responsibilities")
@@ -664,6 +925,12 @@ def architecture_detail_section(pdf: ReportPDF):
     bullet(pdf, "Grounding score 0-1; low grounding or critical severity -> HiTL pending_review")
     bullet(pdf, "Multi-provider LLM catalog with cross-provider fallback; template last resort")
     bullet(pdf, "Honest framing: modular agentic pipeline stages, not a full multi-agent swarm product")
+    h2(pdf, "How to read the architecture figures")
+    bullet(pdf, "Figure A (overall): context diagram — who uses ACTIRA and which planes they touch")
+    bullet(pdf, "Figure B (data flow): ordered pipeline stages from upload through audit/export")
+    bullet(pdf, "Figure C (components): frontend pages, FastAPI routers, engines, data/external planes")
+    bullet(pdf, "Figure D (RAG): hybrid retrieval, citation filter, grounding, template offline path")
+    bullet(pdf, "Figure E (HiTL): severity/grounding gates, race-safe review, audit integrity notes")
 
 
 def appendix_detailed(pdf: ReportPDF):
@@ -675,10 +942,11 @@ def appendix_detailed(pdf: ReportPDF):
     h1(pdf, "Appendices — formal automation evidence")
     body(
         pdf,
-        "The following pages include the full detailed appendix pack (A-F) used for board, viva, "
-        "and evaluation. Formal automated evidence for 2026-07-26 is summarized first.",
+        "The following pages include the full detailed appendix pack (A-F) for this Final Capstone "
+        "Project. Formal automated evidence (2026-07-27) is summarized first. Appendix E is "
+        "included for completeness only — evaluation focus is product capability, not personnel.",
     )
-    h2(pdf, "Formal run (2026-07-26)")
+    h2(pdf, "Formal run (2026-07-27)")
     draw_table(
         pdf,
         [
@@ -686,7 +954,7 @@ def appendix_detailed(pdf: ReportPDF):
             ["Golden IR + Wave C + RBAC + Hardening", "66 / 66 PASS", "~18s, exit 0"],
             ["Golden cases", "37", "IoC F1 0.982, technique recall 0.930"],
             ["Mean grounding (template path)", "1.000", "CI offline path"],
-            ["Playwright smoke", "Not run in pack", "Optional pre-viva"],
+            ["Demo video + screenshots", "Regenerated", "Light theme, full product tour"],
         ],
     )
     body(
@@ -758,11 +1026,16 @@ def main() -> None:
     print(f"Wrote {OUT}")
     print(f"  size: {OUT.stat().st_size / 1024:.0f} KB")
     print(f"  pages: {pdf.page_no()}")
-    missing = [n for n, _ in SCREENSHOTS if not (SHOTS / n).exists()]
+    missing = [item[0] for item in SCREENSHOTS if not (SHOTS / item[0]).exists()]
     if missing:
         print(f"  missing screenshots: {missing}")
     else:
-        print(f"  screenshots embedded: {len(SCREENSHOTS)} (light theme)")
+        print(f"  screenshots embedded: {len(SCREENSHOTS)} (light theme + figure narrations)")
+    arch_missing = [item[0] for item in ARCH_FIGURES if not (SHOTS / item[0]).exists()]
+    if arch_missing:
+        print(f"  missing architecture figures: {arch_missing}")
+    else:
+        print(f"  architecture figures embedded: {len(ARCH_FIGURES)} (A-E)")
 
 
 if __name__ == "__main__":

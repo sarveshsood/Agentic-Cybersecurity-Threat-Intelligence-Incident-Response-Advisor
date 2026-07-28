@@ -2,7 +2,18 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {api, apiErrorMessage} from "../lib/api";
 import {useAuth} from "../lib/auth";
 import {toast} from "sonner";
-import {ArrowsClockwise, Books, ChartBar, Check, Copy, Database, MagnifyingGlass, Timer} from "@phosphor-icons/react";
+import {
+    ArrowsClockwise,
+    Books,
+    ChartBar,
+    Check,
+    Copy,
+    Database,
+    MagnifyingGlass,
+    Timer,
+    Trash,
+    Warning,
+} from "@phosphor-icons/react";
 import {Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,} from "recharts";
 import {HelpTip} from "../components/HelpTip";
 import {loadUiPrefs} from "../lib/uiPrefs";
@@ -86,6 +97,8 @@ export default function Knowledge() {
     const [ingestBusy, setIngestBusy] = useState(false);
     const [selectedSourceFilter, setSelectedSourceFilter] = useState("ALL");
     const [copiedId, setCopiedId] = useState(null);
+    const [customDocs, setCustomDocs] = useState([]);
+    const [customBusy, setCustomBusy] = useState(false);
 
     const abortControllerRef = useRef(null);
 
@@ -111,14 +124,29 @@ export default function Knowledge() {
         }
     }, []);
 
+    const loadCustomDocs = useCallback(async () => {
+        if (!isAdmin) {
+            setCustomDocs([]);
+            return;
+        }
+        try {
+            const r = await api.get("/kb/custom");
+            const docs = Array.isArray(r.data?.docs) ? r.data.docs : Array.isArray(r.data) ? r.data : [];
+            setCustomDocs(docs);
+        } catch {
+            setCustomDocs([]);
+        }
+    }, [isAdmin]);
+
     useEffect(() => {
         loadStatus();
+        loadCustomDocs();
         return () => {
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort();
             }
         };
-    }, [loadStatus]);
+    }, [loadStatus, loadCustomDocs]);
 
     useEffect(() => {
         try {
@@ -187,10 +215,27 @@ export default function Knowledge() {
             setIngestTitle("");
             setIngestId("");
             loadStatus();
+            loadCustomDocs();
         } catch (e) {
             toast.error(apiErrorMessage(e, "Ingest failed"));
         } finally {
             setIngestBusy(false);
+        }
+    };
+
+    const deleteCustomDoc = async (docId) => {
+        if (!isAdmin || !docId) return;
+        if (!window.confirm(`Delete custom KB document ${docId}? This cannot be undone.`)) return;
+        setCustomBusy(true);
+        try {
+            await api.delete(`/kb/custom/${encodeURIComponent(docId)}`);
+            toast.success(`Deleted ${docId}`);
+            loadCustomDocs();
+            loadStatus();
+        } catch (e) {
+            toast.error(apiErrorMessage(e, "Delete failed"));
+        } finally {
+            setCustomBusy(false);
         }
     };
 
@@ -349,6 +394,69 @@ export default function Knowledge() {
                     </>
                 }
             />
+
+            {/* Embedder honesty — default is offline hash, not SBERT semantic quality */}
+            {(() => {
+                const emb = String(status?.embedder || "hash").toLowerCase();
+                const dim = status?.dim;
+                const isHash = emb === "hash" || emb.includes("hash");
+                const isSbert = emb.includes("sbert") || emb.includes("bge") || emb.includes("mini");
+                const isLora = emb.includes("lora");
+                const tone = isHash
+                    ? "border-amber-500/40 bg-amber-500/10"
+                    : "border-emerald-500/40 bg-emerald-500/10";
+                const titleTone = isHash
+                    ? "text-amber-800 dark:text-amber-200"
+                    : "text-emerald-800 dark:text-emerald-200";
+                return (
+                    <div
+                        className={`flex gap-2 rounded-lg border px-3 py-2 text-[12px] text-foreground ${tone}`}
+                        data-testid="kb-embedder-banner"
+                        role="note"
+                    >
+                        <Warning
+                            size={16}
+                            className={`shrink-0 mt-0.5 ${isHash ? "text-amber-600" : "text-emerald-600"}`}
+                            weight="fill"
+                            aria-hidden
+                        />
+                        <div className="min-w-0 leading-relaxed text-muted-foreground">
+                            <p className={`m-0 font-semibold ${titleTone}`}>
+                                {isHash
+                                    ? "Default embedder: hash (offline) — not SBERT"
+                                    : isLora
+                                        ? `Active embedder: ${status?.embedder || emb} (hash + domain LoRA adapter)`
+                                        : isSbert
+                                            ? `Active embedder: ${status?.embedder || emb} (semantic SBERT path)`
+                                            : `Active embedder: ${status?.embedder || emb}`}
+                            </p>
+                            <p className="m-0 mt-1 text-[11px]">
+                                {isHash ? (
+                                    <>
+                                        Dense ANN uses deterministic n-gram hashing for offline demos and CI —{" "}
+                                        <strong className="font-medium text-foreground">not</strong> sentence-transformers quality.
+                                        Hybrid search still blends BM25 + vectors (RRF). For stronger semantic retrieval set{" "}
+                                        <span className="font-mono text-foreground">ACTIRA_EMBEDDING_BACKEND=sbert</span> (or{" "}
+                                        <span className="font-mono text-foreground">lora</span>) and reindex.
+                                        {dim != null ? (
+                                            <span className="font-mono"> · dim={dim}</span>
+                                        ) : null}
+                                    </>
+                                ) : (
+                                    <>
+                                        Dense path is active with embedder{" "}
+                                        <span className="font-mono text-foreground">{status?.embedder || emb}</span>
+                                        {dim != null ? (
+                                            <span className="font-mono"> · dim={dim}</span>
+                                        ) : null}
+                                        . BM25 remains the always-on lexical fallback. Reindex after switching backends.
+                                    </>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Analytics strip */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5" data-testid="kb-analytics">
@@ -668,6 +776,67 @@ export default function Knowledge() {
                     >
                         {ingestBusy ? "Ingesting…" : "Ingest to KB"}
                     </button>
+
+                    <div className="pt-3 border-t border-border mt-3" data-testid="kb-custom-manager">
+                        <div className="soc-label text-primary/90 flex items-center gap-1.5 mb-2">
+                            Custom documents manager
+                            <HelpTip
+                                title="Custom KB docs"
+                                body="Admin-only list of ingested custom documents (Mongo kb_docs + in-memory KB). Delete removes from both and reindexes vectors."
+                                testid="tip-kb-custom-manager"
+                            />
+                        </div>
+                        {customDocs.length === 0 ? (
+                            <p className="text-[11px] text-muted-foreground m-0" data-testid="kb-custom-empty">
+                                No custom documents yet. Ingest above to add pilot SOPs / notes.
+                            </p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs" data-testid="kb-custom-table">
+                                    <thead>
+                                    <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border">
+                                        <th className="py-1.5 pr-2 font-semibold">ID</th>
+                                        <th className="py-1.5 pr-2 font-semibold">Title</th>
+                                        <th className="py-1.5 pr-2 font-semibold">Source</th>
+                                        <th className="py-1.5 font-semibold text-right">Actions</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                    {customDocs.map((d) => (
+                                        <tr key={d.id} data-testid={`kb-custom-row-${d.id}`}>
+                                            <td className="py-2 pr-2 font-mono text-primary whitespace-nowrap">{d.id}</td>
+                                            <td className="py-2 pr-2 text-foreground max-w-[14rem] truncate" title={d.title}>
+                                                {d.title || "—"}
+                                            </td>
+                                            <td className="py-2 pr-2 text-muted-foreground">{d.source || "Custom"}</td>
+                                            <td className="py-2 text-right">
+                                                <button
+                                                    type="button"
+                                                    className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-error/40 text-error hover:bg-error/10 disabled:opacity-50"
+                                                    data-testid={`kb-custom-delete-${d.id}`}
+                                                    disabled={customBusy}
+                                                    onClick={() => deleteCustomDoc(d.id)}
+                                                    title={`Delete ${d.id}`}
+                                                >
+                                                    <Trash size={12}/>
+                                                    Delete
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <button
+                            type="button"
+                            className="mt-2 text-[10px] text-muted-foreground hover:text-primary underline"
+                            data-testid="kb-custom-refresh"
+                            onClick={loadCustomDocs}
+                        >
+                            Refresh list
+                        </button>
+                    </div>
                 </div>
             )}
 

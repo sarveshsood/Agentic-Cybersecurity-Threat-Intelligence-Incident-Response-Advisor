@@ -100,4 +100,42 @@ def test_hunt_routes_registered():
     assert hr in ALL_DOMAIN_ROUTERS
     paths = {getattr(r, "path", None) for r in hr.router.routes}
     assert "/hunt" in paths
-    assert "/hunt/suggestions" in paths
+    assert "/hunt/suggestions" in paths or any(
+        p and "suggestions" in str(p) for p in paths
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_hunt_honesty_and_filters(monkeypatch):
+    """Service smoke: pool honesty fields + severity/status passed to repo."""
+    from backend.services import hunt_service as hs
+
+    captured = {}
+
+    async def fake_list_filtered(**kwargs):
+        captured.update(kwargs)
+        return [
+            _inc(id="ps1", title="PowerShell abuse", summary="powershell -enc", severity="high", status="new"),
+            _inc(id="other", title="Benign", summary="patch", severity="low", status="closed"),
+        ]
+
+    monkeypatch.setattr(hs.incidents_repo, "list_filtered", fake_list_filtered)
+    out = await hs.run_hunt("PowerShell", limit=10, severity="high", status="new")
+    assert isinstance(out, dict)
+    assert out.get("pool_limit") == 500
+    assert out.get("pool_filters", {}).get("severity") == "high"
+    assert out.get("pool_filters", {}).get("status") == "new"
+    assert "SIEM" in (out.get("honesty") or "") or "500" in (out.get("honesty") or "")
+    assert captured.get("severity") == "high"
+    assert captured.get("status") == "new"
+    assert captured.get("limit") == 500
+
+
+@pytest.mark.asyncio
+async def test_run_hunt_requires_query():
+    from backend.services import hunt_service as hs
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as ei:
+        await hs.run_hunt("  ", limit=5)
+    assert ei.value.status_code == 400

@@ -1672,6 +1672,18 @@
               ],
               "title": "Target Type"
             }
+          },
+          {
+            "description": "When true, return {items,total,skip,limit} for server-side pagination",
+            "in": "query",
+            "name": "include_meta",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "When true, return {items,total,skip,limit} for server-side pagination",
+              "title": "Include Meta",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -1700,6 +1712,55 @@
           }
         ],
         "summary": "Get Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/audit/actions": {
+      "get": {
+        "description": "Distinct audit action names for dynamic UI filters.",
+        "operationId": "get_audit_actions_api_audit_actions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit Actions",
         "tags": [
           "audit"
         ]
@@ -6112,6 +6173,18 @@
               ],
               "title": "Target Type"
             }
+          },
+          {
+            "description": "When true, return {items,total,skip,limit} for server-side pagination",
+            "in": "query",
+            "name": "include_meta",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "When true, return {items,total,skip,limit} for server-side pagination",
+              "title": "Include Meta",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -6140,6 +6213,55 @@
           }
         ],
         "summary": "Get Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/audit/actions": {
+      "get": {
+        "description": "Distinct audit action names for dynamic UI filters.",
+        "operationId": "get_audit_actions_api_v1_audit_actions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit Actions",
         "tags": [
           "audit"
         ]

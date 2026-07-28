@@ -1,0 +1,12 @@
+ACTIRA Final Capstone demo video (scene-synced voice)
+viewport: {'width': 1920, 'height': 1200} dpr=1.0 color_scheme=light
+mouse: visible cursor overlay + movement
+voiceover: scene-synced soft Indian English (edge-tts Neerja)
+video_duration≈480.4s wall_clock≈496.0s
+scenes: 16 marked on timeline
+files: ACTIRA_Capstone_Demo_5min.webm + .mp4
+timeline: ACTIRA_Capstone_Demo_5min_timeline.json
+script: docs/capstone/DEMO_VIDEO_5MIN.md
+honesty: docs/product/PRODUCT_HONESTY.md
+auth_note: demo-* buttons only autofill; recorder always fill+submit credentials
+fix: login must leave /login; checkpoints _chk_00_login.png + _chk_01_dashboard.png
