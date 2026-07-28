@@ -4584,6 +4584,26 @@
         ]
       }
     },
+    "/api/meta/features": {
+      "get": {
+        "description": "Public snapshot of env-gated product flags (KD-9 / H-07 PR-1).\n\nSPA loads once at login / Layout mount. When a flag is false, collab routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.",
+        "operationId": "features_api_api_meta_features_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Booleans for H-07/H-08 collab & productivity surfaces (default all false)"
+          }
+        },
+        "summary": "Product feature flags snapshot",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/ops/status": {
       "get": {
         "description": "Admin Ops/Health panel \u2014 multi-replica flags, queue, timings, LLM budget.",
@@ -9082,6 +9102,26 @@
         "summary": "Upload Batch",
         "tags": [
           "logs"
+        ]
+      }
+    },
+    "/api/v1/meta/features": {
+      "get": {
+        "description": "Public snapshot of env-gated product flags (KD-9 / H-07 PR-1).\n\nSPA loads once at login / Layout mount. When a flag is false, collab routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.",
+        "operationId": "features_api_api_v1_meta_features_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Booleans for H-07/H-08 collab & productivity surfaces (default all false)"
+          }
+        },
+        "summary": "Product feature flags snapshot",
+        "tags": [
+          "meta"
         ]
       }
     },

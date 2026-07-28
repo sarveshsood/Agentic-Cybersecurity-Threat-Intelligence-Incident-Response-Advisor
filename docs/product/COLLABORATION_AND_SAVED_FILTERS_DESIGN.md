@@ -5,10 +5,10 @@
 | **Document** | Collaboration + Saved filters design |
 | **Author** | _(engineering)_ |
 | **Date** | 2026-07-27 |
-| **Status** | **Draft (v2 Future)** — rev 2 after design re-review |
+| **Status** | **Draft (v2)** — rev 2 design; **PR-1 implemented** (feature flags) |
 | **Product IDs** | **H-07** (Collaboration), **H-08** (Saved filters / workspaces / pins) |
-| **Roadmap** | `ROADMAP.md` §H — Priority P2 · 🔮 Future v2 |
-| **Implementation** | **Deferred** — design only; not shipping in v1.x |
+| **Roadmap** | `ROADMAP.md` §H + seed `rm-v2-h07-h08-collab` — detailed sub-tasks |
+| **Implementation** | **In progress** — PR-1 ✅; PR-2…PR-11 planned; flags default off |
 
 ---
 
@@ -1067,19 +1067,19 @@ Unchanged order of magnitude (~20 MB comments/year; ~70 MB inbox steady-state be
 
 Ordered for implementability. Each PR keeps main green with flags **off** (except meta/features always returns booleans).
 
-| PR | Title | Depends | Backend | Frontend | Description |
-|----|-------|---------|---------|----------|-------------|
-| **PR-1** | feat(meta): feature flags snapshot | — | `feature_flags.py`, `routers/meta.py` `GET /meta/features`, tests | `lib/features.js` load once | Concrete flag expose path (KD-9) |
-| **PR-2** | feat(collab): users public search | — (parallel PR-1) | `users_repo.search_public`, `GET /users`, tests | `UserPicker.jsx` | Typeahead for assign/mentions; **no** assign logic |
-| **PR-3** | feat(collab): assignment backend | PR-1 | Incident fields, `_filter_query` `$and`, `assignment_service`, PATCH route, audit, flag gate, tests incl. filter matrix | — | Backend-only assign; flag off → 404 |
-| **PR-4** | feat(collab): assignment UI | PR-2, PR-3 | — | `AssignPanel`, Incidents column/filters, tooltips | UX after typeahead + API exist |
-| **PR-5** | feat(collab): comments | PR-1 | `incident_comments`, comment service/router, audit, flag | `CommentsPanel`, HelpTips | Valuable without inbox |
-| **PR-6** | feat(collab): app_notifications inbox + emitters | PR-3, PR-5 | collection `app_notifications`, `notification_inbox_service`, hooks in `assignment_service`, `comment_service`, **`job_queue.mark_queue_done`**, retention cascade, flag | Layout bell, `NotificationCenter`, poll | Naming split from outbound `notifications.py` |
-| **PR-7** | feat(prod): saved filters | PR-1 | saved_filters models/repo/service; **server fields only** + `client_only` blob; `is_default` SOT | `SavedFiltersBar`, Incidents integrate + pagination warning | Parallelizable with PR-3+ after PR-1 |
-| **PR-8** | feat(prod): favorites (pins) | PR-7 for filter targets; PR-1 | `user_pins`, allowlist validation, retention pin cascade | favorite UI, Dashboard, palette | Tab IDs = `WORKSPACE_TAB_IDS` |
-| **PR-9** | feat(prod): user_prefs sync | PR-1 | `user_prefs` (no default filter denorm) | `uiPrefs` merge | Light workspaces |
-| **PR-10** | chore: OpenAPI + inventory + roadmap honesty | PR-6..9 | export openapi, roadmap notes | — | Docs |
-| **PR-11** | stretch: SSE + email digests | PR-6 | SSE; adapter to outbound `notifications.py` | EventSource optional | No inbox/outbox mix |
+| PR | Title | Depends | Backend | Frontend | Description | Status |
+|----|-------|---------|---------|----------|-------------|--------|
+| **PR-1** | feat(meta): feature flags snapshot | — | `feature_flags.py`, `routers/meta.py` `GET /meta/features`, tests | `lib/features.js` load once | Concrete flag expose path (KD-9) | ✅ PR #13 |
+| **PR-2** | feat(collab): users public search | — (parallel PR-1) | `users_repo.search_public`, `GET /users`, tests | `UserPicker.jsx` | Typeahead for assign/mentions; **no** assign logic | 📋 Next |
+| **PR-3** | feat(collab): assignment backend | PR-1 | Incident fields, `_filter_query` `$and`, `assignment_service`, PATCH route, audit, flag gate, tests incl. filter matrix | — | Backend-only assign; flag off → 404 | 📋 |
+| **PR-4** | feat(collab): assignment UI | PR-2, PR-3 | — | `AssignPanel`, Incidents column/filters, tooltips | UX after typeahead + API exist | 📋 |
+| **PR-5** | feat(collab): comments | PR-1 | `incident_comments`, comment service/router, audit, flag | `CommentsPanel`, HelpTips | Valuable without inbox | 📋 |
+| **PR-6** | feat(collab): app_notifications inbox + emitters | PR-3, PR-5 | collection `app_notifications`, `notification_inbox_service`, hooks in `assignment_service`, `comment_service`, **`job_queue.mark_queue_done`**, retention cascade, flag | Layout bell, `NotificationCenter`, poll | Naming split from outbound `notifications.py` | 📋 |
+| **PR-7** | feat(prod): saved filters | PR-1 | saved_filters models/repo/service; **server fields only** + `client_only` blob; `is_default` SOT | `SavedFiltersBar`, Incidents integrate + pagination warning | Parallelizable with PR-3+ after PR-1 | 📋 |
+| **PR-8** | feat(prod): favorites (pins) | PR-7 for filter targets; PR-1 | `user_pins`, allowlist validation, retention pin cascade | favorite UI, Dashboard, palette | Tab IDs = `WORKSPACE_TAB_IDS` | 📋 |
+| **PR-9** | feat(prod): user_prefs sync | PR-1 | `user_prefs` (no default filter denorm) | `uiPrefs` merge | Light workspaces | 📋 |
+| **PR-10** | chore: OpenAPI + inventory + roadmap honesty | PR-6..9 | export openapi, roadmap notes | — | Docs | 📋 |
+| **PR-11** | stretch: SSE + email digests | PR-6 | SSE; adapter to outbound `notifications.py` | EventSource optional | No inbox/outbox mix | 🔮 |
 
 **Dependency graph:**
 

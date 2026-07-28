@@ -131,7 +131,7 @@ Aligned with engineering phases (see root `ROADMAP.md` § Vision waves):
 | **B (v1.5)** | Broader evidence formats, hunting, behavioral analytics slices | High | ✅ Done |
 | **C (v1.6)** | Compliance automation, audit intelligence, executive export, LLM fallback | High | ✅ Done |
 | **D (v1.7)** | Multi-agent roster UX + executive dashboard + trust/QA polish | Medium | 📋 Planned |
-| **E (v2.x)** | Enterprise connectors, multi-tenant, scale | Medium | 🔮 Future |
+| **E (v2.x)** | Enterprise connectors, multi-tenant, collab H-07/H-08 (PR-1 flags ✅) | Medium | 🔮 · collab started |
 
 **Already complete (engineering foundation):** modular API, hybrid RAG, HiTL, golden eval, OTEL/HA scaffolding, OIDC scaffold, ATT&CK matrix, EVTX scaffold, architecture services/repos + analytics performance.
 
