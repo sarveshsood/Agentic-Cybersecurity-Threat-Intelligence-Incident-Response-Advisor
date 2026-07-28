@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520">
+  <rect width="1200" height="520" fill="#F8FAFC"/>
+  <text x="40" y="42" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700">ACTIRA — Hybrid RAG playbook pipeline</text>
+  <text x="40" y="70" fill="#2563EB" font-family="Segoe UI, Arial, sans-serif" font-size="14">BM25 + dense vectors · RRF fusion · citation allow-list · grounding score</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="13">
+    <rect x="40" y="120" width="160" height="70" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="85" y="150" fill="#2563EB" font-weight="700">QUERY</text>
+    <text x="55" y="172" fill="#0F172A">Incident + IoCs</text>
+
+    <rect x="240" y="90" width="160" height="60" rx="12" fill="#DBEAFE" stroke="#93C5FD"/>
+    <text x="275" y="125" fill="#1D4ED8" font-weight="700">BM25 lexical</text>
+
+    <rect x="240" y="170" width="160" height="60" rx="12" fill="#CFFAFE" stroke="#67E8F9"/>
+    <text x="268" y="205" fill="#0E7490" font-weight="700">LanceDB ANN</text>
+
+    <rect x="440" y="120" width="160" height="70" rx="12" fill="#D1FAE5" stroke="#6EE7B7"/>
+    <text x="475" y="150" fill="#047857" font-weight="700">RRF FUSION</text>
+    <text x="460" y="172" fill="#0F172A">Rank candidates</text>
+
+    <rect x="640" y="120" width="160" height="70" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="675" y="150" fill="#2563EB" font-weight="700">OPTIONAL</text>
+    <text x="660" y="172" fill="#0F172A">Re-rank / top-k</text>
+
+    <rect x="840" y="120" width="160" height="70" rx="12" fill="#FEF3C7" stroke="#FCD34D"/>
+    <text x="885" y="150" fill="#B45309" font-weight="700">LLM</text>
+    <text x="860" y="172" fill="#0F172A">or template path</text>
+
+    <rect x="1040" y="120" width="130" height="70" rx="12" fill="#D1FAE5" stroke="#6EE7B7"/>
+    <text x="1060" y="150" fill="#047857" font-weight="700">PLAYBOOK</text>
+    <text x="1055" y="172" fill="#0F172A">JSON steps</text>
+  </g>
+
+  <g stroke="#94A3B8" stroke-width="2" fill="none">
+    <path d="M200 155 H240"/>
+    <path d="M200 155 C220 155, 220 120, 240 120"/>
+    <path d="M200 155 C220 155, 220 200, 240 200"/>
+    <path d="M400 120 H440 V155"/>
+    <path d="M400 200 H440 V155"/>
+    <path d="M600 155 H640"/>
+    <path d="M800 155 H840"/>
+    <path d="M1000 155 H1040"/>
+  </g>
+
+  <!-- Controls -->
+  <rect x="40" y="280" width="1120" height="200" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="60" y="315" fill="#059669" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">TRUST CONTROLS (SUBMISSION-CRITICAL)</text>
+  <text x="60" y="350" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">1. Citation allow-list: playbook citation_ids must be a subset of retrieved knowledge-base IDs.</text>
+  <text x="60" y="380" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">2. Grounding score (0-1): low grounding or critical severity forces HiTL pending_review.</text>
+  <text x="60" y="410" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">3. Multi-provider LLM catalog with cross-provider fallback; template playbook is last resort.</text>
+  <text x="60" y="440" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">Honest framing: modular agentic pipeline stages — not a full multi-agent swarm product.</text>
+</svg>

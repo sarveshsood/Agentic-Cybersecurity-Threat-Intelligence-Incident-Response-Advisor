@@ -1,0 +1,98 @@
+[
+  {
+    "id": "login",
+    "t0": 8.197,
+    "url": "http://localhost:3000/login",
+    "vo_duration": 29.35
+  },
+  {
+    "id": "auth",
+    "t0": 39.931,
+    "url": "http://localhost:3000/login",
+    "vo_duration": 12.53
+  },
+  {
+    "id": "dashboard",
+    "t0": 57.118,
+    "url": "http://localhost:3000/",
+    "vo_duration": 16.66
+  },
+  {
+    "id": "upload",
+    "t0": 85.447,
+    "url": "http://localhost:3000/upload",
+    "vo_duration": 22.56
+  },
+  {
+    "id": "incidents",
+    "t0": 113.259,
+    "url": "http://localhost:3000/incidents",
+    "vo_duration": 12.19
+  },
+  {
+    "id": "workspace",
+    "t0": 134.712,
+    "url": "http://localhost:3000/incidents/f6632f76-2361-4c8e-a5bc-5800102e2fca",
+    "vo_duration": 17.26
+  },
+  {
+    "id": "playbook",
+    "t0": 157.353,
+    "url": "http://localhost:3000/incidents/f6632f76-2361-4c8e-a5bc-5800102e2fca?tab=playbooks",
+    "vo_duration": 21.98
+  },
+  {
+    "id": "review",
+    "t0": 208.337,
+    "url": "http://localhost:3000/review",
+    "vo_duration": 19.27
+  },
+  {
+    "id": "hunt",
+    "t0": 283.415,
+    "url": "http://localhost:3000/hunt",
+    "vo_duration": 13.61
+  },
+  {
+    "id": "compliance",
+    "t0": 310.822,
+    "url": "http://localhost:3000/compliance",
+    "vo_duration": 14.21
+  },
+  {
+    "id": "audit",
+    "t0": 330.29,
+    "url": "http://localhost:3000/audit",
+    "vo_duration": 9.79
+  },
+  {
+    "id": "knowledge",
+    "t0": 348.04,
+    "url": "http://localhost:3000/knowledge",
+    "vo_duration": 11.64
+  },
+  {
+    "id": "analytics",
+    "t0": 368.993,
+    "url": "http://localhost:3000/analytics",
+    "vo_duration": 9.38
+  },
+  {
+    "id": "settings",
+    "t0": 385.29,
+    "url": "http://localhost:3000/settings",
+    "vo_duration": 14.81
+  },
+  {
+    "id": "architecture",
+    "t0": 402.525,
+    "url": "http://localhost:3000/settings",
+    "vo_duration": 30.7
+  },
+  {
+    "id": "close",
+    "t0": 448.025,
+    "url": "http://localhost:3000/",
+    "vo_duration": 28.18
+  }
+]

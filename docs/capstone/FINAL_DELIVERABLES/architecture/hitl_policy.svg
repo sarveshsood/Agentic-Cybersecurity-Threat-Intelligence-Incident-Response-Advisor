@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560">
+  <rect width="1200" height="560" fill="#F8FAFC"/>
+  <text x="40" y="42" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700">ACTIRA — Human-in-the-Loop policy</text>
+  <text x="40" y="70" fill="#2563EB" font-family="Segoe UI, Arial, sans-serif" font-size="14">Severity + grounding gates · race-safe review · audit hash chain</text>
+
+  <rect x="40" y="110" width="220" height="80" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="70" y="145" fill="#2563EB" font-weight="700" font-size="14" font-family="Segoe UI, Arial, sans-serif">INPUTS</text>
+  <text x="60" y="170" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">severity · grounding · policy</text>
+
+  <rect x="320" y="110" width="260" height="80" rx="12" fill="#FEF3C7" stroke="#FCD34D"/>
+  <text x="360" y="145" fill="#B45309" font-weight="700" font-size="14" font-family="Segoe UI, Arial, sans-serif">severity &gt;= min?</text>
+  <text x="350" y="170" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">Critical / high force review</text>
+
+  <rect x="640" y="50" width="240" height="70" rx="12" fill="#FEE2E2" stroke="#FCA5A5"/>
+  <text x="680" y="90" fill="#B91C1C" font-weight="700" font-size="14" font-family="Segoe UI, Arial, sans-serif">pending_review (HiTL)</text>
+
+  <rect x="640" y="150" width="240" height="70" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="690" y="180" fill="#2563EB" font-weight="700" font-size="14" font-family="Segoe UI, Arial, sans-serif">grounding low?</text>
+  <text x="680" y="202" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">Yes → still HiTL</text>
+
+  <rect x="940" y="150" width="220" height="70" rx="12" fill="#D1FAE5" stroke="#6EE7B7"/>
+  <text x="990" y="180" fill="#047857" font-weight="700" font-size="14" font-family="Segoe UI, Arial, sans-serif">status: new</text>
+  <text x="970" y="202" fill="#0F172A" font-size="13" font-family="Segoe UI, Arial, sans-serif">or auto-approve (rare)</text>
+
+  <g stroke="#94A3B8" stroke-width="2" fill="none">
+    <path d="M260 150 H320"/>
+    <path d="M580 150 H640"/>
+    <path d="M450 190 V220 H760 V220"/>
+    <path d="M880 185 H940"/>
+    <path d="M760 50 V110"/>
+  </g>
+
+  <rect x="40" y="280" width="1120" height="230" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <text x="60" y="315" fill="#059669" font-size="14" font-weight="700" font-family="Segoe UI, Arial, sans-serif">OPERATIONAL GUARANTEES</text>
+  <text x="60" y="350" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Senior reviewer approve/reject with comments; concurrent double-approve returns 409 (race-safe).</text>
+  <text x="60" y="380" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Auto-approve never bypasses the severity gate — critical work always needs a human.</text>
+  <text x="60" y="410" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Audit events form a best-effort SHA-256 integrity chain (not WORM storage).</text>
+  <text x="60" y="440" fill="#0F172A" font-size="14" font-family="Segoe UI, Arial, sans-serif">• Review queue is the product surface for board/viva demos of mandatory human gates.</text>
+  <text x="60" y="475" fill="#64748B" font-size="13" font-family="Segoe UI, Arial, sans-serif">Roles: analyst (investigate) · senior_reviewer (approve) · admin (settings / governance).</text>
+</svg>

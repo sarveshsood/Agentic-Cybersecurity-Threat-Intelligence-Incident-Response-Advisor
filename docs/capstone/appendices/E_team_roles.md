@@ -1,7 +1,7 @@
 # Appendix E — Team roles & contributions
 
 **Location:** `docs/capstone/appendices/E_team_roles.md`  
-**Source of names:** product Login page team strip (Group 1) + git authorship for primary integrator.
+**Source of names:** product Login page team strip (Group 1).
 
 ---
 
@@ -10,30 +10,30 @@
 | Field | Value |
 |-------|--------|
 | Project title | Agentic Cybersecurity Threat Intelligence & Incident Response Advisor (ACTIRA) |
-| Capstone # | 4 |
+| Capstone | Final Capstone Project |
 | Program | Advanced Certification Programme in Agentic and Generative AI |
 | Product codename | ACTIRA |
 | Team | Group 1 |
-| Report date | 26 July 2026 |
+| Report date | 27 July 2026 |
 
 ---
 
 ## E.2 Team members (Group 1)
 
-| # | Name | Primary focus (suggested) |
-|---|------|---------------------------|
-| 1 | Abhishek Patre | *(assign per team agreement)* |
-| 2 | Aditya Sharma | *(assign per team agreement)* |
-| 3 | Barshan Mukhar Das | *(assign per team agreement)* |
-| 4 | Gaurav Eary | *(assign per team agreement)* |
-| 5 | Nishant Rameshrao Patil | *(assign per team agreement)* |
-| 6 | Prajwal B R | *(assign per team agreement)* |
-| 7 | Praveen S N | *(assign per team agreement)* |
-| 8 | Sarvesh Sood | Integration / docs / Wave C resilience (repo primary committer) |
-| 9 | Sindhu Subramanya | *(assign per team agreement)* |
-| 10 | Vesalapu Satya Venkata Rupa | *(assign per team agreement)* |
+| # | Name |
+|---|------|
+| 1 | Abhishek Patre |
+| 2 | Aditya Sharma |
+| 3 | Barshan Mukhar Das |
+| 4 | Gaurav Eary |
+| 5 | Nishant Rameshrao Patil |
+| 6 | Prajwal B R |
+| 7 | Praveen S N |
+| 8 | Sarvesh Sood |
+| 9 | Sindhu Subramanya |
+| 10 | Vesalapu Satya Venkata Rupa |
 
-> Refine “Primary focus” columns before viva if your institute requires explicit workstream ownership.
+Evaluation focus is **product capability** (architecture, pipeline, HiTL, evaluation metrics, deliverables) — not individual workstream ownership lists.
 
 ---
 
@@ -48,7 +48,7 @@
 
 ---
 
-## E.4 Contribution matrix (product workstreams)
+## E.4 Product workstreams covered in this pack
 
 | Workstream | Artifacts in this pack / repo |
 |------------|-------------------------------|
@@ -58,13 +58,13 @@
 | Security / RBAC / vault | Auth, hardening tests, Settings vault |
 | Compliance / audit Wave C | Score, integrity chain, executive export |
 | Testing / golden CI | `appendices/A_test_case_catalog.md`, pytest golden suite |
-| Report / PPT | `PROJECT_REPORT.md`, `presentation/`, this appendix pack |
+| Report / PPT / demo | `PROJECT_REPORT.md`, `presentation/`, demo video pack |
 
 ---
 
 ## E.5 Declaration
 
-We declare that this capstone work is our own (with documented use of open-source libraries and APIs), that claims match the board review and evaluation evidence in this pack, and that ACTIRA is presented as an **advisory pilot** product—not a certified SIEM/XDR replacement.
+We declare that this Final Capstone Project work is our own (with documented use of open-source libraries and APIs), that claims match the board review and evaluation evidence in this pack, and that ACTIRA is presented as an **advisory pilot** product—not a certified SIEM/XDR replacement.
 
 | Name | Signature | Date |
 |------|-----------|------|
