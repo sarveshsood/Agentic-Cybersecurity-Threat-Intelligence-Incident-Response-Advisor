@@ -5,10 +5,10 @@
 | **Document** | Collaboration + Saved filters design |
 | **Author** | _(engineering)_ |
 | **Date** | 2026-07-27 |
-| **Status** | **Draft (v2)** — rev 2 design; **PR-1 implemented** (feature flags) |
+| **Status** | **Implemented (MVP)** — design + PR-1…PR-8 surfaces shipped behind flags |
 | **Product IDs** | **H-07** (Collaboration), **H-08** (Saved filters / workspaces / pins) |
-| **Roadmap** | `ROADMAP.md` §H + seed `rm-v2-h07-h08-collab` — detailed sub-tasks |
-| **Implementation** | **In progress** — PR-1 ✅; PR-2…PR-11 planned; flags default off |
+| **Roadmap** | `ROADMAP.md` §H + seed `rm-v2-h07-h08-collab` |
+| **Implementation** | **MVP complete** — enable `FEATURE_*` env vars (default off). Stretch: SSE inbox, email digests, secondary assignee UI. |
 
 ---
 
