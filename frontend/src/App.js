@@ -150,9 +150,14 @@ export default function App() {
                             />
                             <Route path="/knowledge" element={<Protected><Knowledge/></Protected>}/>
                             <Route path="/roadmap" element={<Protected><Roadmap/></Protected>}/>
+                            {/* SPA page is only /qa — API paths like /qa/coverage live under /api, not here */}
                             <Route
                                 path="/qa"
                                 element={<Protected roles={REVIEWER_ROLES}><QaHealthCenter/></Protected>}
+                            />
+                            <Route
+                                path="/qa/*"
+                                element={<Navigate to="/qa" replace/>}
                             />
                             <Route
                                 path="/benchmark"
