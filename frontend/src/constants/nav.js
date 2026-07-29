@@ -17,6 +17,7 @@ import {
     MapTrifold,
     ShieldCheck,
     ShieldWarning,
+    TestTube,
     UploadSimple,
 } from "@phosphor-icons/react";
 
@@ -32,6 +33,7 @@ import {
  *   section: NavSection,
  *   colorClass: string,
  *   keywords?: string,
+ *   feature?: string,
  * }>}
  */
 export const NAV = [
@@ -140,6 +142,17 @@ export const NAV = [
     },
     // —— Admin ——
     {
+        to: "/qa",
+        label: "QA Health",
+        icon: TestTube,
+        roles: ["senior_reviewer", "admin"],
+        tip: "Testing Health Center — coverage, suites, release readiness (not Ops runtime)",
+        section: "Admin",
+        colorClass: "text-primary bg-primary/10",
+        keywords: "qa quality testing coverage readiness junit release",
+        feature: "qa_health_center",
+    },
+    {
         to: "/benchmark",
         label: "Golden Eval",
         icon: Flask,
@@ -154,7 +167,7 @@ export const NAV = [
         label: "Ops & Health",
         icon: Heartbeat,
         roles: ["admin"],
-        tip: "Multi-replica flags, queue, pipeline timings, LLM budget",
+        tip: "Multi-replica flags, queue, pipeline timings, LLM budget (runtime — not QA)",
         section: "Admin",
         colorClass: "text-rose-600 bg-rose-50 dark:bg-rose-950/30",
         keywords: "ops health ha multi-replica queue timings",
@@ -174,10 +187,23 @@ export const NAV = [
 /** Stable section order for left rail + Jump groups. */
 export const NAV_SECTIONS = ["Operate", "Analyze", "Govern", "Admin"];
 
-/** Filter nav by RBAC role (same rules as Layout). */
-export function navForRole(role) {
+/**
+ * Filter nav by RBAC role and optional product feature flags.
+ * @param {string} [role]
+ * @param {{ isFeatureEnabled?: (key: string) => boolean }} [opts]
+ */
+export function navForRole(role, opts = {}) {
     const r = role || "analyst";
-    return NAV.filter((n) => Array.isArray(n.roles) && n.roles.includes(r));
+    const featOk = opts.isFeatureEnabled;
+    return NAV.filter((n) => {
+        if (!Array.isArray(n.roles) || !n.roles.includes(r)) return false;
+        if (n.feature) {
+            // Hide feature-gated items until flags load / when disabled
+            if (typeof featOk !== "function") return false;
+            if (!featOk(n.feature)) return false;
+        }
+        return true;
+    });
 }
 
 /** Group nav items by section; omit empty sections. */

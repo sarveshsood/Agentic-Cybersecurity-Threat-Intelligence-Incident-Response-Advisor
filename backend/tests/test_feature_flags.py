@@ -93,9 +93,13 @@ def test_require_feature_allows_when_on(monkeypatch):
     assert r.json() == {"ok": True}
 
 
-def test_meta_features_route_shape():
+def test_meta_features_route_shape(monkeypatch):
     """Route is registered on the real app under /api and /api/v1."""
+    from backend.feature_flags import FEATURE_ENV_MAP
     from backend.server import app
+
+    for env in FEATURE_ENV_MAP.values():
+        monkeypatch.delenv(env, raising=False)
 
     paths = {getattr(r, "path", None) for r in app.routes}
     assert "/api/meta/features" in paths
@@ -111,6 +115,15 @@ def test_meta_features_route_shape():
         "notification_center",
         "saved_filters",
         "pins",
+        "qa_health_center",
     ):
         assert key in body
         assert isinstance(body[key], bool)
+        assert body[key] is False
+    # Catalog for Settings → Feature flags UI
+    assert isinstance(body.get("catalog"), list)
+    assert len(body["catalog"]) >= 6
+    keys = {row["key"] for row in body["catalog"]}
+    assert "qa_health_center" in keys
+    assert "summary" in body
+    assert "related" in body

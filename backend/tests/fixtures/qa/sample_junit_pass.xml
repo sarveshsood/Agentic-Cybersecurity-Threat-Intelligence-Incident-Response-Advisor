@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Passing unit suite for local readiness demos (Admin → Ingest). -->
+<testsuites name="pytest unit" tests="8" failures="0" errors="0" skipped="0" time="2.40">
+  <testsuite name="backend.tests.test_parsers_basic" tests="3" failures="0" errors="0" skipped="0" time="0.80">
+    <testcase classname="backend.tests.test_parsers_basic" name="test_syslog" time="0.10"/>
+    <testcase classname="backend.tests.test_parsers_basic" name="test_json_line" time="0.12"/>
+    <testcase classname="backend.tests.test_parsers_basic" name="test_evtx_smoke" time="0.20"/>
+  </testsuite>
+  <testsuite name="backend.tests.test_hardening" tests="3" failures="0" errors="0" skipped="0" time="0.90">
+    <testcase classname="backend.tests.test_hardening" name="test_login_ok" time="0.30"/>
+    <testcase classname="backend.tests.test_hardening" name="test_rbac_settings" time="0.30"/>
+    <testcase classname="backend.tests.test_hardening" name="test_weak_jwt_lab" time="0.20"/>
+  </testsuite>
+  <testsuite name="backend.tests.test_system_router" tests="2" failures="0" errors="0" skipped="0" time="0.70">
+    <testcase classname="backend.tests.test_system_router" name="test_health" time="0.10"/>
+    <testcase classname="backend.tests.test_system_router" name="test_ready" time="0.15"/>
+  </testsuite>
+</testsuites>

@@ -29,7 +29,7 @@ logger = logging.getLogger("actira")
 # Production-leaning recommended ops (aligned with memory/WEEKLY_DISCUSSIONS.md).
 RECOMMENDED_SETTINGS_OPS = {
     "llm_provider": "anthropic",
-    "llm_model": "claude-sonnet-4-6",
+    "llm_model": "claude-sonnet-5",
     "llm_temperature": 0.15,
     "llm_token_budget_monthly": 500_000,
     "llm_fallback_enabled": True,
@@ -286,7 +286,7 @@ async def list_profiles() -> Dict[str, Any]:
         "recommended": dict(RECOMMENDED_SETTINGS_OPS),
         "notes": {
             "recommended": (
-                "Anthropic + Sonnet for prompt-cache friendly multi-step playbooks; "
+                "Anthropic + Claude Sonnet 5 for prompt-cache friendly multi-step playbooks; "
                 "stricter grounding/HiTL; 8h sessions; 180d retention. Secrets unchanged."
             ),
             "factory": (

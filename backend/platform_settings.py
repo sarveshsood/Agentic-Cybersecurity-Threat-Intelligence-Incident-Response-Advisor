@@ -89,19 +89,42 @@ FACTORY_PLATFORM: Dict[str, Any] = {
 
 RECOMMENDED_PLATFORM: Dict[str, Any] = {
     **FACTORY_PLATFORM,
-    "enrich_concurrency": 8,
-    "parse_concurrency": 4,
     "ti_http_timeout": 10.0,
     "ti_http_retries": 3,
     "log_format": "json",
     "log_file_format": "json",
-    "log_level": "INFO",
     "job_artifacts_enabled": True,
-    "job_payload_retain": False,  # disk-heavy; enable for demos that need re-queue
-    "audit_worm_enabled": True,
-    "log_archive_enabled": True,
-    "log_archive_retain_days": 30,
+    "job_payload_retain": False,  # disk-heavy; enable only for full re-queue demos
 }
+
+
+# Soft clamps (keep in sync with frontend validation)
+_CLAMPS = {
+    "max_enrich_iocs": (1, 200),
+    "enrich_concurrency": (1, 32),
+    "parse_concurrency": (1, 16),
+    "ti_http_timeout": (1.0, 60.0),
+    "ti_http_retries": (0, 10),
+    "ti_http_backoff_base": (0.05, 5.0),
+    "ti_circuit_failures": (1, 50),
+    "ti_circuit_cooldown_seconds": (5, 600),
+    "log_archive_retain_days": (1, 365),
+    "job_artifacts_retain_hours": (1, 24 * 30),
+}
+
+
+def _clamp(field: str, value: Any) -> Any:
+    if field not in _CLAMPS or value is None:
+        return value
+    lo, hi = _CLAMPS[field]
+    try:
+        if isinstance(lo, float) or isinstance(value, float):
+            v = float(value)
+            return max(lo, min(hi, v))
+        v = int(value)
+        return max(lo, min(hi, v))
+    except (TypeError, ValueError):
+        return value
 
 
 def _bool_to_env(v: Any) -> str:
@@ -118,6 +141,7 @@ def apply_platform_to_environ(settings: Optional[Mapping[str, Any]]) -> None:
         val = settings.get(field)
         if val is None:
             continue
+        val = _clamp(field, val)
         if isinstance(val, bool):
             os.environ[env_name] = _bool_to_env(val)
         elif isinstance(val, (int, float)):
@@ -129,17 +153,17 @@ def apply_platform_to_environ(settings: Optional[Mapping[str, Any]]) -> None:
                 os.environ.pop(env_name, None)
             elif s:
                 os.environ[env_name] = s
+
     # Reconfigure logging if format/level changed (best-effort)
     try:
         from backend.logging_setup import configure_logging
-
         configure_logging(force=True)
     except Exception as e:
         logger.debug("logging reconfigure after settings: %s", e)
+
     # Reset TI session so proxy/timeouts pick up new values
     try:
         from backend import ti_http
-
         ti_http.reset_session()
     except Exception:
         pass
@@ -149,10 +173,10 @@ def public_platform_payload(settings: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for k in PUBLIC_PLATFORM_FIELDS:
         if k in settings and settings[k] is not None:
-            out[k] = settings[k]
+            out[k] = _clamp(k, settings[k])
         else:
             out[k] = FACTORY_PLATFORM.get(k)
-    # has_* for secrets (never return raw values)
+
     def _present(v: Any) -> bool:
         s = str(v or "").strip()
         return bool(s) and s not in ("***", "••••", "redacted")
@@ -164,3 +188,28 @@ def public_platform_payload(settings: Mapping[str, Any]) -> Dict[str, Any]:
         os.environ.get("JOB_BROKER_URL")
     )
     return out
+
+
+def resolve_platform_value(field: str, settings: Optional[Mapping[str, Any]] = None) -> Any:
+    """Runtime helper: Settings → env → factory default (with clamp)."""
+    if settings and field in settings and settings[field] is not None:
+        return _clamp(field, settings[field])
+    env_name = SETTINGS_TO_ENV.get(field)
+    if env_name and env_name in os.environ:
+        raw = os.environ[env_name]
+        # best-effort type coercion
+        factory = FACTORY_PLATFORM.get(field)
+        if isinstance(factory, bool):
+            return raw.strip().lower() in ("1", "true", "yes", "on")
+        if isinstance(factory, float):
+            try:
+                return _clamp(field, float(raw))
+            except ValueError:
+                return factory
+        if isinstance(factory, int):
+            try:
+                return _clamp(field, int(raw))
+            except ValueError:
+                return factory
+        return raw
+    return FACTORY_PLATFORM.get(field)

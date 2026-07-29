@@ -7,6 +7,7 @@ import {useNavigate} from "react-router-dom";
 import {useAuth} from "../lib/auth";
 import {getRecentIncidents} from "../lib/recentActivity";
 import {groupNav, navForRole} from "../constants/nav";
+import {isFeatureEnabled} from "../lib/features";
 import {
     CommandDialog,
     CommandEmpty,
@@ -43,9 +44,9 @@ export default function CommandPalette({shortcutLabel} = {}) {
         if (open) refreshRecents();
     }, [open, refreshRecents]);
 
-    // Same RBAC filter + section groups as the left rail
+    // Same RBAC + feature-flag filter as the left rail
     const sectionGroups = useMemo(() => {
-        return groupNav(navForRole(user?.role));
+        return groupNav(navForRole(user?.role, {isFeatureEnabled}));
     }, [user?.role]);
 
     const go = (to) => {

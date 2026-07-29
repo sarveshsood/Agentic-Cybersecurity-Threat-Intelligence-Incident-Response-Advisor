@@ -13,7 +13,7 @@
 
 export const FACTORY_OPS = {
     llm_provider: "anthropic",
-    llm_model: "claude-sonnet-4-6",
+    llm_model: "claude-sonnet-5",
     llm_temperature: 0.2,
     llm_token_budget_monthly: 0,
     llm_fallback_enabled: true,
@@ -58,7 +58,7 @@ export const FACTORY_OPS = {
 /** Production / demo-quality recommended ops (secrets never auto-filled). */
 export const RECOMMENDED_OPS = {
     llm_provider: "anthropic",
-    llm_model: "claude-sonnet-4-6",
+    llm_model: "claude-sonnet-5",
     llm_temperature: 0.15,
     llm_token_budget_monthly: 500000,
     llm_fallback_enabled: true,
@@ -101,7 +101,7 @@ export const RECOMMENDED_OPS = {
 
 /** Short bullets for the Recommended profile panel in Settings. */
 export const RECOMMENDED_PROFILE_BULLETS = [
-    "Anthropic + claude-sonnet-4-6 (prompt-cache friendly multi-step playbooks)",
+    "Anthropic + claude-sonnet-5 (prompt-cache friendly multi-step playbooks)",
     "Temperature 0.15 · monthly soft budget 500k tokens",
     "Grounding ≥ 0.75 · HiTL from high · auto-approve ≥ 0.92 · correlation 45m",
     "Session 8h · lockout 5 · incident retention 180d · enrichment cache 12h",
@@ -119,26 +119,26 @@ export const RECOMMENDED_PROFILE_WHY =
     "(stricter grounding/HiTL) and production-leaning session/retention posture — without touching your API keys.";
 
 /**
- * Supported providers in the UI (must match backend models.Settings / llm_provider).
- * Ollama / OpenRouter are listed as planned so the help UI can explain gaps.
- */
-/**
  * Full catalog with free/paid tiers (must match backend llm_provider.MODEL_CATALOG).
  * Settings page prefers live GET /settings/llm-catalog when available.
- * @type {Record<string, Array<{id: string, tier: 'free'|'paid', role?: string, label?: string}>>}
+ * @type {Record<string, Array<{id: string, tier: 'free'|'paid', role?: string, label?: string, experimental?: boolean}>>}
  */
 export const MODEL_CATALOG = {
     anthropic: [
-        {id: "claude-sonnet-4-6", tier: "paid", role: "default", label: "Claude Sonnet 4.6 (recommended)"},
-        {id: "claude-opus-4-6", tier: "paid", role: "flagship", label: "Claude Opus 4.6"},
-        {id: "claude-opus-4-8", tier: "paid", role: "flagship", label: "Claude Opus 4.8"},
-        {id: "claude-opus-4-5", tier: "paid", role: "flagship", label: "Claude Opus 4.5"},
-        {id: "claude-opus-4-1", tier: "paid", role: "flagship", label: "Claude Opus 4.1"},
-        {id: "claude-sonnet-4-5", tier: "paid", role: "mid", label: "Claude Sonnet 4.5"},
+        {id: "claude-sonnet-5", tier: "paid", role: "default", label: "Claude Sonnet 5 (recommended)"},
+        {id: "claude-opus-5", tier: "paid", role: "flagship", label: "Claude Opus 5"},
+        {id: "claude-fable-5", tier: "paid", role: "flagship", label: "Claude Fable 5 (highest widely available)"},
+        {id: "claude-mythos-5", tier: "paid", role: "flagship", label: "Claude Mythos 5 (limited / Glasswing)", experimental: true},
+        {id: "claude-haiku-4-5", tier: "paid", role: "fast", label: "Claude Haiku 4.5 (cheap/fast)"},
+        {id: "claude-haiku-4-5-20251001", tier: "paid", role: "fast", label: "Claude Haiku 4.5 (pinned)"},
+        {id: "claude-opus-4-8", tier: "paid", role: "prior", label: "Claude Opus 4.8"},
+        {id: "claude-sonnet-4-6", tier: "paid", role: "prior", label: "Claude Sonnet 4.6"},
+        {id: "claude-opus-4-6", tier: "paid", role: "prior", label: "Claude Opus 4.6"},
+        {id: "claude-opus-4-5", tier: "paid", role: "prior", label: "Claude Opus 4.5"},
+        {id: "claude-sonnet-4-5", tier: "paid", role: "prior", label: "Claude Sonnet 4.5"},
         {id: "claude-sonnet-4-0", tier: "paid", role: "prior", label: "Claude Sonnet 4"},
         {id: "claude-sonnet-4", tier: "paid", role: "prior", label: "Claude Sonnet 4 (alias)"},
         {id: "claude-opus-4", tier: "paid", role: "prior", label: "Claude Opus 4"},
-        {id: "claude-haiku-4-5", tier: "paid", role: "fast", label: "Claude Haiku 4.5 (cheap/fast)"},
         {id: "claude-3-7-sonnet-latest", tier: "paid", role: "prior", label: "Claude 3.7 Sonnet (latest alias)"},
         {id: "claude-3-7-sonnet-20250219", tier: "paid", role: "prior", label: "Claude 3.7 Sonnet (dated)"},
         {id: "claude-3-5-sonnet-latest", tier: "paid", role: "prior", label: "Claude 3.5 Sonnet (latest alias)"},
@@ -152,8 +152,8 @@ export const MODEL_CATALOG = {
         {id: "gpt-5.6-terra", tier: "paid", role: "default", label: "GPT-5.6 Terra (balanced)"},
         {id: "gpt-5.6-sol", tier: "paid", role: "flagship", label: "GPT-5.6 Sol (frontier)"},
         {id: "gpt-5.6-luna", tier: "paid", role: "fast", label: "GPT-5.6 Luna (cost)"},
-        {id: "gpt-5.6", tier: "paid", role: "flagship", label: "GPT-5.6 (alias)"},
-        {id: "gpt-5.5", tier: "paid", role: "flagship", label: "GPT-5.5"},
+        {id: "gpt-5.6", tier: "paid", role: "flagship", label: "GPT-5.6 (alias → Sol)"},
+        {id: "gpt-5.5", tier: "paid", role: "prior", label: "GPT-5.5"},
         {id: "gpt-5.5-pro", tier: "paid", role: "flagship", label: "GPT-5.5 Pro"},
         {id: "gpt-5.5-instant", tier: "paid", role: "fast", label: "GPT-5.5 Instant"},
         {id: "gpt-5.4", tier: "paid", role: "mid", label: "GPT-5.4"},
@@ -181,18 +181,30 @@ export const MODEL_CATALOG = {
         {id: "o1-pro", tier: "paid", role: "reasoning", label: "o1-pro"},
     ],
     gemini: [
-        {id: "gemini-3.1-pro-preview", tier: "paid", role: "default", label: "Gemini 3.1 Pro (preview)"},
-        {id: "gemini-3-pro-preview", tier: "paid", role: "flagship", label: "Gemini 3 Pro (preview)"},
-        {id: "gemini-3.6-flash", tier: "free", role: "fast", label: "Gemini 3.6 Flash (free tier)"},
-        {id: "gemini-3.5-flash", tier: "free", role: "fast", label: "Gemini 3.5 Flash (free tier)"},
-        {id: "gemini-3.5-flash-lite", tier: "free", role: "fast", label: "Gemini 3.5 Flash-Lite (free tier)"},
-        {id: "gemini-3.1-flash-lite", tier: "free", role: "fast", label: "Gemini 3.1 Flash-Lite (free tier)"},
-        {id: "gemini-3-flash-preview", tier: "free", role: "fast", label: "Gemini 3 Flash (preview / free)"},
-        {id: "gemini-2.5-pro", tier: "free", role: "prior", label: "Gemini 2.5 Pro (limited free)"},
-        {id: "gemini-2.5-flash", tier: "free", role: "fast", label: "Gemini 2.5 Flash (free tier)"},
-        {id: "gemini-2.5-flash-lite", tier: "free", role: "fast", label: "Gemini 2.5 Flash-Lite (free tier)"},
-        {id: "gemini-2.0-flash", tier: "free", role: "fast", label: "Gemini 2.0 Flash (free tier)"},
-        {id: "gemini-2.0-flash-lite", tier: "free", role: "fast", label: "Gemini 2.0 Flash-Lite (free tier)"},
+        {id: "gemini-3.6-flash", tier: "free", role: "default", label: "Gemini 3.6 Flash (recommended)"},
+        {id: "gemini-3.5-flash", tier: "free", role: "mid", label: "Gemini 3.5 Flash"},
+        {id: "gemini-3.5-flash-lite", tier: "free", role: "fast", label: "Gemini 3.5 Flash-Lite"},
+        {
+            id: "gemini-3.1-pro-preview",
+            tier: "paid",
+            role: "flagship",
+            label: "Gemini 3.1 Pro (preview · free-tier often exhausted)",
+            experimental: true,
+        },
+        {
+            id: "gemini-3-pro-preview",
+            tier: "paid",
+            role: "flagship",
+            label: "Gemini 3 Pro (preview · free-tier often exhausted)",
+            experimental: true,
+        },
+        {id: "gemini-3.1-flash-lite", tier: "free", role: "fast", label: "Gemini 3.1 Flash-Lite"},
+        {id: "gemini-3-flash-preview", tier: "free", role: "fast", label: "Gemini 3 Flash (preview)"},
+        {id: "gemini-2.5-pro", tier: "free", role: "prior", label: "Gemini 2.5 Pro"},
+        {id: "gemini-2.5-flash", tier: "free", role: "fast", label: "Gemini 2.5 Flash"},
+        {id: "gemini-2.5-flash-lite", tier: "free", role: "fast", label: "Gemini 2.5 Flash-Lite"},
+        {id: "gemini-2.0-flash", tier: "free", role: "fast", label: "Gemini 2.0 Flash"},
+        {id: "gemini-2.0-flash-lite", tier: "free", role: "fast", label: "Gemini 2.0 Flash-Lite"},
         {id: "gemini-1.5-pro", tier: "paid", role: "legacy", label: "Gemini 1.5 Pro (legacy)"},
         {id: "gemini-1.5-flash", tier: "free", role: "legacy", label: "Gemini 1.5 Flash (legacy)"},
     ],
@@ -224,7 +236,7 @@ export const SUPPORTED_PROVIDERS = ["anthropic", "openai", "gemini", "groq"];
 
 /**
  * Deep-clone static catalog into React state (never mutate module exports).
- * @returns {Record<string, Array<{id: string, tier: string, role?: string, label?: string}>>}
+ * @returns {Record<string, Array<{id: string, tier: string, role?: string, label?: string, experimental?: boolean}>>}
  */
 export function cloneModelCatalog() {
     return Object.fromEntries(
@@ -236,9 +248,53 @@ export function cloneModelCatalog() {
 }
 
 /**
+ * Normalize one catalog row from API (string id or object).
+ * @param {string|object} r
+ */
+function normalizeCatalogRow(r) {
+    if (typeof r === "string") {
+        return {id: r, tier: "paid", role: "mid", label: r, experimental: false};
+    }
+    return {
+        id: r.id || String(r),
+        tier: r.tier || "paid",
+        role: r.role || "mid",
+        label: r.label || r.id || String(r),
+        experimental: Boolean(r.experimental),
+    };
+}
+
+/**
+ * Merge live API rows with the static FE catalog.
+ * Live rows win on id (labels/tiers from backend). Static-only models are appended
+ * so a stale backend process cannot hide newer FE catalog entries.
+ * @param {Array} liveRows
+ * @param {Array} staticRows
+ */
+function mergeProviderRows(liveRows, staticRows) {
+    const live = (liveRows || []).map(normalizeCatalogRow).filter((r) => r.id);
+    const byId = new Map(live.map((r) => [r.id, r]));
+    const out = [...live];
+    for (const row of staticRows || []) {
+        const id = row?.id;
+        if (!id || byId.has(id)) continue;
+        byId.set(id, row);
+        out.push({...row});
+    }
+    // Prefer role=default near the top for dropdown UX when static default is missing from live order
+    const defIdx = out.findIndex((m) => m.role === "default");
+    if (defIdx > 0) {
+        const [def] = out.splice(defIdx, 1);
+        out.unshift(def);
+    }
+    return out;
+}
+
+/**
  * Build catalog from GET /settings/llm-catalog (pure — does not mutate module globals).
+ * Merges live API catalog with static MODEL_CATALOG so new models always appear.
  * @param {object|null} payload
- * @returns {Record<string, Array<{id: string, tier: string, role?: string, label?: string}>>}
+ * @returns {Record<string, Array<{id: string, tier: string, role?: string, label?: string, experimental?: boolean}>>}
  */
 export function catalogFromApi(payload) {
     const base = cloneModelCatalog();
@@ -248,30 +304,22 @@ export function catalogFromApi(payload) {
     if (cat && typeof cat === "object") {
         for (const [p, rows] of Object.entries(cat)) {
             if (!Array.isArray(rows) || !rows.length) continue;
-            base[p] = rows.map((r) =>
-                typeof r === "string"
-                    ? {id: r, tier: "paid", role: "mid", label: r, experimental: false}
-                    : {
-                        id: r.id || String(r),
-                        tier: r.tier || "paid",
-                        role: r.role || "mid",
-                        label: r.label || r.id || String(r),
-                        experimental: Boolean(r.experimental),
-                    },
-            );
+            base[p] = mergeProviderRows(rows, base[p] || []);
         }
+        // Keep static-only providers (future) untouched
         return base;
     }
     if (payload.models && typeof payload.models === "object") {
         for (const [p, ids] of Object.entries(payload.models)) {
             if (!Array.isArray(ids) || !ids.length) continue;
             const freeSet = new Set(payload.free_models?.[p] || []);
-            base[p] = ids.map((id) => ({
+            const liveRows = ids.map((id) => ({
                 id,
                 tier: freeSet.has(id) ? "free" : "paid",
                 role: "mid",
                 label: id,
             }));
+            base[p] = mergeProviderRows(liveRows, base[p] || []);
         }
     }
     return base;
@@ -334,7 +382,7 @@ export function modelsByTier(catalogOrProvider, maybeProvider) {
 }
 
 /**
- * Default model for a provider (first curated entry).
+ * Default model for a provider (prefers role=default, else first entry).
  * @param {string} provider
  * @param {object} [catalog]
  */
@@ -342,6 +390,8 @@ export function defaultModelForProvider(provider, catalog) {
     const cat = catalog || MODEL_CATALOG;
     const list = cat[provider];
     if (Array.isArray(list) && list.length) {
+        const preferred = list.find((m) => m.role === "default");
+        if (preferred) return preferred.id;
         return typeof list[0] === "string" ? list[0] : list[0].id;
     }
     return FACTORY_OPS.llm_model;
@@ -368,25 +418,13 @@ export const PLANNED_PROVIDERS = {
         title: "OpenRouter (planned)",
         summary:
             "Multi-vendor router (one key → many models). Useful for A/B model testing. Not yet wired.",
-        models: ["anthropic/claude-sonnet-4", "openai/gpt-4.1", "meta-llama/…"],
+        models: ["anthropic/claude-sonnet-5", "openai/gpt-5.6-terra", "meta-llama/…"],
         requirements: "OPENROUTER_API_KEY + model slug format vendor/model (future).",
     },
 };
 
 /**
  * Section-level guidance (card header + expandable panel).
- * @typedef {{
- *   title: string,
- *   purpose: string,
- *   when: string,
- *   bestPractices: string,
- *   implications: string,
- *   notes: string,
- *   default: string,
- *   recommended: string,
- *   whyRecommended: string,
- * }} SectionMeta
- * @type {Record<string, SectionMeta>}
  */
 export const SECTION_META = {
     llm: {
@@ -396,15 +434,15 @@ export const SECTION_META = {
         when:
             "Change when you switch cloud accounts, hit rate limits, or need lower cost / lower latency for demos. Leave alone during active incident response if playbooks are already stable.",
         bestPractices:
-            "Prefer Anthropic + claude-sonnet-4-6 for multi-step pipelines (prompt caching on the stable system prefix). Keep temperature ≤0.2 for structured JSON. Set a monthly soft budget so runaway loops are visible. Only one provider is active at a time — store keys for others but they are unused until selected.",
+            "Prefer Anthropic + claude-sonnet-5 for multi-step pipelines (prompt caching on the stable system prefix). Keep temperature ≤0.2 for structured JSON. Set a monthly soft budget so runaway loops are visible. Only one provider is active at a time — store keys for others but they are unused until selected. Avoid gemini-3.1-pro-preview on free tier (often quota 0).",
         implications:
-            "Cost: paid frontier models (Opus / Pro / gpt-5.4) raise $ per incident. Free-tier options (Groq open models, Gemini Flash) are rate-limited. Latency: Groq is fastest but no Anthropic-style cache. Missing key → cross-provider fallback (if enabled) then template playbooks.",
+            "Cost: paid frontier models (Opus / Fable / Sol / Pro) raise $ per incident. Free-tier options (Groq open models, Gemini 3.6 Flash) are rate-limited. Latency: Groq is fastest but no Anthropic-style cache. Missing key → cross-provider fallback (if enabled) then template playbooks.",
         notes:
             "API keys stay blank after load — “✓ configured” means a secret is stored. Dropdown labels show free vs paid. Advanced: provider fallback + Test LLM. Ollama/OpenRouter planned.",
-        default: "anthropic · claude-sonnet-4-6 · temp 0.2 · budget unlimited · fallback on",
-        recommended: "anthropic · claude-sonnet-4-6 · temp 0.15 · budget 500k · fallback on",
+        default: "anthropic · claude-sonnet-5 · temp 0.2 · budget unlimited · fallback on",
+        recommended: "anthropic · claude-sonnet-5 · temp 0.15 · budget 500k · fallback on",
         whyRecommended:
-            "Claude Sonnet with a low temperature and soft budget gives stable playbook JSON, multi-step prompt-cache savings, and visible spend; free Groq/Gemini models remain available for demos.",
+            "Claude Sonnet 5 with a low temperature and soft budget gives stable playbook JSON, multi-step prompt-cache savings, and visible spend; free Groq/Gemini Flash models remain available for demos.",
     },
     pipeline: {
         title: "Pipeline & HiTL",
@@ -530,50 +568,28 @@ export const SECTION_META = {
 /**
  * Rich model field tooltip content keyed by LLM provider.
  * When the provider dropdown changes, Model help must use this map.
- *
- * @typedef {{
- *   id: string,
- *   role: string,
- *   context: string,
- *   cost: string,
- *   speed: string,
- *   quality: string,
- * }} ModelOption
- * @typedef {{
- *   title: string,
- *   default: string,
- *   recommended: string,
- *   whyRecommended: string,
- *   notes: string,
- *   models: ModelOption[],
- *   contextWindow: string,
- *   estimatedCost: string,
- *   performance: string,
- *   useCases: string,
- *   limitations: string,
- * }} ModelProviderMeta
  */
 export const MODEL_META_BY_PROVIDER = {
     anthropic: {
         title: "Model (Anthropic)",
-        default: "claude-sonnet-4-6",
-        recommended: "claude-sonnet-4-6",
+        default: "claude-sonnet-5",
+        recommended: "claude-sonnet-5",
         whyRecommended:
             "Best quality-to-cost balance for structured IR JSON, and it benefits most from Anthropic prompt caching on multi-step playbook runs.",
         notes:
-            "Claude powers structured IR playbooks with Anthropic prompt caching on the stable system prefix (cheaper multi-step runs).",
+            "Claude powers structured IR playbooks with Anthropic prompt caching on the stable system prefix (cheaper multi-step runs). Sonnet 5 is the current recommended default; Opus 5 / Fable 5 for highest capability.",
         models: MODEL_CATALOG.anthropic.map((m) => ({
             id: m.id,
             role: m.label || m.role || m.id,
-            context: "~200k tokens",
+            context: "~1M tokens (current generation)",
             cost: m.tier === "free" ? "free tier" : "$$$ paid",
             speed: m.role === "fast" ? "Fast" : m.role === "flagship" ? "Slower" : "Medium",
             quality: m.role === "flagship" ? "Highest" : "High",
         })),
-        contextWindow: "~200k tokens (model-dependent; large enough for multi-file IR context + KB snippets)",
-        estimatedCost: "Sonnet: mid-tier $/M tokens; Opus ~2–3× Sonnet; Haiku fraction of Sonnet. Prompt cache hits cut multi-step cost significantly.",
-        performance: "Sonnet balances quality vs latency. Opus is slower/costlier. Haiku is snappy for tabletop demos.",
-        useCases: "Production IR playbooks (Sonnet), complex multi-stage attacks (Opus), live workshops & bulk reprocessing (Haiku).",
+        contextWindow: "~1M tokens on current Claude 5 / 4.x models (large enough for multi-file IR context + KB snippets)",
+        estimatedCost: "Sonnet 5: mid-tier $/M tokens; Opus 5 / Fable 5 higher; Haiku fraction of Sonnet. Prompt cache hits cut multi-step cost significantly.",
+        performance: "Sonnet 5 balances quality vs latency. Opus / Fable are slower/costlier. Haiku is snappy for tabletop demos.",
+        useCases: "Production IR playbooks (Sonnet 5), complex multi-stage attacks (Opus 5 / Fable 5), live workshops & bulk reprocessing (Haiku).",
         limitations: "Requires ANTHROPIC_API_KEY (paid). Network egress to Anthropic API.",
     },
     openai: {
@@ -587,38 +603,38 @@ export const MODEL_META_BY_PROVIDER = {
         models: MODEL_CATALOG.openai.map((m) => ({
             id: m.id,
             role: m.label || m.role || m.id,
-            context: "Large",
+            context: "Large (~1M on 5.6)",
             cost: "$$$ paid",
             speed: m.role === "fast" ? "Faster" : m.role === "flagship" ? "Medium–slow" : "Medium",
             quality: m.role === "flagship" || m.role === "default" ? "Top-tier" : "Strong",
         })),
         contextWindow: "Large context (model family defaults; sufficient for IR + citations)",
-        estimatedCost: "Flagship models cost more per incident than mini. No Anthropic prompt-cache discount on this path.",
-        performance: "Mini favors throughput; flagship favors deeper reasoning and structured fidelity.",
+        estimatedCost: "Flagship models (Sol) cost more per incident than Terra/Luna. No Anthropic prompt-cache discount on this path.",
+        performance: "Luna favors throughput; Terra balances; Sol favors deeper reasoning and structured fidelity.",
         useCases: "Orgs already on OpenAI billing, Azure OpenAI-adjacent workflows, GPT-only compliance choices.",
         limitations: "Requires OPENAI_API_KEY (paid). Prefer Anthropic if multi-step prompt-cache savings matter.",
     },
     gemini: {
         title: "Model (Gemini)",
-        default: "gemini-3.1-pro-preview",
-        recommended: "gemini-3.1-pro-preview (Flash free tier for demos)",
+        default: "gemini-3.6-flash",
+        recommended: "gemini-3.6-flash (avoid Pro preview on free tier)",
         whyRecommended:
-            "Pro-class Gemini handles long log packs and structured steps more reliably; switch to Flash free-tier models for demos and volume.",
+            "Gemini 3.6 Flash is the current strong everyday / free-tier model. Pro-class preview models frequently hit free-tier quotas of 0 and should only be used with a paid plan.",
         notes:
-            "Google Gemini via the official google-genai SDK. Flash models often run on Google free quota; Pro is paid.",
+            "Google Gemini via the official google-genai SDK. Flash models often run on Google free quota; Pro preview models are frequently exhausted on free tier (RESOURCE_EXHAUSTED / limit 0).",
         models: MODEL_CATALOG.gemini.map((m) => ({
             id: m.id,
             role: m.label || m.role || m.id,
-            context: "Very large",
+            context: "Very large (~1M)",
             cost: m.tier === "free" ? "free tier" : "$$ paid",
-            speed: m.role === "fast" ? "Fast" : "Medium",
-            quality: m.role === "default" || m.role === "prior" ? "Strong" : "Good for demos",
+            speed: m.role === "fast" || m.role === "default" ? "Fast" : "Medium",
+            quality: m.role === "flagship" ? "Highest (when quota allows)" : "Strong",
         })),
         contextWindow: "Very large context windows (family strength) — helpful for long log batches",
-        estimatedCost: "Flash free-tier is cost-efficient (quota limits); Pro is higher for harder IR.",
-        performance: "Flash = speed; Pro = quality. Structured JSON quality varies — keep temperature ≤0.2.",
-        useCases: "Free-tier demos on Flash; Google Cloud / Gemini Pro for production depth.",
-        limitations: "Requires GEMINI_API_KEY. Preview model IDs may rename; free tier is rate-limited.",
+        estimatedCost: "Flash free-tier is cost-efficient (quota limits); Pro is higher and often blocked on free tier.",
+        performance: "3.6 Flash = best current free/paid balance. Pro preview = quality when you have paid quota.",
+        useCases: "Free-tier demos and volume on 3.6 Flash; paid Gemini Pro for production depth once quotas are unlocked.",
+        limitations: "Requires GEMINI_API_KEY. Preview Pro models frequently return 429 RESOURCE_EXHAUSTED on free tier — use gemini-3.6-flash instead.",
     },
     groq: {
         title: "Model (Groq)",
@@ -638,7 +654,7 @@ export const MODEL_META_BY_PROVIDER = {
         })),
         contextWindow: "Typically 32k–128k depending on model (lower than Claude/Gemini flagships)",
         estimatedCost: "Free developer tier (rate limits); paid Developer plan raises limits.",
-        performance: "Best-in-class raw speed. Trade-off: less reliable citation-heavy JSON than Claude Sonnet.",
+        performance: "Best-in-class raw speed. Trade-off: less reliable citation-heavy JSON than Claude Sonnet 5.",
         useCases: "Live demos, free-tier labs, latency showcases, workshops with Groq quota.",
         limitations:
             "Requires GROQ_API_KEY. Free tier rate limits apply. On failure, backend falls back across providers with keys.",
@@ -648,8 +664,8 @@ export const MODEL_META_BY_PROVIDER = {
 /** Fallback model meta when provider is unknown. */
 export const MODEL_META_FALLBACK = {
     title: "Model",
-    default: "claude-sonnet-4-6",
-    recommended: "claude-sonnet-4-6",
+    default: "claude-sonnet-5",
+    recommended: "claude-sonnet-5",
     whyRecommended:
         "Pick a model from the selected provider’s list so playbooks run with supported IDs and predictable quality.",
     notes:
@@ -671,16 +687,7 @@ export function getModelMeta(provider) {
 }
 
 /**
- * @typedef {{
- *   title: string,
- *   default: string,
- *   recommended: string,
- *   whyRecommended?: string,
- *   notes: string,
- *   valid?: string,
- *   impact?: string,
- * }} FieldMeta
- * @type {Record<string, FieldMeta>}
+ * Field-level metadata (help popovers, validation hints, etc.)
  */
 export const FIELD_META = {
     llm_provider: {
@@ -697,14 +704,14 @@ export const FIELD_META = {
     /** Static fallback; UI should prefer getModelMeta(provider). */
     llm_model: {
         title: "Model",
-        default: "claude-sonnet-4-6",
-        recommended: "claude-sonnet-4-6",
+        default: "claude-sonnet-5",
+        recommended: "claude-sonnet-5",
         whyRecommended:
-            "Sonnet delivers high-quality structured playbooks without Opus cost; it is the sweet spot for most IR workloads.",
+            "Sonnet 5 delivers high-quality structured playbooks without Opus/Fable cost; it is the sweet spot for most IR workloads.",
         valid: "Must appear in the selected provider’s model list",
         impact: "Directly affects playbook quality, latency, and $ per incident.",
         notes:
-            "Must match the selected provider’s model list. Hover this tip after changing provider for vendor-specific guidance (models, context, cost, performance).",
+            "Must match the selected provider’s model list. Hover this tip after changing provider for vendor-specific guidance (models, context, cost, performance). Avoid gemini-3.1-pro-preview on free tier.",
     },
     llm_temperature: {
         title: "Temperature",
@@ -800,10 +807,10 @@ export const FIELD_META = {
         default: "empty / env",
         recommended: "only if provider=gemini",
         whyRecommended:
-            "Only needed when Gemini is selected; keeps the active provider path live without extra unused keys.",
+            "Only needed when Gemini is selected; keeps the active provider path live without extra unused keys. Prefer gemini-3.6-flash on free tier.",
         valid: "Google AI Studio / Vertex key",
         impact: "Required when provider=gemini.",
-        notes: "Used when Gemini is selected. Blank on save preserves the stored key.",
+        notes: "Used when Gemini is selected. Blank on save preserves the stored key. Pro preview models frequently hit free-tier quota 0.",
     },
     groq_api_key: {
         title: "Groq API key",
@@ -1459,6 +1466,16 @@ export function validateSettingsForm(form, settings = {}, catalog = null) {
             level: "warning",
             field: "llm_model",
             message: `Model “${form.llm_model}” is not in the curated list for “${provider}”. It will still be saved and used if the provider accepts it.`,
+        });
+    }
+
+    // Explicit warning for known free-tier problematic models
+    if (provider === "gemini" && (form.llm_model === "gemini-3.1-pro-preview" || form.llm_model === "gemini-3-pro-preview")) {
+        issues.push({
+            level: "warning",
+            field: "llm_model",
+            message:
+                "Gemini Pro preview models frequently return 429 RESOURCE_EXHAUSTED (free-tier quota 0). Prefer gemini-3.6-flash unless you have a paid Gemini plan.",
         });
     }
 

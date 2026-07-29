@@ -1,0 +1,30 @@
+<?xml version="1.0" ?>
+<!-- Lab fixture: 97% line coverage (gate is 96%). -->
+<coverage version="7.4.0" timestamp="1720000000000" lines-valid="1000" lines-covered="970" line-rate="0.97" branches-valid="200" branches-covered="188" branch-rate="0.94" complexity="0">
+  <sources>
+    <source>.</source>
+  </sources>
+  <packages>
+    <package name="pipeline" line-rate="0.98" branch-rate="0.95" complexity="0">
+      <classes>
+        <class name="pipeline.py" filename="pipeline.py" line-rate="0.98" branch-rate="0.95" complexity="0">
+          <methods/>
+          <lines>
+            <line number="1" hits="1"/>
+            <line number="2" hits="1"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="auth" line-rate="0.96" branch-rate="0.93" complexity="0">
+      <classes>
+        <class name="auth.py" filename="auth.py" line-rate="0.96" branch-rate="0.93" complexity="0">
+          <methods/>
+          <lines>
+            <line number="1" hits="1"/>
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>

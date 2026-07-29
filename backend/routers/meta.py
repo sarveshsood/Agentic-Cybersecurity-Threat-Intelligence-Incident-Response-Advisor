@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from backend.feature_flags import collab_features
+from backend.feature_flags import collab_features, features_public
 from backend.security import require_roles
 from backend.services import bootstrap
 from backend.services import ops_service
@@ -39,15 +39,27 @@ async def version_api():
 @router.get(
     "/meta/features",
     summary="Product feature flags snapshot",
-    response_description="Booleans for H-07/H-08 collab & productivity surfaces (default all false)",
+    response_description=(
+        "Flat booleans for SPA gates plus catalog/related metadata for Settings UI"
+    ),
 )
 async def features_api():
-    """Public snapshot of env-gated product flags (KD-9 / H-07 PR-1).
+    """Env-gated product flags (read-only snapshot).
 
-    SPA loads once at login / Layout mount. When a flag is false, collab routes
-    must return 404 via ``require_feature`` — UI hide alone is not enough.
+    - **Flat booleans** (``qa_health_center``, collab keys, …) — used by SPA
+      ``loadFeatures()`` / ``isFeatureEnabled``.
+    - **``catalog``** — titles, env var names, UI surfaces, enabled state.
+    - **``related``** — adjacent knobs (MFA, multi-tenant, embeddings, …).
+    - **``summary``** — counts + honesty note (not runtime toggles).
+
+    When a product flag is false, gated routes return **404** via
+    ``require_feature`` — UI hide alone is not enough.
     """
-    return collab_features()
+    try:
+        return features_public()
+    except Exception:
+        # Never break SPA boot — fall back to bare booleans
+        return collab_features()
 
 
 @router.get("/ops/status")

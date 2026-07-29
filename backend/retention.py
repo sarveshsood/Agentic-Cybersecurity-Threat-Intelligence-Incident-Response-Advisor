@@ -58,6 +58,33 @@ async def purge_old_incidents(db, retention_days: int) -> int:
         return 0
 
 
+async def purge_old_qa_artifacts(db, retention_days: int = 90) -> dict[str, int]:
+    """Purge QA Health Center suite runs / coverage / release docs older than N days.
+
+    Defaults to 90 days (design KD-11). ``retention_days <= 0`` skips purge.
+    """
+    try:
+        days = int(retention_days)
+    except (TypeError, ValueError):
+        days = 90
+    if days <= 0:
+        logger.info("qa artifact retention disabled (days=%s)", retention_days)
+        return {"suite_runs": 0, "case_results": 0, "coverage": 0, "release": 0}
+
+    cutoff = retention_cutoff_iso(days)
+    try:
+        from backend.repositories.qa_repo import QaRepository
+
+        repo = QaRepository(db)
+        out = await repo.purge_older_than(cutoff_iso=cutoff)
+        if any(out.values()):
+            logger.info("purged qa artifacts older than %s days: %s", days, out)
+        return out
+    except Exception as e:
+        logger.warning("qa artifact retention purge failed: %s", e)
+        return {"suite_runs": 0, "case_results": 0, "coverage": 0, "release": 0}
+
+
 async def purge_from_settings(db, settings: Optional[dict] = None) -> dict[str, Any]:
     """Run incident purge + log archival lifecycle using settings or defaults."""
     days = 90
@@ -74,8 +101,17 @@ async def purge_from_settings(db, settings: Optional[dict] = None) -> dict[str, 
         archival = run_archival()
     except Exception as e:
         archival = {"error": str(e)[:200]}
+    qa_days = 90
+    if settings:
+        try:
+            qa_days = int(settings.get("qa_artifact_retention_days") or 90)
+        except (TypeError, ValueError):
+            qa_days = 90
+    qa_purge = await purge_old_qa_artifacts(db, qa_days)
     return {
         "incident_retention_days": days,
         "incidents_deleted": n,
         "log_archival": archival,
+        "qa_artifact_retention_days": qa_days,
+        "qa_artifacts_purged": qa_purge,
     }

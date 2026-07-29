@@ -85,6 +85,8 @@ agenthub/agents/youtube/db
 # ACTIRA runtime data (may contain IoCs / PII / artifacts / WORM export) — never commit
 backend/data/**
 !backend/data/.gitkeep
+# Committed QA use-case catalog seed (Testing Health Center)
+!backend/data/qa_catalog_seed_v1.json
 # legacy path patterns (kept for older trees)
 backend/data/email_outbox/
 backend/data/job_failures/

@@ -22,8 +22,10 @@ import {
     Trash,
     Warning,
     WarningCircle,
+    Flag,
     GearSix,
 } from "@phosphor-icons/react";
+import FeatureFlagsPanel from "../components/FeatureFlagsPanel";
 import {
     loadUiPrefs,
     saveUiPrefs,
@@ -117,7 +119,15 @@ const SETTINGS_TABS = [
     {id: "threat_intel", label: "Threat intel", icon: Key, iconColor: "text-warning", sectionKey: "threat_intel", tip: "Live CTI API keys (empty = mock enrichment)."},
     {id: "notifications", label: "Alerts", icon: Bell, iconColor: "text-primary", sectionKey: "notifications", tip: "Slack webhook and alert email for critical/HiTL events."},
     {id: "access", label: "Access & data", icon: Shield, iconColor: "text-success", sectionKey: "security", tip: "Session timeout, login lockout, retention, enrichment cache TTL."},
-    {id: "platform", label: "Platform", icon: GearSix, iconColor: "text-indigo-500", sectionKey: "platform", tip: "Enrichment pool, TI HTTP, logging, artifacts/replay, audit WORM, AMQP broker."},
+    {id: "platform", label: "Platform", icon: GearSix, iconColor: "text-primary", sectionKey: "platform", tip: "Enrichment pool, TI HTTP, logging, artifacts/replay, audit WORM, AMQP broker."},
+    {
+        id: "features",
+        label: "Feature flags",
+        icon: Flag,
+        iconColor: "text-primary",
+        sectionKey: "features",
+        tip: "Read-only env feature flags (FEATURE_*) — QA Health, collab, related knobs. Not runtime toggles.",
+    },
     {id: "ui", label: "UI prefs", icon: Desktop, iconColor: "text-primary", sectionKey: "ui", tip: "Browser-local presentation prefs (tables, refresh, help tips) — not stored in Mongo."},
 ];
 
@@ -564,7 +574,7 @@ const EMPTY_SECRETS = {
 function formFromSettings(d) {
     return {
         llm_provider: normalizeProvider(d?.llm_provider),
-        llm_model: d?.llm_model || "claude-sonnet-4-6",
+        llm_model: d?.llm_model || FACTORY_OPS.llm_model,
         llm_temperature: d?.llm_temperature ?? 0.2,
         llm_token_budget_monthly: d?.llm_token_budget_monthly ?? 0,
         llm_fallback_enabled: d?.llm_fallback_enabled !== false,
@@ -640,8 +650,10 @@ export default function Settings() {
     const [busy, setBusy] = useState(false);
     const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
     const [customModelMode, setCustomModelMode] = useState(false);
-    // Catalog lives in React state so provider/model UI always re-renders correctly
+    // Catalog lives in React state so provider/model UI always re-renders correctly.
+    // Prefer live GET /settings/llm-catalog (backend MODEL_CATALOG); static clone is bootstrap only.
     const [llmCatalog, setLlmCatalog] = useState(() => cloneModelCatalog());
+    const [catalogSource, setCatalogSource] = useState("static"); // static | live
     const [llmEffective, setLlmEffective] = useState(null);
     const [routeHealth, setRouteHealth] = useState({primary: null, backup: null});
     const [tiEditField, setTiEditField] = useState(null);
@@ -769,7 +781,7 @@ export default function Settings() {
         let resolved = false;
         const fallback = {
             llm_provider: "anthropic",
-            llm_model: "claude-sonnet-4-6",
+            llm_model: FACTORY_OPS.llm_model,
             llm_temperature: 0.2,
             llm_token_budget_monthly: 0,
             llm_fallback_enabled: true,
@@ -792,6 +804,7 @@ export default function Settings() {
         const safetyTimer = setTimeout(() => {
             if (isSubscribed && !resolved) {
                 hydrate(fallback, cloneModelCatalog());
+                setCatalogSource("static");
                 setSettingsLoadMode("fallback");
             }
         }, 2500);
@@ -804,8 +817,15 @@ export default function Settings() {
             if (!isSubscribed) return;
             resolved = true;
             clearTimeout(safetyTimer);
-            const cat = catalogFromApi(catRes?.data || null);
+            const livePayload = catRes?.data || null;
+            const cat = catalogFromApi(livePayload);
             setLlmCatalog(cat);
+            // Backend returns { catalog, models, defaults, ... } from llm_provider.llm_catalog()
+            const hasLiveCatalog = Boolean(
+                livePayload &&
+                (livePayload.catalog || livePayload.models || livePayload.providers),
+            );
+            setCatalogSource(hasLiveCatalog ? "live" : "static");
             if (settingsRes?.data) {
                 hydrate(settingsRes.data, cat);
                 setSettingsLoadMode("live");
@@ -874,9 +894,32 @@ export default function Settings() {
         toast.success("UI preferences saved for this browser");
     }, [uiPrefs]);
 
+    /** Tell Layout shell to refresh LLM chip immediately after save/profile. */
+    const notifySettingsChanged = useCallback((data) => {
+        try {
+            const d = data?.settings || data || {};
+            window.dispatchEvent(
+                new CustomEvent("actira-settings-changed", {
+                    detail: {
+                        llm_provider: d.llm_provider,
+                        llm_model: d.llm_model,
+                    },
+                }),
+            );
+        } catch {
+            /* ignore */
+        }
+    }, []);
+
     const save = async () => {
         if (activeTab === "ui") {
             persistUiPrefs();
+            return;
+        }
+        if (activeTab === "features") {
+            toast.message("Feature flags are env-only", {
+                description: "Edit backend/.env (FEATURE_*) and restart the API. This tab is read-only.",
+            });
             return;
         }
         if (hasBlockingErrors) {
@@ -916,6 +959,7 @@ export default function Settings() {
             const r = await api.get("/settings");
             hydrate(r.data, llmCatalog);
             setTiEditField(null);
+            notifySettingsChanged(r.data || payload);
         } catch (e) {
             toast.error(apiErrorDetail(e) || "Save failed");
         } finally {
@@ -943,13 +987,15 @@ export default function Settings() {
             await api.post("/settings/apply-profile", {profile: "factory", keep_secrets: true});
             toast.success("Factory defaults applied (secrets kept)");
             const r = await api.get("/settings");
-            hydrate(r.data);
+            hydrate(r.data, llmCatalog);
+            notifySettingsChanged(r.data);
         } catch (e) {
             try {
                 await api.post("/settings/reset", {keep_secrets: true});
                 toast.success("Settings reset to factory defaults (secrets kept)");
                 const r = await api.get("/settings");
-                hydrate(r.data);
+                hydrate(r.data, llmCatalog);
+                notifySettingsChanged(r.data);
             } catch (e2) {
                 toast.error(apiErrorDetail(e2) || apiErrorDetail(e) || "Reset failed");
             }
@@ -966,7 +1012,7 @@ export default function Settings() {
         }
         const ok = window.confirm(
             "Apply ACTIRA recommended settings?\n\n" +
-            "• Anthropic + claude-sonnet-4-6\n" +
+            `• Anthropic + ${RECOMMENDED_OPS.llm_model}\n` +
             "• Temperature 0.15 · grounding ≥ 0.75 · HiTL from high\n" +
             "• Session 8h · retention 180d\n" +
             "• API keys / Slack kept · email unchanged",
@@ -977,7 +1023,8 @@ export default function Settings() {
             await api.post("/settings/apply-profile", {profile: "recommended", keep_secrets: true});
             toast.success("Recommended profile applied");
             const r = await api.get("/settings");
-            hydrate(r.data);
+            hydrate(r.data, llmCatalog);
+            notifySettingsChanged(r.data);
         } catch (e) {
             const next = {
                 ...form,
@@ -999,7 +1046,8 @@ export default function Settings() {
                 }
                 toast.success("Recommended values saved");
                 const r = await api.get("/settings");
-                hydrate(r.data);
+                hydrate(r.data, llmCatalog);
+                notifySettingsChanged(r.data);
             } catch (e2) {
                 toast.error("Could not apply recommended settings", {
                     description: `${apiErrorDetail(e2)} (profile: ${apiErrorDetail(e)})`,
@@ -1166,11 +1214,15 @@ export default function Settings() {
         const p = normalizeProvider(provider);
         setCustomModelMode(false);
         const nextModel = defaultModelForProvider(p, llmCatalog);
-        setForm((f) => ({
-            ...f,
-            llm_provider: p,
-            llm_model: nextModel || f.llm_model,
-        }));
+        setForm((f) => {
+            // Always switch model to the new provider's default when provider changes,
+            // so the Model select never keeps a stale ID from the previous vendor.
+            return {
+                ...f,
+                llm_provider: p,
+                llm_model: nextModel || defaultModelForProvider(p) || FACTORY_OPS.llm_model,
+            };
+        });
     };
 
     const pk = PROVIDER_KEY[activeProvider] || PROVIDER_KEY.anthropic;
@@ -1450,7 +1502,7 @@ export default function Settings() {
                                     tipKey={`llm_model-${activeProvider}`}
                                     matchesRecommended={isRec(form, "llm_model") && isRec(form, "llm_provider")}
                                     warning={issueByField.llm_model}
-                                    hint={`${curatedModelIds.length} curated models · free + paid · experimental tagged · custom ID allowed`}
+                                    hint={`${curatedModelIds.length} curated models · free + paid · experimental tagged · custom ID allowed · catalog ${catalogSource === "live" ? "from API (llm_provider)" : "static fallback"}`}
                                 >
                                     {!customModelMode ? (
                                         <select
@@ -2776,6 +2828,13 @@ export default function Settings() {
                     </div>
                 )}
 
+                {/* ——— Feature flags (env, read-only) ——— */}
+                {activeTab === "features" && (
+                    <div data-testid="settings-feature-flags">
+                        <FeatureFlagsPanel/>
+                    </div>
+                )}
+
                 {/* ——— UI preferences ——— */}
                 {activeTab === "ui" && (
                     <div className="space-y-6" data-testid="settings-ui-prefs">
@@ -3234,7 +3293,28 @@ export default function Settings() {
 
             <div
                 className="mt-6 w-full flex flex-wrap items-center justify-between gap-3 sticky bottom-4 z-10 bg-card/95 backdrop-blur-md border border-border rounded-card px-4 py-3 shadow-md">
-                {activeTab === "ui" ? (
+                {activeTab === "features" ? (
+                    <>
+                        <span className="text-[12px] text-muted-foreground mr-auto">
+                            Feature flags are env-only — not saved from Settings
+                        </span>
+                        <button
+                            type="button"
+                            data-testid="feature-flags-footer-refresh"
+                            className="soc-btn-secondary"
+                            onClick={() => {
+                                window.dispatchEvent(new Event("actira-refresh-feature-flags"));
+                                toast.message("Set FEATURE_*=1 in backend/.env, restart API, then Refresh", {
+                                    description: "Example: FEATURE_QA_HEALTH_CENTER=1",
+                                    duration: 10000,
+                                });
+                            }}
+                        >
+                            <ArrowCounterClockwise size={14}/>
+                            Refresh flags
+                        </button>
+                    </>
+                ) : activeTab === "ui" ? (
                     <>
                         {uiPrefsDirty ? (
                             <span className="text-[12px] text-warning flex items-center gap-1 mr-auto">

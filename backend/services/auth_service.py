@@ -182,6 +182,18 @@ async def login(body: LoginRequest) -> JSONResponse:
     return _token_response(token, doc, session_hours)
 
 
+async def mfa_status(user: dict) -> Dict[str, Any]:
+    """Public MFA status + whether the current user is enrolled."""
+    from backend import mfa as mfa_mod
+    from backend.repositories.users import users_repo
+
+    st = mfa_mod.status_public()
+    uid = user.get("sub") or user.get("id")
+    doc = await users_repo.find_by_id_public(uid) if uid else None
+    st["user_enrolled"] = bool((doc or {}).get("mfa_enabled"))
+    return st
+
+
 async def mfa_setup(user: dict) -> Dict[str, Any]:
     from backend import mfa as mfa_mod
 
