@@ -302,6 +302,8 @@ off, future collab APIs return **404** via `require_feature` — not only hide U
 
 Truth values: `1` / `true` / `yes` / `on`. See `docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md` (PR-1) and `docs/product/TESTING_HEALTH_CENTER_DESIGN.md` (QA Health).
 
+**UI:** Admin → **Settings → Feature flags** shows live On/Off for product + related env knobs (read-only). Change flags only via `backend/.env` + API restart — not toggles in the UI. Snapshot: `GET /api/meta/features` (booleans + `catalog` + `related`).
+
 ### OpenTelemetry (optional)
 
 Soft dependency — install exporters only if you enable export:
