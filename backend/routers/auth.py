@@ -57,13 +57,7 @@ async def oidc_config():
 
 @router.get("/mfa/status")
 async def mfa_status(user=Depends(get_current_user)):
-    from backend import mfa as mfa_mod
-    from backend.core.database import db
-
-    st = mfa_mod.status_public()
-    doc = await db.users.find_one({"id": user["sub"]}, {"_id": 0, "mfa_enabled": 1})
-    st["user_enrolled"] = bool((doc or {}).get("mfa_enabled"))
-    return st
+    return await auth_service.mfa_status(user)
 
 
 @router.post("/mfa/setup")

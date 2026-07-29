@@ -59,12 +59,13 @@ def test_parse_sample_coverage_gate():
     from backend.qa.coverage_xml_parser import parse_coverage_xml
 
     raw = (FIXTURES / "sample_coverage.xml").read_bytes()
-    result = parse_coverage_xml(raw, gate_percent=95.0)
-    assert result.percent == 91.2
-    assert result.gap_to_gate == pytest.approx(3.8)
-    assert result.gate_passed is False
-    assert result.line_rate == pytest.approx(0.912)
-    assert result.branch_rate == pytest.approx(0.88)
+    # Lab fixture is 97% (gate default 96%)
+    result = parse_coverage_xml(raw, gate_percent=96.0)
+    assert result.percent == 97.0
+    assert result.gap_to_gate == pytest.approx(0.0)
+    assert result.gate_passed is True
+    assert result.line_rate == pytest.approx(0.97)
+    assert result.branch_rate == pytest.approx(0.94)
     snap = result.to_snapshot_fields()
     assert snap["gate_metric"] == "cobertura_line_rate"
     assert snap["frontend"]["available"] is False
@@ -79,13 +80,26 @@ def test_coverage_gate_pass_when_high():
     from backend.qa.coverage_xml_parser import parse_coverage_xml
 
     xml = b"""<?xml version="1.0"?>
-    <coverage line-rate="0.96" branch-rate="0.9"
-      lines-valid="100" lines-covered="96" branches-valid="10" branches-covered="9"/>
+    <coverage line-rate="0.97" branch-rate="0.9"
+      lines-valid="100" lines-covered="97" branches-valid="10" branches-covered="9"/>
     """
-    r = parse_coverage_xml(xml, gate_percent=95.0)
-    assert r.percent == 96.0
+    r = parse_coverage_xml(xml, gate_percent=96.0)
+    assert r.percent == 97.0
     assert r.gate_passed is True
     assert r.gap_to_gate == 0.0
+
+
+def test_coverage_gate_fail_below_96():
+    from backend.qa.coverage_xml_parser import parse_coverage_xml
+
+    xml = b"""<?xml version="1.0"?>
+    <coverage line-rate="0.912" branch-rate="0.88"
+      lines-valid="1000" lines-covered="912" branches-valid="200" branches-covered="176"/>
+    """
+    r = parse_coverage_xml(xml, gate_percent=96.0)
+    assert r.percent == 91.2
+    assert r.gate_passed is False
+    assert r.gap_to_gate == pytest.approx(4.8)
 
 
 def test_hostile_xxe_rejected_or_safe():

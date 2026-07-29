@@ -14,7 +14,8 @@ from typing import Any, Dict, List, Optional
 from backend.qa.module_map import MODULE_MAP_VERSION
 
 ALGORITHM_VERSION = "qa-readiness-v1"
-CODE_COVERAGE_GATE = 95.0
+# Org gate: backend Cobertura line-rate must be **>= 96%** (product: "more than 95%")
+CODE_COVERAGE_GATE = 96.0
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -129,11 +130,21 @@ def compute_readiness(
         if not passed and note:
             soft_warnings.append(note)
 
-    # unit_pass
+    # unit_pass — requires an ingested JUnit suite with suite_type=unit that passed
     unit_ok = _suite_passed(unit_run)
+    unit_note = ""
+    if not unit_run:
+        unit_note = "no unit JUnit suite ingested — Admin → Ingest sample_junit.xml or CI"
+    elif not unit_ok:
+        unit_note = (
+            f"latest unit suite status={(unit_run or {}).get('status')!r} "
+            f"failed={(unit_run.get('counts') or {}).get('failed')} "
+            f"build={(unit_run.get('build') or {}).get('id')}"
+        )
     hard(
         "unit_pass",
         unit_ok,
+        note=unit_note or None,
         evidence_run_id=(unit_run or {}).get("id"),
     )
 
@@ -142,9 +153,17 @@ def compute_readiness(
     unit_fresh = unit_ok and unit_age is not None and unit_age <= max_unit_age_hours()
     if unit_run and unit_age is None:
         unit_fresh = unit_ok  # missing timestamp → do not fail solely on age
+    fresh_note = ""
+    if not unit_run:
+        fresh_note = "no unit suite to age-check"
+    elif not unit_ok:
+        fresh_note = "unit suite did not pass — freshness N/A until green"
+    elif unit_age is not None and unit_age > max_unit_age_hours():
+        fresh_note = f"unit suite age {unit_age:.1f}h > max {max_unit_age_hours()}h"
     hard(
         "unit_fresh",
         unit_fresh if unit_run else False,
+        note=fresh_note or None,
         age_hours=unit_age,
         max_hours=max_unit_age_hours(),
         evidence_run_id=(unit_run or {}).get("id"),

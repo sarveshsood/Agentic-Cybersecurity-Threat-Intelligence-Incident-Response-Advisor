@@ -23,7 +23,9 @@ def test_qa_routes_registered():
 
 
 def test_qa_healthz_404_when_flag_off(monkeypatch):
-    monkeypatch.delenv("FEATURE_QA_HEALTH_CENTER", raising=False)
+    # Use explicit "0" (not delenv): load_dotenv(backend/.env) re-enables from file
+    # when the var is missing, which turns a 404 into auth 401.
+    monkeypatch.setenv("FEATURE_QA_HEALTH_CENTER", "0")
     from backend.server import app
 
     client = TestClient(app)

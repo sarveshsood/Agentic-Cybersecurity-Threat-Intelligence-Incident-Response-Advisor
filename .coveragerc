@@ -12,12 +12,19 @@ concurrency =
 omit =
     backend/tests/*
     backend/scripts/*
+    # When pytest is run from backend/ with --cov=. paths are tests/*
+    tests/*
+    */tests/*
+    **/test_*.py
+    **/*_test.py
     backend/**/__pycache__/*
     */site-packages/*
     */.venv/*
     */venv/*
-    # Optional heavy deps paths if imported
+    # Optional heavy deps / backup paths (not production surface)
     */lora_train.py
+    backend/backup/*
+    backend/routers/bkp/*
 
 [report]
 precision = 2

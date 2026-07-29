@@ -45,7 +45,7 @@ def test_readiness_ready_soft_coverage(monkeypatch):
         golden_run=_run("golden"),
         coverage={
             "id": "cov1",
-            "gate_percent": 95,
+            "gate_percent": 96,
             "backend": {"percent": 91.2},
             "frontend": {"available": False},
         },
@@ -64,7 +64,7 @@ def test_readiness_not_ready_unit_fail(monkeypatch):
     snap = compute_readiness(
         unit_run=_run("unit", status="failed"),
         golden_run=_run("golden"),
-        coverage={"id": "c", "backend": {"percent": 99.0}, "gate_percent": 95},
+        coverage={"id": "c", "backend": {"percent": 99.0}, "gate_percent": 96},
     )
     assert snap["verdict"] == "NOT_READY"
     assert "unit_pass" in snap["blockers"]
@@ -77,7 +77,7 @@ def test_readiness_hard_coverage(monkeypatch):
     snap = compute_readiness(
         unit_run=_run("unit"),
         golden_run=_run("golden"),
-        coverage={"id": "c", "backend": {"percent": 91.2}, "gate_percent": 95},
+        coverage={"id": "c", "backend": {"percent": 91.2}, "gate_percent": 96},
     )
     assert snap["verdict"] == "NOT_READY"
     assert "coverage_gate" in snap["blockers"]
@@ -92,7 +92,7 @@ def test_readiness_security_required_missing(monkeypatch):
         unit_run=_run("unit"),
         golden_run=_run("golden"),
         security_run=None,
-        coverage={"id": "c", "backend": {"percent": 96.0}, "gate_percent": 95},
+        coverage={"id": "c", "backend": {"percent": 97.0}, "gate_percent": 96},
     )
     assert snap["verdict"] == "NOT_READY"
     assert "security_pytest_pass" in snap["blockers"]
@@ -107,7 +107,7 @@ def test_readiness_inputs_hash_stable(monkeypatch):
     kwargs = dict(
         unit_run=_run("unit"),
         golden_run=_run("golden"),
-        coverage={"id": "c", "backend": {"percent": 96.0}, "gate_percent": 95},
+        coverage={"id": "c", "backend": {"percent": 97.0}, "gate_percent": 96},
         now=now,
     )
     a = compute_readiness(**kwargs)
@@ -135,7 +135,8 @@ def test_qa_routes_include_ingest():
 
 
 def test_ingest_404_when_flag_off(monkeypatch):
-    monkeypatch.delenv("FEATURE_QA_HEALTH_CENTER", raising=False)
+    # Explicit "0" so load_dotenv cannot re-enable FEATURE_QA_HEALTH_CENTER from .env
+    monkeypatch.setenv("FEATURE_QA_HEALTH_CENTER", "0")
     from fastapi.testclient import TestClient
     from backend.server import app
 

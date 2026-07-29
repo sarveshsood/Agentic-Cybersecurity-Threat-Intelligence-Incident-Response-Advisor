@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 
-from backend.repositories.qa_repo import qa_repo
+from backend.repositories.qa_repo import json_safe, qa_repo
 from backend.services.qa_ingest_service import recompute_for_build
 
 
@@ -13,7 +13,7 @@ async def get_summary() -> Dict[str, Any]:
     rollup = await qa_repo.get_rollup("latest") or {}
     release = await qa_repo.latest_release()
     coverage = await qa_repo.get_coverage()
-    return {
+    return json_safe({
         "quality_score": rollup.get("quality_score"),
         "grade": rollup.get("grade"),
         "verdict": (release or {}).get("verdict") or rollup.get("verdict"),
@@ -28,7 +28,7 @@ async def get_summary() -> Dict[str, Any]:
         "soft_warnings": (release or {}).get("soft_warnings") or [],
         "frontend_coverage": (coverage or {}).get("frontend"),
         "empty": not rollup and not release,
-    }
+    })
 
 
 async def list_runs(*, skip: int = 0, limit: int = 50, suite_type: Optional[str] = None) -> Dict[str, Any]:
@@ -71,4 +71,5 @@ async def get_release(rel_id: str) -> Dict[str, Any]:
 
 
 async def force_recompute(actor: dict, build_id: Optional[str] = None) -> Dict[str, Any]:
-    return await recompute_for_build(build_id=build_id, actor=actor)
+    # Always JSON-safe — ObjectId in nested suite/coverage fields broke the UI
+    return json_safe(await recompute_for_build(build_id=build_id, actor=actor))

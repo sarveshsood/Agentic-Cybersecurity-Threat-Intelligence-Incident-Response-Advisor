@@ -13,7 +13,7 @@ from defusedxml import ElementTree as ET
 
 from backend.qa.limits import MAX_XML_BYTES
 
-DEFAULT_GATE_PERCENT = 95.0
+DEFAULT_GATE_PERCENT = 96.0
 
 
 class CoverageParseError(ValueError):

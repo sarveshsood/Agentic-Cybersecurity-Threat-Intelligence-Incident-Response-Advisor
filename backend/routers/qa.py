@@ -12,7 +12,14 @@ from pydantic import BaseModel, Field
 
 from backend.feature_flags import require_feature
 from backend.security import require_roles
-from backend.services import qa_catalog_service, qa_health_service, qa_ingest_service
+from backend.qa.recommendation_models import RecommendationStatusBody
+from backend.services import (
+    qa_catalog_service,
+    qa_health_service,
+    qa_ingest_service,
+    qa_live_quality_service,
+    qa_recommendation_service,
+)
 
 router = APIRouter(
     prefix="/qa",
@@ -25,13 +32,25 @@ _ADMIN = require_roles("admin")
 
 
 class UseCaseRunBody(BaseModel):
-    """Run use cases from QA UI."""
+    """Run / track use cases from QA UI."""
 
     scope: str = Field(
         "golden",
-        description="golden | all_runnable | case — golden runs offline IR suite",
+        description=(
+            "golden = IR suite only; "
+            "e2e = Playwright browser only; "
+            "all = golden + API smoke (no Playwright); "
+            "case = selected ids"
+        ),
     )
     case_ids: Optional[List[str]] = Field(None, description="Required when scope=case")
+
+
+class UseCaseVerdictBody(BaseModel):
+    """Manual Pass/Fail/Blocked for a use case."""
+
+    status: str = Field(..., description="pass | fail | blocked | skipped | not_run")
+    note: Optional[str] = Field(None, max_length=1000)
 
 
 @router.get(
@@ -39,11 +58,23 @@ class UseCaseRunBody(BaseModel):
     summary="QA Health Center feature probe",
 )
 async def qa_healthz(user=Depends(_READ)):
+    from backend.services.qa_playwright_runner import playwright_enabled
+
     return {
         "ok": True,
         "feature": "qa_health_center",
-        "phase": "pr4_usecases",
+        "phase": "pr4_usecases_live_quality",
         "role": user.get("role"),
+        "playwright_enabled": playwright_enabled(),
+        "capabilities": {
+            "cases": True,
+            "run": True,
+            "verdict": True,
+            "e2e": playwright_enabled(),
+            "golden": True,
+            "api_smoke": True,
+            "live_quality": True,
+        },
     }
 
 
@@ -93,6 +124,76 @@ async def qa_release_recompute(
     return await qa_health_service.force_recompute(user, build_id=build_id)
 
 
+@router.post(
+    "/live-quality",
+    summary="Run real local pytest + coverage and ingest (not fixtures)",
+)
+async def qa_live_quality(user=Depends(_ADMIN)):
+    """Execute measured unit tests + Cobertura on this machine, then ingest.
+
+    Replaces lab sample XML in Coverage / Release with real numbers.
+    May take several minutes (``QA_LIVE_QUALITY_TIMEOUT_S``, default 900).
+    """
+    out = await qa_live_quality_service.run_live_quality(actor=user)
+    # Refresh advisory recommendations after measured run
+    try:
+        rec = await qa_recommendation_service.refresh_recommendations(actor=user)
+        out["recommendations_refresh"] = {
+            "signal_count": rec.get("signal_count"),
+            "recommendation_count": rec.get("recommendation_count"),
+        }
+    except Exception:
+        pass
+    return out
+
+
+@router.get("/signals", summary="List recommendation signals")
+async def qa_list_signals(
+    signal_type: Optional[str] = Query(None),
+    entity_type: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    user=Depends(_READ),
+):
+    return await qa_recommendation_service.list_signals(
+        signal_type=signal_type, entity_type=entity_type, limit=limit
+    )
+
+
+@router.get("/recommendations", summary="List advisory test recommendations")
+async def qa_list_recommendations(
+    status: Optional[str] = Query(None),
+    recommendation_type: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    user=Depends(_READ),
+):
+    return await qa_recommendation_service.list_recommendations(
+        status=status,
+        recommendation_type=recommendation_type,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/recommendations/refresh",
+    summary="Rebuild signals + recommendations from live QA artifacts",
+)
+async def qa_refresh_recommendations(user=Depends(_ADMIN)):
+    return await qa_recommendation_service.refresh_recommendations(actor=user)
+
+
+@router.patch(
+    "/recommendations/{rec_id}",
+    summary="Update recommendation status (accept/reject/implement)",
+)
+async def qa_patch_recommendation(
+    rec_id: str,
+    body: RecommendationStatusBody,
+    user=Depends(_ADMIN),
+):
+    return await qa_recommendation_service.set_recommendation_status(
+        rec_id, actor=user, status=body.status, note=body.note
+    )
+
 @router.get("/cases", summary="List all use cases (capstone catalog)")
 async def qa_list_cases(
     q: Optional[str] = Query(None, description="Search id/title/steps"),
@@ -130,13 +231,44 @@ async def qa_seed_catalog(
     return await qa_catalog_service.seed_catalog(force=force)
 
 
-@router.post("/usecases/run", summary="Run use cases from UI (golden offline suite)")
+@router.post(
+    "/usecases/run",
+    summary="Run / track use cases (updates status for every case in scope)",
+)
 async def qa_run_usecases(body: UseCaseRunBody, user=Depends(_ADMIN)):
+    """Distinct engines by scope:
+
+    - golden → offline IR suite only
+    - e2e → Playwright browser only (no golden / no API smoke)
+    - all → golden + API smoke for full catalog (no Playwright)
+    - case → selected rows via golden/smoke (use e2e scope for browser)
+    """
     return await qa_catalog_service.run_usecases(
         actor=user,
         scope=body.scope,
         case_ids=body.case_ids,
     )
+
+
+@router.post(
+    "/cases/{case_id}/verdict",
+    summary="Set manual Pass/Fail/Blocked verdict for a use case",
+)
+async def qa_case_verdict(case_id: str, body: UseCaseVerdictBody, user=Depends(_ADMIN)):
+    return await qa_catalog_service.set_case_verdict(
+        case_id,
+        actor=user,
+        status=body.status,
+        note=body.note,
+    )
+
+
+@router.get("/usecases/runs", summary="Recent use-case run batches")
+async def qa_list_usecase_batches(
+    limit: int = Query(20, ge=1, le=50),
+    user=Depends(_READ),
+):
+    return await qa_catalog_service.list_batches(limit=limit)
 
 
 @router.post(

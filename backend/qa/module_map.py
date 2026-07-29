@@ -43,18 +43,27 @@ MODULE_WEIGHTS = {
 # C.1 TC prefix → module (first match on uppercased id)
 _TC_PREFIX_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"^TC-AUTH-", re.I), "Security"),
+    (re.compile(r"^TC-SEC-", re.I), "Security"),
     (re.compile(r"^TC-ING-", re.I), "Backend"),
     (re.compile(r"^TC-PAR-", re.I), "Backend"),
     (re.compile(r"^TC-TI-", re.I), "AI"),
     (re.compile(r"^TC-ATK-", re.I), "AI"),
     (re.compile(r"^TC-AI-", re.I), "AI"),
     (re.compile(r"^TC-RAG-", re.I), "AI"),
+    (re.compile(r"^TC-GOLD-", re.I), "AI"),
     (re.compile(r"^TC-HITL-", re.I), "Backend"),
     (re.compile(r"^TC-DASH-", re.I), "Frontend"),
     (re.compile(r"^TC-WS-", re.I), "Frontend"),
+    (re.compile(r"^TC-AN-", re.I), "Frontend"),
+    (re.compile(r"^TC-E2E-", re.I), "Frontend"),
+    (re.compile(r"^TC-SET-", re.I), "Frontend"),
     (re.compile(r"^TC-AUD-", re.I), "Documentation"),
     (re.compile(r"^TC-CMP-", re.I), "Documentation"),
     (re.compile(r"^TC-RES-", re.I), "DevOps"),
+    (re.compile(r"^TC-OPS-", re.I), "DevOps"),
+    (re.compile(r"^TC-PERF-", re.I), "Performance"),
+    (re.compile(r"^TC-API-", re.I), "API"),
+    (re.compile(r"^TC-HUNT-", re.I), "Backend"),
 ]
 
 # C.3 free-text catalog Module cell

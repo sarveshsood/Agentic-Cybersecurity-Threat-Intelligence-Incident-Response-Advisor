@@ -17,7 +17,7 @@ from backend.qa.junit_parser import JUnitParseError, parse_junit_xml
 from backend.qa.limits import MAX_XML_BYTES
 from backend.qa.module_map import MODULE_MAP_VERSION, MODULE_WEIGHTS
 from backend.qa.readiness import CODE_COVERAGE_GATE, compute_readiness
-from backend.repositories.qa_repo import qa_repo
+from backend.repositories.qa_repo import json_safe, qa_repo
 from backend.secrets_util import clean_secret, is_real_secret
 
 logger = logging.getLogger("actira")
@@ -327,21 +327,39 @@ async def recompute_for_build(
     build_id: Optional[str] = None,
     actor: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Recompute readiness + rollups after ingest (KD-15)."""
+    """Recompute readiness + rollups after ingest (KD-15).
+
+    Uses build-scoped suites when present, then **falls back to latest global**
+    suite of each type. UI golden runs use synthetic build ids (``ui-golden-*``)
+    that never have unit/coverage — without fallback, unit_pass always fails.
+    """
     unit = await qa_repo.find_suite("unit", build_id=build_id)
+    if not unit:
+        unit = await qa_repo.find_suite("unit", build_id=None)
     golden = await qa_repo.find_suite("golden", build_id=build_id)
     if not golden:
         golden = await qa_repo.find_suite("golden", build_id=None)
     security = await qa_repo.find_suite("security", build_id=build_id)
+    if not security:
+        security = await qa_repo.find_suite("security", build_id=None)
     e2e = await qa_repo.find_suite("e2e", build_id=build_id)
+    if not e2e:
+        e2e = await qa_repo.find_suite("e2e", build_id=None)
     coverage = await qa_repo.get_coverage(build_id=build_id)
-    if not coverage and not build_id:
+    if not coverage:
         coverage = await qa_repo.get_coverage(build_id=None)
 
     # collect recent runs for module scores
     recent = await qa_repo.list_suite_runs(limit=30)
     module_scores = _module_scores_from_runs(recent)
     q = _quality_from_modules(module_scores)
+
+    build_meta = (
+        (unit or {}).get("build")
+        or (golden or {}).get("build")
+        or (coverage or {}).get("build")
+        or ({"id": build_id} if build_id else None)
+    )
 
     snap = compute_readiness(
         unit_run=unit,
@@ -350,12 +368,13 @@ async def recompute_for_build(
         e2e_run=e2e,
         coverage=coverage,
         open_critical_defects=0,
-        build=(unit or coverage or {}).get("build") or {"id": build_id},
+        build=build_meta,
         quality_score=q,
     )
     rel_id = new_id()
     rel_doc = {"id": rel_id, **snap}
-    await qa_repo.insert_release(rel_doc)
+    # insert_release returns ObjectId-free payload (safe for FastAPI JSON)
+    public = await qa_repo.insert_release(rel_doc)
 
     pass_rate = None
     if unit and unit.get("counts"):
@@ -368,10 +387,12 @@ async def recompute_for_build(
     if coverage:
         cov_pct = (coverage.get("backend") or {}).get("percent")
 
+    effective_build = (build_meta or {}).get("id") if isinstance(build_meta, dict) else build_id
+
     rollup = {
         "id": "latest",
         "updated_at": _iso_now(),
-        "build_id": build_id,
+        "build_id": effective_build,
         "module_scores": module_scores,
         "quality_score": q,
         "grade": snap["grade"],
@@ -384,10 +405,14 @@ async def recompute_for_build(
         "recent_failure_ids": [],
         "verdict": snap["verdict"],
         "release_id": rel_id,
+        "unit_run_id": (unit or {}).get("id"),
+        "golden_run_id": (golden or {}).get("id"),
+        "coverage_id": (coverage or {}).get("id"),
     }
     if build_id:
         await qa_repo.upsert_rollup({**rollup, "id": f"build:{build_id}"})
     await qa_repo.upsert_rollup(rollup)
 
     inc_counter("actira_qa_readiness_total", verdict=snap["verdict"])
-    return rel_doc
+    # Never leak Mongo ObjectId into HTTP response (deep sanitize)
+    return json_safe(public or rel_doc)
