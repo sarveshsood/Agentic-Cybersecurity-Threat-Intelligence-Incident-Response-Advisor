@@ -133,7 +133,7 @@ function CapabilityTile({icon: Icon, label, value}) {
 }
 
 export default function Login() {
-    const {login, register} = useAuth();
+    const {login, register, verifyMfa} = useAuth();
     const {theme, resolvedTheme, toggle: toggleTheme} = useTheme();
     const nav = useNavigate();
     const [mode, setMode] = useState("login");
@@ -144,6 +144,9 @@ export default function Login() {
     const [ssoEnabled, setSsoEnabled] = useState(false);
     const [publicRegister, setPublicRegister] = useState(true);
     const [statusRows, setStatusRows] = useState(DEFAULT_STATUS_ROWS);
+    /** Optional local TOTP step after password (FEATURE_MFA). */
+    const [mfaToken, setMfaToken] = useState(null);
+    const [mfaCode, setMfaCode] = useState("");
     const demos = showDemoOperators();
     const ThemeIcon = theme === "light" ? Sun : theme === "system" ? Desktop : Moon;
 
@@ -230,18 +233,35 @@ export default function Login() {
     // Always land on main dashboard after auth (ignore deep-link return paths).
     const redirectTo = "/";
 
+    const finishRemember = () => {
+        try {
+            if (remember) window.localStorage.setItem("soc_remember_email", form.email);
+            else window.localStorage.removeItem("soc_remember_email");
+        } catch {
+            // ignore storage failures
+        }
+    };
+
     const submit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
+            if (mfaToken) {
+                await verifyMfa(mfaToken, mfaCode.trim());
+                finishRemember();
+                toast.success("Signed in successfully");
+                nav(redirectTo, {replace: true});
+                return;
+            }
             if (mode === "login") {
-                await login(form.email, form.password);
-                try {
-                    if (remember) window.localStorage.setItem("soc_remember_email", form.email);
-                    else window.localStorage.removeItem("soc_remember_email");
-                } catch {
-                    // ignore storage failures
+                const result = await login(form.email, form.password);
+                if (result?.mfaRequired && result?.mfaToken) {
+                    setMfaToken(result.mfaToken);
+                    setMfaCode("");
+                    toast.message("Enter the 6-digit code from your authenticator app");
+                    return;
                 }
+                finishRemember();
                 toast.success("Signed in successfully");
             } else {
                 await register({email: form.email, password: form.password, name: form.name});
@@ -561,7 +581,11 @@ export default function Login() {
                     </div>
 
                     <h2 className="text-2xl font-bold mb-4 tracking-tight text-slate-900">
-                        {mode === "login" ? "Welcome back, analyst." : "Create your operator account."}
+                        {mfaToken
+                            ? "Multi-factor verification"
+                            : mode === "login"
+                                ? "Welcome back, analyst."
+                                : "Create your operator account."}
                     </h2>
 
                     <div className="flex flex-wrap gap-2 mb-8">
@@ -580,6 +604,45 @@ export default function Login() {
                         ))}
                     </div>
 
+                    {mfaToken ? (
+                        <div className="mb-6" data-testid="auth-mfa-step">
+                            <label
+                                className="block text-[11px] uppercase tracking-[0.08em] text-slate-600 font-bold mb-2"
+                                htmlFor="auth-mfa-code"
+                            >
+                                Authenticator code
+                            </label>
+                            <input
+                                id="auth-mfa-code"
+                                data-testid="auth-mfa-code"
+                                required
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                pattern="[0-9]{6,8}"
+                                maxLength={8}
+                                placeholder="000000"
+                                className="sbp-input w-full rounded-lg px-3.5 py-2.5 text-sm font-mono tracking-widest"
+                                value={mfaCode}
+                                onChange={(e) => setMfaCode(e.target.value.replace(/\s/g, ""))}
+                            />
+                            <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                                Enter the 6-digit code from your authenticator app. Enterprise SSO MFA is
+                                configured at your IdP (Entra/Okta); this step is for optional local TOTP.
+                            </p>
+                            <button
+                                type="button"
+                                data-testid="auth-mfa-cancel"
+                                className="mt-3 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors"
+                                onClick={() => {
+                                    setMfaToken(null);
+                                    setMfaCode("");
+                                }}
+                            >
+                                ← Back to password
+                            </button>
+                        </div>
+                    ) : (
+                        <>
                     {mode === "signup" && (
                         <div className="mb-5">
                             <label
@@ -675,11 +738,13 @@ export default function Login() {
                     )}
 
                     {mode === "signup" && <div className="mb-6"/>}
+                        </>
+                    )}
 
                     <button
                         data-testid="auth-submit"
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || (mfaToken && mfaCode.trim().length < 6)}
                         className="sbp-btn-primary w-full py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-blue-600/20 mt-2"
                     >
                         {loading ? (
@@ -691,13 +756,24 @@ export default function Login() {
                             </>
                         ) : (
                             <>
-                                {mode === "login" ? "Sign in" : "Create account"}
+                                {mfaToken ? "Verify code" : mode === "login" ? "Sign in" : "Create account"}
                                 <ArrowRight size={16} weight="bold" aria-hidden/>
                             </>
                         )}
                     </button>
 
-                    {publicRegister ? (
+                    {!mfaToken && ssoEnabled && (
+                        <a
+                            href={`${(process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "")}/api/auth/oidc/login`}
+                            data-testid="auth-sso"
+                            className="mt-4 w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-800 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                        >
+                            <Globe size={16} className="text-blue-600" aria-hidden/>
+                            Sign in with SSO
+                        </a>
+                    )}
+
+                    {!mfaToken && publicRegister ? (
                         <button
                             type="button"
                             data-testid="auth-toggle"
@@ -706,7 +782,7 @@ export default function Login() {
                         >
                             {mode === "login" ? "Need an account? Register" : "Already have one? Sign in"}
                         </button>
-                    ) : (
+                    ) : !mfaToken ? (
                         <p
                             className="w-full mt-5 text-xs text-center text-slate-500"
                             data-testid="auth-register-disabled"
@@ -715,7 +791,7 @@ export default function Login() {
                                 ? "Accounts are provisioned via SSO. Contact your administrator for access."
                                 : "Public registration is disabled. Contact your SOC administrator."}
                         </p>
-                    )}
+                    ) : null}
 
                     {demos && (
                         <div className="mt-8 pt-6 border-t border-slate-200" data-testid="demo-operators">

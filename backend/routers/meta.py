@@ -47,7 +47,26 @@ async def features_api():
     SPA loads once at login / Layout mount. When a flag is false, collab routes
     must return 404 via ``require_feature`` — UI hide alone is not enough.
     """
-    return collab_features()
+    out = dict(collab_features())
+    try:
+        from backend import tenancy
+
+        out["multi_tenant"] = tenancy.status_public()
+    except Exception:
+        out["multi_tenant"] = {"feature_enabled": False, "mode": "single_tenant"}
+    try:
+        from backend.playbook_judge import llm_judge_enabled
+
+        out["playbook_judge_llm"] = llm_judge_enabled()
+    except Exception:
+        out["playbook_judge_llm"] = False
+    try:
+        from backend.embeddings import _env_backend
+
+        out["embedding_backend"] = _env_backend()
+    except Exception:
+        out["embedding_backend"] = "hash"
+    return out
 
 
 @router.get("/ops/status")

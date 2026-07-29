@@ -43,6 +43,7 @@ class User(UserBase):
     id: str = Field(default_factory=new_id)
     created_at: datetime = Field(default_factory=utc_now)
     mfa_enabled: bool = False
+    org_id: Optional[str] = None  # set when FEATURE_MULTI_TENANT=1
 
 
 class UserInDB(User):

@@ -10,6 +10,7 @@ ACTIRA supports **OIDC SSO**. Multi-factor authentication for enterprise should 
 |-------|---------|
 | Identity | Entra ID / Okta / Keycloak (or compatible OIDC) |
 | MFA | Conditional Access / MFA policy **on the IdP** |
+| Optional ACTIRA check | `OIDC_REQUIRE_MFA=1` rejects tokens without `amr`/`acr` MFA evidence |
 | Roles | OIDC groups → `OIDC_GROUP_ROLE_MAP` → `admin` / `senior_reviewer` / `analyst` |
 | ACTIRA | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_REDIRECT_URI` |
 
@@ -34,10 +35,15 @@ OIDC_CLIENT_SECRET=<if confidential>
 OIDC_REDIRECT_URI=https://api.example.com/api/auth/oidc/callback
 OIDC_SCOPES=openid email profile
 OIDC_GROUP_ROLE_MAP={"soc-admins":"admin","soc-reviewers":"senior_reviewer","soc-analysts":"analyst"}
+# Optional belt-and-suspenders (require amr/acr MFA evidence on callback):
+OIDC_REQUIRE_MFA=1
+# OIDC_MFA_ACR_VALUES=AAL2,2
+# OIDC_MFA_CLAIM=extension_MfaCompleted
 ```
 
-7. Verify: `GET /api/auth/oidc/config` → `enabled: true`, `public_register: false`  
+7. Verify: `GET /api/auth/oidc/config` → `enabled: true`, `require_mfa: true`, `public_register: false`  
 8. Login UI → **Sign in with SSO** → complete IdP MFA challenge  
+9. Ensure tokens expose `amr` (e.g. `mfa`, `otp`) or `acr` if `OIDC_REQUIRE_MFA=1`
 
 ---
 

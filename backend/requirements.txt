@@ -29,7 +29,10 @@ python-magic==0.4.27
 rank-bm25==0.2.2
 tldextract==5.3.1
 lancedb>=0.17.0
-# optional dense model: pip install sentence-transformers  (ACTIRA_EMBEDDING_BACKEND=sbert)
+# Optional dense embeddings (ACTIRA_EMBEDDING_PROFILE=auto|quality or BACKEND=sbert):
+#   pip install sentence-transformers
+# Missing package falls back to hash embedder. Not pinned here (heavy torch dep).
+# Optional password TOTP: pip install pyotp  (FEATURE_MFA=1)
 groq==1.5.0
 anthropic>=0.40.0
 openai>=1.55.0

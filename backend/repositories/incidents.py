@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from backend.database import db
+from backend.tenancy import merge_org_query, stamp_org
 
 
 class IncidentRepository:
@@ -19,8 +20,15 @@ class IncidentRepository:
     def col(self):
         return self._db.incidents
 
-    async def find_by_id(self, incident_id: str) -> Optional[Dict[str, Any]]:
-        return await self.col.find_one({"id": incident_id}, {"_id": 0})
+    async def find_by_id(
+        self, incident_id: str, *, org_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        query = merge_org_query({"id": incident_id}, org_id=org_id)
+        return await self.col.find_one(query, {"_id": 0})
+
+    async def insert(self, doc: Dict[str, Any], *, org_id: Optional[str] = None) -> None:
+        """Insert an incident document, stamping org_id when multi-tenant is on."""
+        await self.col.insert_one(stamp_org(doc, org_id=org_id))
 
     def _filter_query(
         self,
@@ -31,6 +39,7 @@ class IncidentRepository:
         assignee: Optional[str] = None,
         unassigned: bool = False,
         current_user_sub: Optional[str] = None,
+        org_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Compose list filters with ``$and`` so technique/assignee ``$or`` never stomp."""
         and_terms: List[Dict[str, Any]] = []
@@ -93,10 +102,12 @@ class IncidentRepository:
             )
 
         if not and_terms:
-            return {}
-        if len(and_terms) == 1:
-            return and_terms[0]
-        return {"$and": and_terms}
+            base: Dict[str, Any] = {}
+        elif len(and_terms) == 1:
+            base = and_terms[0]
+        else:
+            base = {"$and": and_terms}
+        return merge_org_query(base, org_id=org_id)
 
     async def count_filtered(
         self,
@@ -107,6 +118,7 @@ class IncidentRepository:
         assignee: Optional[str] = None,
         unassigned: bool = False,
         current_user_sub: Optional[str] = None,
+        org_id: Optional[str] = None,
     ) -> int:
         query = self._filter_query(
             status=status,
@@ -115,6 +127,7 @@ class IncidentRepository:
             assignee=assignee,
             unassigned=unassigned,
             current_user_sub=current_user_sub,
+            org_id=org_id,
         )
         return int(await self.col.count_documents(query))
 
@@ -127,6 +140,7 @@ class IncidentRepository:
         assignee: Optional[str] = None,
         unassigned: bool = False,
         current_user_sub: Optional[str] = None,
+        org_id: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
@@ -137,25 +151,30 @@ class IncidentRepository:
             assignee=assignee,
             unassigned=unassigned,
             current_user_sub=current_user_sub,
+            org_id=org_id,
         )
         cursor = self.col.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
         return await cursor.to_list(limit)
 
     async def update_assignment_fields(
-        self, incident_id: str, fields: Dict[str, Any]
+        self, incident_id: str, fields: Dict[str, Any], *, org_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         if not fields:
-            return await self.find_by_id(incident_id)
+            return await self.find_by_id(incident_id, org_id=org_id)
+        query = merge_org_query({"id": incident_id}, org_id=org_id)
         return await self.col.find_one_and_update(
-            {"id": incident_id},
+            query,
             {"$set": fields},
             projection={"_id": 0},
             return_document=True,
         )
 
-    async def list_pending_review(self, *, skip: int = 0, limit: int = 50) -> List[Dict[str, Any]]:
+    async def list_pending_review(
+        self, *, skip: int = 0, limit: int = 50, org_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        query = merge_org_query({"status": "pending_review"}, org_id=org_id)
         cursor = (
-            self.col.find({"status": "pending_review"}, {"_id": 0})
+            self.col.find(query, {"_id": 0})
             .sort("created_at", -1)
             .skip(skip)
             .limit(limit)
@@ -166,17 +185,25 @@ class IncidentRepository:
         self,
         incident_id: str,
         update: Dict[str, Any],
+        *,
+        org_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Atomic HiTL claim — only succeeds while status is pending_review."""
+        query = merge_org_query(
+            {"id": incident_id, "status": "pending_review"}, org_id=org_id
+        )
         return await self.col.find_one_and_update(
-            {"id": incident_id, "status": "pending_review"},
+            query,
             {"$set": update},
             projection={"_id": 0, "id": 1, "status": 1},
             return_document=True,
         )
 
-    async def get_status(self, incident_id: str) -> Optional[Dict[str, Any]]:
-        return await self.col.find_one({"id": incident_id}, {"_id": 0, "status": 1})
+    async def get_status(
+        self, incident_id: str, *, org_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        query = merge_org_query({"id": incident_id}, org_id=org_id)
+        return await self.col.find_one(query, {"_id": 0, "status": 1})
 
     async def push_workspace_note(
         self,

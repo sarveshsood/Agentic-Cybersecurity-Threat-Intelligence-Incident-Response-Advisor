@@ -30,7 +30,7 @@ Usually the **backend is not running** on port 8001. Check `GET /api/health`.
 ### Can I use this in production?
 
 **Single-tenant pilot:** possible with hardening in `SECURITY.md` and `docs/DEPLOYMENT.md`.  
-**Multi-tenant enterprise SOC:** not ready (no SSO/tenancy/HA packaging).
+**Multi-tenant enterprise SOC:** scaffold only (`FEATURE_MULTI_TENANT` on primary incident/user paths; no org admin UI; not every collection). SSO is env-gated OIDC; enterprise MFA is IdP-configured (+ optional local TOTP).
 
 ### Which LLM is default?
 

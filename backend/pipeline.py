@@ -264,8 +264,9 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
 
         # A-H2: keep native datetime for created_at (not JSON ISO strings)
         from backend.mongo_util import to_mongo_doc
+        from backend.tenancy import stamp_org
 
-        doc = to_mongo_doc(incident)
+        doc = stamp_org(to_mongo_doc(incident))
         await db.incidents.insert_one(doc)
         try:
             from backend.services import analytics_cache as cache

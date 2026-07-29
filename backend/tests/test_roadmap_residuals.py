@@ -81,6 +81,9 @@ def test_tenancy_stamp_and_filter(monkeypatch):
     assert tenancy.multi_tenant_enabled() is True
     assert tenancy.org_filter() == {"org_id": "acme"}
     assert tenancy.stamp_org({"id": "1"})["org_id"] == "acme"
+    pub = tenancy.status_public()
+    assert pub["mode"] == "multi_tenant_scaffold"
+    assert pub["feature_enabled"] is True
 
 
 def test_embedding_auto_prod_uses_sbert(monkeypatch):

@@ -336,8 +336,10 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "description": (
             "Scaffold shipped: authorization-code + PKCE, public config + login/callback, Login SSO CTA, "
             "group/role claim map, session cookie path, public register auto-off for OIDC/prod. "
+            "MFA: customer configures Entra/Okta Conditional Access; we document + optional local TOTP "
+            "(`FEATURE_MFA`) and optional `OIDC_REQUIRE_MFA` amr/acr check. "
             "Still open for production: JWKS verification, shared PKCE state store, live IdP hardening, "
-            "IdP-enforced MFA, federated logout."
+            "federated logout."
         ),
         "status": "in_progress",
         "priority": "p0",
@@ -357,13 +359,20 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "progress": 60,
         "implementation_notes": (
             "2026-07-26: PKCE routes + register policy + role map scaffold. "
+            "2026-07-29: OIDC_REQUIRE_MFA + customer MFA guide + optional FEATURE_MFA TOTP UI path. "
             "Do not enable OIDC in prod until JWKS path is complete."
         ),
         "tasks": [
             {"id": "t1", "title": "OIDC authorization code + PKCE scaffold", "status": "done", "done": True},
             {"id": "t2", "title": "Group/role claim map + register policy", "status": "done", "done": True},
+            {
+                "id": "t4a",
+                "title": "IdP MFA docs + OIDC_REQUIRE_MFA + optional local TOTP",
+                "status": "done",
+                "done": True,
+            },
             {"id": "t3", "title": "JWKS verify + shared state store", "status": "todo", "done": False},
-            {"id": "t4", "title": "Live IdP MFA + federated logout", "status": "todo", "done": False},
+            {"id": "t4", "title": "Live IdP hardening + federated logout", "status": "todo", "done": False},
         ],
     },
     {
@@ -836,14 +845,28 @@ ROADMAP_SEED: List[Dict[str, Any]] = [
         "category": "Product",
         "modules": ["backend/", "frontend/"],
         "docs": ["docs/product/VISION.md", "ROADMAP.md"],
-        "architecture_notes": "Do not claim multi-tenant until org_id is end-to-end.",
-        "progress": 0,
-        "implementation_notes": "Collab split out to rm-v2-h07-h08-collab (2026-07-27).",
+        "architecture_notes": (
+            "Scaffold only: FEATURE_MULTI_TENANT stamps/filters org_id on primary incident + user "
+            "paths — not end-to-end on every query/collection. "
+            "Still no org admin UI, per-tenant secrets, or full collection coverage."
+        ),
+        "progress": 25,
+        "implementation_notes": (
+            "Collab split out to rm-v2-h07-h08-collab (2026-07-27). "
+            "2026-07-29: tenancy helpers + incident repo/pipeline stamp/filter + meta snapshot "
+            "(scaffold honesty: not every collection)."
+        ),
         "tasks": [
-            {"id": "t1", "title": "org_id isolation on all docs", "status": "todo", "done": False},
+            {
+                "id": "t1",
+                "title": "org_id isolation on incidents + users (primary paths)",
+                "status": "done",
+                "done": True,
+            },
             {"id": "t2", "title": "Per-tenant secrets + settings", "status": "todo", "done": False},
             {"id": "t3", "title": "SIEM/XDR connectors", "status": "todo", "done": False},
             {"id": "t4", "title": "Pen-test pack + optional SOAR approve-gate", "status": "todo", "done": False},
+            {"id": "t5", "title": "Org admin UI + full collection coverage", "status": "todo", "done": False},
         ],
     },
     {

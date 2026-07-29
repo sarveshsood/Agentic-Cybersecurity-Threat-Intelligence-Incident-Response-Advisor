@@ -117,8 +117,21 @@ export function AuthProvider({children}) {
         return () => clearInterval(t);
     }, [user, revalidate]);
 
-    const login = useCallback(async (email, password) => {
-        const r = await api.post("/auth/login", {email, password});
+    const login = useCallback(async (email, password, mfaCode) => {
+        const body = {email, password};
+        if (mfaCode) body.mfa_code = mfaCode;
+        const r = await api.post("/auth/login", body);
+        // Step-up TOTP: password ok, MFA still required
+        if (r.data?.mfa_required && r.data?.mfa_token) {
+            return {mfaRequired: true, mfaToken: r.data.mfa_token};
+        }
+        const u = persistUser(r.data);
+        setUser(u);
+        return u;
+    }, []);
+
+    const verifyMfa = useCallback(async (mfaToken, code) => {
+        const r = await api.post("/auth/mfa/verify", {mfa_token: mfaToken, code});
         const u = persistUser(r.data);
         setUser(u);
         return u;
@@ -140,8 +153,8 @@ export function AuthProvider({children}) {
     }, []);
 
     const value = useMemo(
-        () => ({user, loading, login, register, logout}),
-        [user, loading, login, register, logout],
+        () => ({user, loading, login, register, logout, verifyMfa}),
+        [user, loading, login, register, logout, verifyMfa],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

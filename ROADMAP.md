@@ -137,7 +137,7 @@ Tracked in detail in **Roadmap UI** and `roadmap_data.py` (25+ seed cards). Summ
 | ID   | Activity                                      | Outcome             | Priority | Status |
 |------|-----------------------------------------------|---------------------|----------|--------|
 | F-01 | OIDC SSO (Entra ID / Okta / Keycloak)         | Enterprise login    | P0       | 🔄 Scaffold (PKCE + routes + Login CTA; env-gated) |
-| F-02 | MFA (IdP-enforced preferred)                  | Auth strength       | P0       | 📋 Planned (via IdP) |
+| F-02 | MFA (IdP-enforced preferred)                  | Auth strength       | P0       | 🔄 Customer IdP + docs; optional local TOTP (`FEATURE_MFA`); `OIDC_REQUIRE_MFA` |
 | F-03 | IdP groups → ACTIRA roles                     | RBAC from directory | P1       | 🔄 Partial (`OIDC_GROUP_ROLE_MAP` / role claim) |
 | F-04 | Cookie/session integration with SSO           | SPA continuity      | P1       | 🔄 Partial (same cookie as password login) |
 | F-05 | Disable public register in enterprise profile | Security default    | P1       | ✅ Auto when OIDC on or ENV=prod/staging; override via `ALLOW_PUBLIC_REGISTER` |

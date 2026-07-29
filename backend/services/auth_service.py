@@ -102,10 +102,16 @@ async def register(body: UserCreatePublic) -> JSONResponse:
         password_hash=hash_password(body.password),
     )
     doc = user.model_dump(mode="json")
+    try:
+        from backend.tenancy import stamp_org
+
+        doc = stamp_org(doc)
+    except Exception:
+        pass
     await users_repo.insert(doc)
     session_hours = await svc.session_hours()
     token = create_access_token(user.id, user.email, user.role, expire_hours=session_hours)
-    return _token_response(token, user.model_dump(), session_hours)
+    return _token_response(token, doc, session_hours)
 
 
 async def login(body: LoginRequest) -> JSONResponse:

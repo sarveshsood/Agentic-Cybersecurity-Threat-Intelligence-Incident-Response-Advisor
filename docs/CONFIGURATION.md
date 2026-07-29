@@ -266,7 +266,7 @@ Public bootstrap: `GET /api/auth/oidc/config` returns `{ enabled, public_registe
 
 When both issuer and client id are set, password login remains available but SSO appears on Login.
 
-**MFA / step-up:** ACTIRA does not ship built-in TOTP. For production, enable **MFA at the IdP** (Entra / Okta / Keycloak Conditional Access) and map groups via `OIDC_GROUP_ROLE_MAP`. Treat missing MFA as an accepted residual risk in [SECURITY_HARDENING.md](operations/SECURITY_HARDENING.md).
+**MFA / step-up:** Enterprise path is **customer-configured IdP MFA** (Entra / Okta / Keycloak Conditional Access) plus optional `OIDC_REQUIRE_MFA=1` token evidence check. Optional **local TOTP** for password login is available via `FEATURE_MFA=1` + `pyotp` (lab / break-glass — see [Optional MFA (TOTP)](#optional-mfa-totp)). Map groups via `OIDC_GROUP_ROLE_MAP`. Customer runbook: [OIDC_MFA_CUSTOMER_GUIDE.md](operations/OIDC_MFA_CUSTOMER_GUIDE.md).
 
 | Variable               | Required | Notes |
 |------------------------|----------|-------|
@@ -414,20 +414,33 @@ Prefer IdP MFA when OIDC is enabled. Pending MFA challenges are process-local (u
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `ACTIRA_EMBEDDING_PROFILE` | `offline` | `quality` / `sbert` ? try sentence-transformers (fallback hash) |
+| `ACTIRA_EMBEDDING_PROFILE` | `auto` | `auto` → **sbert** when `ENV` is production/staging, **hash** in lab/CI; `offline` = hash; `quality`/`sbert` = try sbert |
 | `ACTIRA_EMBEDDING_BACKEND` | (empty) | Explicit `hash` / `sbert` / `lora` / `none` overrides profile |
+| Optional install | — | `pip install sentence-transformers` (not in base requirements). Missing package → **hash fallback** |
 
-### Multi-tenant scaffold (optional)
+### Multi-tenant (scaffold — primary paths only)
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `FEATURE_MULTI_TENANT` | off | When on, helpers stamp/filter `org_id` (`backend/tenancy.py`) |
-| `ACTIRA_DEFAULT_ORG_ID` | `default` | Single-org id for a multi-tenant-flagged deploy |
+| `FEATURE_MULTI_TENANT` | off | When on, stamps `org_id` on incident/user writes; filters incident list/count/get |
+| `ACTIRA_DEFAULT_ORG_ID` | `default` | Process default org when multi-tenant is on |
 
-Not a full multi-tenant SaaS � no org admin UI. See roadmap H-01.
+**Scaffold only** — not end-to-end on every query/collection. Document-level isolation on primary incident + user paths. **No org admin UI**, no per-tenant secrets vault. Snapshot: `GET /api/meta/features` → `multi_tenant` (`mode: multi_tenant_scaffold`).
 
 ### Playbook LLM judge
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `ACTIRA_PLAYBOOK_JUDGE_LLM` | off | When on, second-pass LLM quality score (plus rules) |
+| `ACTIRA_PLAYBOOK_JUDGE_LLM` | off | `0` = rules only (always run). `1` = rules + optional LLM second pass. `auto` = LLM pass in production/staging only |
+
+Rules always run first; LLM never replaces the rule engine.
+
+### OIDC MFA enforcement (optional)
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `OIDC_REQUIRE_MFA` | off | When on, OIDC callback rejects tokens without MFA evidence (`amr`/`acr`) |
+| `OIDC_MFA_ACR_VALUES` | (common AAL2+) | Comma list of accepted `acr` values |
+| `OIDC_MFA_CLAIM` | — | Optional boolean-like custom claim |
+
+Prefer Conditional Access at the IdP. See [OIDC_MFA_CUSTOMER_GUIDE.md](operations/OIDC_MFA_CUSTOMER_GUIDE.md).

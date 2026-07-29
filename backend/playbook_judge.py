@@ -86,8 +86,20 @@ def judge_playbook(
 
 
 def llm_judge_enabled() -> bool:
+    """Optional LLM second-pass. Rules always run first; default off (no cost).
+
+    Set ``ACTIRA_PLAYBOOK_JUDGE_LLM=1`` to enable. Values ``auto`` also enable
+    only when ``ENV`` is production/staging (still opt-in via profile, not silent).
+    """
     raw = (os.environ.get("ACTIRA_PLAYBOOK_JUDGE_LLM") or "0").strip().lower()
-    return raw in ("1", "true", "yes", "on")
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off", ""):
+        return False
+    if raw in ("auto",):
+        env = (os.environ.get("ENV") or "dev").strip().lower()
+        return env in ("production", "prod", "staging")
+    return False
 
 
 JUDGE_SYSTEM = """You are a SOC quality reviewer. Score an IR playbook JSON for structure and usefulness.
