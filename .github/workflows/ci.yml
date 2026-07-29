@@ -58,7 +58,7 @@ jobs:
             --junitxml=reports/junit-framework.xml -v --tb=short
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-reports
           path: reports/
@@ -186,7 +186,7 @@ jobs:
             --cov-report=xml:../reports/coverage.xml \
             --cov-report=html:../reports/coverage_html \
             --cov-fail-under=$FAIL -q
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-html
