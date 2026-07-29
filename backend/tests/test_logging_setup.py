@@ -45,6 +45,9 @@ def test_configure_logging_writes_file(monkeypatch, tmp_path):
     monkeypatch.setenv("LOG_DIR", str(tmp_path))
     monkeypatch.setenv("LOG_FILE", "test-actira.log")
     monkeypatch.setenv("LOG_LEVEL", "INFO")
+    # Force text format — other tests may leave LOG_FORMAT=json on the process
+    monkeypatch.setenv("LOG_FORMAT", "text")
+    monkeypatch.setenv("LOG_FILE_FORMAT", "text")
     path = configure_logging(force=True)
     assert path is not None
     assert path.exists() or path.parent.exists()

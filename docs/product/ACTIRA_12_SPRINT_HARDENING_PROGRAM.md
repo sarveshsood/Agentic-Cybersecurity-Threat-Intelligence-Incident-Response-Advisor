@@ -6,6 +6,7 @@
 | **Status** | Implementation landed (Sprints 2–12 core outcomes) |
 | **Scope** | Architecture audit, real-time queue, parallel pipeline, dual fallback, docs, scripts, tests, production |
 | **Honesty** | Single-tenant IR advisor — not SIEM/XDR; not A2A multi-agent mesh |
+| **Board package** | [ACTIRA_12_SPRINT_BOARD_PACKAGE.md](ACTIRA_12_SPRINT_BOARD_PACKAGE.md) — CXO sections 1–12 + residual roadmap |
 
 This document is the durable source for the sprint program. Product code remains package-rooted at `backend.server:app` and SPA under `frontend/`.
 
@@ -56,7 +57,7 @@ This document is the durable source for the sprint program. Product code remains
 | 7 | Test matrix | **Done** — smoke→functional→security | Flaky live tests |
 | 8 | FE quality | **Done** — realtime + dual fallback UX | Time |
 | 9 | BE quality | **Done** — WS cookie auth, ops honesty | OpenAPI lag |
-| 10 | AI layer | Partial — dual route probes + latency | Cost / hallucination |
+| 10 | AI layer | **Done** — dual route probes + `backend/prompts/` pack | Cost / hallucination residual |
 | 11 | Cleanup | **Done** — runtime scripts | Accidental delete |
 | 12 | Prod readiness | **Done** — secrets, multi-worker, observability pack | Ops complexity |
 

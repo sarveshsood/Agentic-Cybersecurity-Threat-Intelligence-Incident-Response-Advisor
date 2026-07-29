@@ -24,7 +24,15 @@ def test_settings_model_includes_platform_defaults():
     assert "job_broker_url" in SECRET_SETTINGS_FIELDS
 
 
-def test_apply_platform_to_environ():
+def test_apply_platform_to_environ(monkeypatch):
+    # Isolate from suite pollution — restore env after test
+    for key in (
+        "LOG_FORMAT",
+        "ENRICH_CONCURRENCY",
+        "PARSE_CONCURRENCY",
+        "LOG_TO_FILE",
+    ):
+        monkeypatch.delenv(key, raising=False)
     doc = {
         **FACTORY_PLATFORM,
         "log_format": "json",

@@ -39,6 +39,7 @@ import {
     ShieldCheck,
     ShieldWarning,
     Target,
+    Timer,
     TrendUp,
     UploadSimple,
     Users,
@@ -414,25 +415,37 @@ export default function Dashboard() {
         }
     }, [limit]);
 
+    // Push path (WebSocket → SSE): updates queue cards + full KPI charts without setInterval.
+    // Backend interval-pulls with force_refresh so analytics cache does not freeze wallboards.
     const onQueueRealtime = useCallback((q) => {
         if (q && typeof q === "object") setQueueKpis(q);
+    }, []);
+    const onKpisRealtime = useCallback((k) => {
+        if (k && typeof k === "object") setRawKpis(k);
     }, []);
 
     const realtime = useOpsRealtime({
         onQueue: onQueueRealtime,
+        onKpis: onKpisRealtime,
         intervalSec: 10,
         enabled: true,
     });
 
     useEffect(() => {
         load({silent: false});
-        // When WS/SSE is live, slow HTTP poll to reduce load; when poll-only, keep prefs interval.
+        // When WS/SSE is live: KPIs/charts come from the push channel; HTTP poll only
+        // refreshes the recent-incidents table (slow). When poll-only: silent load uses
+        // force_refresh so we are not stuck on analytics cache TTL (~30s).
         const rawMs = Number(prefs.dashboard_refresh_ms) || 0;
         const live = realtime.channel === "ws" || realtime.channel === "sse";
         const base = rawMs > 0 ? Math.max(30_000, rawMs) : 0;
+        // Live: floor 60s for incidents table. Poll-only: honor prefs (0 = no interval).
         const ms = live ? Math.max(base || 60_000, 60_000) : base;
         if (ms <= 0) return undefined;
-        const id = setInterval(() => load({silent: true}), ms);
+        const id = setInterval(
+            () => load({silent: true, forceRefresh: !live}),
+            ms,
+        );
         return () => clearInterval(id);
     }, [load, prefs.dashboard_refresh_ms, realtime.channel]);
 
@@ -577,13 +590,13 @@ export default function Dashboard() {
                         <Tip
                             content={
                                 realtime.channel === "ws"
-                                    ? "Live: WebSocket /api/ws/ops (queue KPIs push)."
+                                    ? "Live WebSocket /api/ws/ops — fresh KPI + queue every ~10s (cache bypassed). Interval pull, not job-event push."
                                     : realtime.channel === "sse"
-                                      ? "Live: SSE /api/sse/ops fallback (queue KPIs stream)."
+                                      ? "Live SSE /api/sse/ops fallback — fresh KPI + queue stream (cache bypassed)."
                                       : realtime.channel === "poll"
-                                        ? "Polling GET /kpis/queue (realtime channel unavailable)."
+                                        ? "HTTP poll GET /kpis + /kpis/queue with force_refresh (WS/SSE unavailable)."
                                         : realtime.channel === "connecting"
-                                          ? "Connecting realtime ops channel…"
+                                          ? "Connecting realtime ops channel (WebSocket → SSE → poll)…"
                                           : "Realtime off (FEATURE_REALTIME_OPS / REACT_APP_REALTIME_OPS)."
                             }
                         >
@@ -599,6 +612,15 @@ export default function Dashboard() {
                                 {realtime.channel === "error" && "RT ERR"}
                             </span>
                         </Tip>
+                        {realtime.lastTs && (realtime.channel === "ws" || realtime.channel === "sse") && (
+                            <span
+                                data-testid="dash-realtime-last"
+                                className="text-[9px] font-mono text-muted-foreground hidden sm:inline"
+                                title={`Last push ${realtime.lastTs}`}
+                            >
+                                ↑ {new Date(realtime.lastTs).toLocaleTimeString()}
+                            </span>
+                        )}
                         <Tip content="Reload KPIs and recent incidents (bypasses analytics cache)">
                             <button
                                 type="button"
@@ -703,7 +725,7 @@ export default function Dashboard() {
             {/* Layer 1b — rich analyst queue metrics (GET /kpis/queue + live WS/SSE) */}
             {queueKpis && (
                 <>
-                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4" data-testid="dashboard-queue-kpis">
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 mb-4" data-testid="dashboard-queue-kpis">
                     <KpiCard loading={kpiLoading} testid="q-assigned" tip={kpiTip(DASH_TIPS.q_assigned)}
                              label="Assigned" value={queueKpis.assigned} sub="has owner" icon={Users}
                              tone="primary" to="/incidents"/>
@@ -722,6 +744,25 @@ export default function Dashboard() {
                     <KpiCard loading={kpiLoading} testid="q-sla" tip={kpiTip(DASH_TIPS.q_sla)}
                              label="SLA risk" value={queueKpis.sla_risk} sub="due ≤24h" icon={TrendUp}
                              tone="warning"/>
+                    <KpiCard loading={kpiLoading} testid="q-mttr"
+                             tip={kpiTip({
+                                 title: "Avg resolution",
+                                 body: "Mean time-to-resolution (hours) from MTTR sample on closed/approved cases. Null when sample size is 0.",
+                                 how: "queue_kpis.avg_resolution_hours ← kpis.mean_mttr_hours",
+                             })}
+                             label="Avg resolution"
+                             value={
+                                 queueKpis.avg_resolution_hours != null
+                                     ? Number(queueKpis.avg_resolution_hours).toFixed(1)
+                                     : "—"
+                             }
+                             sub={
+                                 queueKpis.mttr_sample_size
+                                     ? `n=${queueKpis.mttr_sample_size} · hours`
+                                     : "no sample yet"
+                             }
+                             icon={Timer}
+                             tone="primary"/>
                 </div>
                 {/* Live queue trend — moves with WS/SSE without full refresh */}
                 <div
@@ -735,14 +776,19 @@ export default function Dashboard() {
                         <HelpTip title={DASH_TIPS.q_trend.title} body={DASH_TIPS.q_trend.body} how={DASH_TIPS.q_trend.how}/>
                         {(realtime.channel === "ws" || realtime.channel === "sse") && (
                             <span className="text-[9px] font-mono font-bold uppercase text-success border border-success/30 px-1.5 py-0.5 rounded">
-                                live
+                                live · {realtime.channel}
                             </span>
                         )}
                     </div>
                     {queueTrendSeries.length === 0 ? (
                         <ChartEmpty label="No queue trend yet — open or close cases to populate."/>
                     ) : (
-                        <ResponsiveContainer width="100%" height={140} debounce={50}>
+                        <ResponsiveContainer
+                            key={`qtrend-${realtime.updateSeq || 0}`}
+                            width="100%"
+                            height={140}
+                            debounce={50}
+                        >
                             <AreaChart data={queueTrendSeries} margin={{top: 4, right: 8, left: -20, bottom: 0}}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid || "#f1f5f9"}/>
                                 <XAxis

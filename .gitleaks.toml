@@ -1,0 +1,23 @@
+# Gitleaks config — allow intentional CI/lab secrets and sample fixtures
+title = "ACTIRA gitleaks"
+
+[allowlist]
+description = "Lab / CI / sample fixtures"
+paths = [
+  '''backend/tests/''',
+  '''tests/''',
+  '''samples/''',
+  '''docs/capstone/''',
+  '''backend/\.env\.example''',
+  '''frontend/\.env\.example''',
+  '''\.github/workflows/''',
+]
+regexes = [
+  '''ci-jwt-secret-not-for-production''',
+  '''openapi-ci-not-for-production''',
+  '''e2e-jwt-secret-not-for-production''',
+  '''release-jwt-secret-not-for-production''',
+  '''dev-secret''',
+  '''generate-a-32-plus-char-random-string''',
+  '''replace-with-32-plus-char''',
+]

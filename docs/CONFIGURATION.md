@@ -20,8 +20,10 @@
 | `MONGO_URL`    | `mongodb://localhost:27017`                   | In Compose service network use `mongodb://mongodb:27017` |
 | `DB_NAME`      | `soc_console`                                 |                                                          |
 | `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Exact browser origins                                    |
-| `JWT_SECRET`   | ≥32 random chars                              | Weak refused when `ENV` not lab                          |
+| `JWT_SECRET`   | **Policy ≥32** random chars                   | Runtime refuses weak/default or **&lt;16** outside lab (`auth.py`) |
 | `ENV`          | `dev` / `test` / `production`                 | Affects seed, secret sync, JWT checks                    |
+| `METRICS_TOKEN`| (optional)                                    | Scrape token for `GET /metrics` (or admin JWT)           |
+| `SECRETS_MASTER_KEY` | explicit Fernet / passphrase            | Prefer over JWT-derived key in staging/prod              |
 
 ## Logging (console + physical file)
 
@@ -99,12 +101,33 @@ Admin → **Settings → Platform** exposes enrich + parse concurrency (synced t
 - JSON gauges (default)
 - Prometheus text: `?format=prometheus` or `Accept: text/plain`
 
+### Realtime ops (SSE / WebSocket)
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `FEATURE_REALTIME_OPS` | on | Set `0`/`false` to disable. Enables `GET /api/sse/ops` and **WebSocket** `WS /api/ws/ops` |
+| `REACT_APP_REALTIME_OPS` | on (frontend) | SPA opt-out: set `0` in `frontend/.env` |
+
+> **OpenAPI note:** SSE paths appear in [openapi.json](openapi.json). **WebSocket** `/api/ws/ops` is implemented in `backend/routers/realtime.py` but is **not** fully represented in OpenAPI (common for WS). See [API_REFERENCE.md](API_REFERENCE.md).
+
 ### Job artifacts (optional)
 
 | Variable | Default | Notes |
 |----------|---------|-------|
 | `JOB_ARTIFACTS_ENABLED` | off | Store parse/enrich/playbook summaries under `JOB_ARTIFACTS_DIR` |
+| `JOB_ARTIFACTS_DIR` | `backend/data/job_artifacts` | Artifact root |
+| `JOB_ARTIFACTS_MAX_BYTES` | `5000000` | Max size per artifact write |
 | `JOB_ARTIFACTS_RETAIN_HOURS` | `168` | Auto-purge older artifact dirs |
+
+### Multi-worker job payloads
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `ACTIRA_JOB_PAYLOAD_BACKEND` | `mongo` | `mongo` \| `disk` \| `dual` — shared payloads for multi-replica workers |
+| `ACTIRA_JOB_PAYLOAD_DIR` | — | Required for `disk`/`dual` local path |
+| `ACTIRA_JOB_WORKER` | `1` | Set `0` on secondary API replicas; `1` on worker pod ([MULTI_WORKER.md](MULTI_WORKER.md)) |
+| `JOB_WORKER_POLL_SECONDS` | `1.5` | Worker poll interval |
+| `JOB_STALE_MINUTES` | `30` | Stale job reclaim window |
 
 ### Settings versioning
 
@@ -164,10 +187,53 @@ Enterprise knobs that used to be env-only are now **first-class Settings fields*
 
 | Variable | Notes |
 |----------|-------|
+| `JOB_BROKER_ENABLED` | `0` off (default); `1` publish wake-ups |
 | `JOB_BROKER_URL` | e.g. `amqp://guest:guest@localhost:5672/` |
 | `JOB_BROKER_QUEUE` | default `actira.jobs` |
 
 Publishes wake-ups on enqueue; **Mongo remains the claim source of truth**. Soft-dep: `pip install pika`.
+
+### Optional HashiCorp Vault / external secrets
+
+Local Fernet (`SECRETS_MASTER_KEY`) is enough for most single-tenant deploys. Optional Vault:
+
+| Variable | Notes |
+|----------|-------|
+| `VAULT_ADDR` | e.g. `https://vault.example.com:8200` |
+| `VAULT_TOKEN` | Token with transit/KV access |
+| `VAULT_TRANSIT_KEY` | Transit key name (default `actira`) |
+| `VAULT_TRANSIT_ENABLED` | `auto` \| `1` \| `0` — `auto` enables when addr+token set |
+| `VAULT_KV_MOUNT` | KV mount (default `secret`) |
+
+Settings may also reference `vault://path#field` or `awssm://secret-id#json_key` (AWS uses default boto3 chain + `AWS_REGION`).
+
+### Outbound email (SMTP)
+
+Used for optional email notifications (not the in-app inbox).
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `SMTP_HOST` | empty | Empty → email send disabled |
+| `SMTP_PORT` | `587` | |
+| `SMTP_USER` / `SMTP_PASSWORD` | — | Auth |
+| `SMTP_FROM` | — | From address |
+| `SMTP_USE_TLS` | `true` | STARTTLS |
+
+### Retention & enrichment cache
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `INCIDENT_RETENTION_DAYS` | `90` | Incident purge window (see retention job) |
+| `ENRICHMENT_CACHE_TTL_HOURS` | `24` | TI enrichment cache TTL |
+| `AUDIT_SIEM_TIMEOUT` | `5` | Seconds for audit SIEM webhook POST |
+
+### Cohere re-rank (optional RAG)
+
+| Variable | Notes |
+|----------|-------|
+| `ACTIRA_COHERE_RERANK` | `1` to enable re-ranker when Cohere key present |
+| `ACTIRA_COHERE_MODEL` | e.g. `rerank-english-v3.0` |
+| `COHERE_API_KEY` | Or Settings |
 
 ### SPA replay
 
@@ -199,7 +265,8 @@ Public bootstrap: `GET /api/auth/oidc/config` returns `{ enabled, public_registe
 ### OIDC / SSO (optional)
 
 When both issuer and client id are set, password login remains available but SSO appears on Login.
-MFA is expected at the IdP (Entra / Okta / Keycloak).
+
+**MFA / step-up:** ACTIRA does not ship built-in TOTP. For production, enable **MFA at the IdP** (Entra / Okta / Keycloak Conditional Access) and map groups via `OIDC_GROUP_ROLE_MAP`. Treat missing MFA as an accepted residual risk in [SECURITY_HARDENING.md](operations/SECURITY_HARDENING.md).
 
 | Variable               | Required | Notes |
 |------------------------|----------|-------|

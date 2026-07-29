@@ -85,7 +85,10 @@ def test_settings_version_snapshot_includes_manual_route():
     assert "anthropic_api_key" not in snap
 
 
-def test_pipeline_parallel_clamps():
+def test_pipeline_parallel_clamps(monkeypatch):
+    # Defaults read PARSE_CONCURRENCY / ENRICH_CONCURRENCY from env when settings empty
+    monkeypatch.delenv("PARSE_CONCURRENCY", raising=False)
+    monkeypatch.delenv("ENRICH_CONCURRENCY", raising=False)
     assert resolve_parse_concurrency({"parse_concurrency": 100}) == 16
     assert resolve_enrich_concurrency({"enrich_concurrency": 0}) == 1
     assert resolve_parse_concurrency({}) == 4

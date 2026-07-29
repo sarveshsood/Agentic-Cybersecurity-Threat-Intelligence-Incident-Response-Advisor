@@ -7477,7 +7477,7 @@
     },
     "/api/sse/ops": {
       "get": {
-        "description": "Server-Sent Events fallback for ops dashboard (queue snapshot + heartbeat).",
+        "description": "Server-Sent Events fallback for ops dashboard (fresh KPIs + queue + heartbeat).",
         "operationId": "sse_ops_api_sse_ops_get",
         "parameters": [
           {
@@ -13482,7 +13482,7 @@
     },
     "/api/v1/sse/ops": {
       "get": {
-        "description": "Server-Sent Events fallback for ops dashboard (queue snapshot + heartbeat).",
+        "description": "Server-Sent Events fallback for ops dashboard (fresh KPIs + queue + heartbeat).",
         "operationId": "sse_ops_api_v1_sse_ops_get",
         "parameters": [
           {
@@ -13686,7 +13686,7 @@
     },
     "/health": {
       "get": {
-        "operationId": "health_root_health_get",
+        "operationId": "health_health_get",
         "responses": {
           "200": {
             "content": {
@@ -13697,7 +13697,10 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Health Root"
+        "summary": "Health",
+        "tags": [
+          "system"
+        ]
       }
     },
     "/metrics": {
@@ -13714,13 +13717,16 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Metrics"
+        "summary": "Metrics",
+        "tags": [
+          "system"
+        ]
       }
     },
     "/ready": {
       "get": {
         "description": "Readiness probe \u2014 200 only when Mongo is reachable.",
-        "operationId": "ready_root_ready_get",
+        "operationId": "ready_ready_get",
         "responses": {
           "200": {
             "content": {
@@ -13731,12 +13737,15 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Ready Root"
+        "summary": "Ready",
+        "tags": [
+          "system"
+        ]
       }
     },
     "/version": {
       "get": {
-        "operationId": "version_root_version_get",
+        "operationId": "version_version_get",
         "responses": {
           "200": {
             "content": {
@@ -13747,7 +13756,10 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Version Root"
+        "summary": "Version",
+        "tags": [
+          "system"
+        ]
       }
     }
   }

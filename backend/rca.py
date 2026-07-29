@@ -9,20 +9,12 @@ from typing import Any, Dict, List, Optional
 
 from backend.llm_provider import call_llm, parse_llm_json
 from backend.models import WorkspaceRca, utc_now
+from backend.prompts import RCA_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
-RCA_SYSTEM = """You are a senior DFIR investigator. Given only the incident evidence provided,
-produce a root-cause analysis as JSON (no markdown fences):
-{
-  "narrative": "multi-sentence root cause story grounded in evidence",
-  "hypothesis": "one-line primary hypothesis",
-  "confidence": 0.0-1.0,
-  "evidence": ["concrete strings from IoCs/attack chain/techniques", ...],
-  "mitre_refs": ["T#### only from provided techniques", ...],
-  "unknowns": ["missing logs or data gaps", ...]
-}
-Do not invent IoCs or techniques not in the context. Prefer concise, actionable narrative."""
+# Source of truth: backend/prompts/rca.py
+RCA_SYSTEM = RCA_SYSTEM_PROMPT
 
 
 def _valid_mitre(incident: dict) -> set:

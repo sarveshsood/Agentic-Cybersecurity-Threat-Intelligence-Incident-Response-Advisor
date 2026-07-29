@@ -142,8 +142,8 @@ export default function OpsHealth() {
     const ready = Boolean(data?.ready);
     const workerOn = Boolean(data?.job_worker_enabled);
     const llm = data?.llm_usage;
-    const queue = data?.queue || {};
-    const timings = data?.recent_job_timings || [];
+    const queue = useMemo(() => data?.queue || {}, [data?.queue]);
+    const timings = useMemo(() => data?.recent_job_timings || [], [data?.recent_job_timings]);
     const hints = data?.ha_hints || [];
     const docs = data?.docs || {};
 

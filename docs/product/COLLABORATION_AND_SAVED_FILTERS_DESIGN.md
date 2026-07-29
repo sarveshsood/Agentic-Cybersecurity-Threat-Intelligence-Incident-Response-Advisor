@@ -9,6 +9,7 @@
 | **Product IDs** | **H-07** (Collaboration), **H-08** (Saved filters / workspaces / pins) |
 | **Roadmap** | `ROADMAP.md` §H + seed `rm-v2-h07-h08-collab` |
 | **Implementation** | **MVP complete** — enable `FEATURE_*` env vars (default off). Stretch: SSE inbox, email digests, secondary assignee UI. |
+| **API source of truth** | Committed [openapi.json](../openapi.json) — paths below labeled **Shipped** vs **Stretch / design-only** |
 
 ---
 
@@ -622,13 +623,22 @@ class AppNotification(BaseModel):
 
 #### API (cursor model standardized)
 
+**Shipped (OpenAPI)** — dual-mounted under `/api` and `/api/v1` when `FEATURE_NOTIFICATION_CENTER` is on:
+
+| Method | Path | Status | Notes |
+|--------|------|--------|-------|
+| `GET` | `/api/notifications` | **Shipped** | List inbox (`unread`, `limit`, cursor query params as implemented) |
+| `GET` | `/api/notifications/unread-count` | **Shipped** | Badge only |
+| `POST` | `/api/notifications/{notif_id}/read` | **Shipped** | Mark one notification read |
+| `POST` | `/api/notifications/read-all` | **Shipped** | Mark all read |
+
+**Stretch / design-only (not in OpenAPI snapshot):**
+
 | Method | Path | Notes |
 |--------|------|-------|
-| `GET` | `/api/notifications?unread=1&limit=30&before={iso_or_id}` | List; cursor = `before` (older) or `after` (newer); **no `since`** |
-| `GET` | `/api/notifications/unread-count` | Badge only |
-| `POST` | `/api/notifications/mark-read` | `{ids:[]}` or `{all: true}` |
-| `DELETE` | `/api/notifications/{id}` | Hard delete OK for personal inbox |
-| `GET` | `/api/notifications/stream` | Optional SSE stretch |
+| `POST` | `/api/notifications/mark-read` | Earlier design shape (`{ids:[]}` / `{all:true}`) — **use** `{id}/read` + `read-all` instead |
+| `DELETE` | `/api/notifications/{id}` | Optional hard-delete — not in current OpenAPI |
+| `GET` | `/api/notifications/stream` | Optional SSE inbox stretch |
 
 Indexes: `{user_id: 1, created_at: -1}`, `{user_id: 1, read_at: 1, created_at: -1}`.
 
@@ -662,7 +672,7 @@ sequenceDiagram
   end
   Layout->>Drawer: open
   Drawer->>API: GET /notifications?limit=30
-  Drawer->>API: POST mark-read
+  Drawer->>API: POST /notifications/{id}/read or read-all
 ```
 
 Optional SSE: server-side poll of `app_notifications` for `user_id` + `created_at > last` every 5–10s.
@@ -819,7 +829,7 @@ class UserPrefs(BaseModel):
     org_id: Optional[str] = None
 ```
 
-**Merge:** local `uiPrefs` + `GET /api/me/prefs` (server wins for present keys). When `FEATURE_SAVED_FILTERS` on, default **list filter** comes from `SavedFilter.is_default`, which wins over bare `incidents_default_severity/status` for initial Incidents open (severity/status prefs still apply only if no default saved filter).
+**Merge (MVP):** local `uiPrefs` (client). Server `GET|PUT /api/me/prefs` is **stretch** — not in the current OpenAPI snapshot. When `FEATURE_SAVED_FILTERS` on, default **list filter** comes from `SavedFilter.is_default`, which wins over bare `incidents_default_severity/status` for initial Incidents open (severity/status prefs still apply only if no default saved filter).
 
 ---
 
@@ -880,32 +890,39 @@ GET /api/incidents?status=new&assignee=me&unassigned=0&include_meta=true&skip=0&
 
 ### New route summary
 
+**Shipped (see OpenAPI)** — dual-mounted under `/api` and `/api/v1`. Flag-off → **404**:
+
 ```text
 GET    /api/meta/features
 
-PATCH  /api/incidents/{id}/assignment
-GET    /api/incidents/{id}/comments
-POST   /api/incidents/{id}/comments
-PATCH  /api/incidents/{id}/comments/{cid}
-DELETE /api/incidents/{id}/comments/{cid}
+PATCH  /api/incidents/{incident_id}/assignment
+GET    /api/incidents/{incident_id}/comments
+POST   /api/incidents/{incident_id}/comments
+PATCH  /api/incidents/{incident_id}/comments/{comment_id}
+DELETE /api/incidents/{incident_id}/comments/{comment_id}
 
-GET    /api/notifications                 # app_notifications inbox
+GET    /api/notifications
 GET    /api/notifications/unread-count
-POST   /api/notifications/mark-read
-DELETE /api/notifications/{id}
-GET    /api/notifications/stream          # optional
+POST   /api/notifications/{notif_id}/read
+POST   /api/notifications/read-all
 
 GET|POST      /api/saved-filters
-PATCH|DELETE  /api/saved-filters/{id}
+PATCH|DELETE  /api/saved-filters/{filter_id}
 
 GET|POST      /api/pins
-DELETE        /api/pins/{id}
-
-GET|PUT       /api/me/prefs
-GET           /api/users?q=
+DELETE        /api/pins/{pin_id}
+DELETE        /api/pins/by-target/{target_type}/{target_id}
 ```
 
-Dual-mounted under `/api` and `/api/v1`. Flag-off → **404**.
+**Stretch / design-only (not in current OpenAPI):**
+
+```text
+POST   /api/notifications/mark-read     # superseded by {id}/read + read-all
+DELETE /api/notifications/{id}
+GET    /api/notifications/stream        # SSE inbox
+GET|PUT /api/me/prefs                   # layout prefs may be client-local for MVP
+GET    /api/users?q=
+```
 
 ### Audit actions (append-only)
 

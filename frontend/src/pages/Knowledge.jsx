@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import {Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,} from "recharts";
 import {HelpTip} from "../components/HelpTip";
+import {ListState} from "../components/ListState";
 import {loadUiPrefs} from "../lib/uiPrefs";
 import {PageHeader, useChartTheme} from "../design-system";
 
@@ -1266,16 +1267,20 @@ export default function Knowledge() {
                                 <div className="text-[12px] text-muted-foreground mt-1.5 leading-relaxed">{r.text}</div>
                             </div>
                         ))}
-                        {filteredResults.length === 0 && results.length > 0 && (
-                            <div className="text-xs text-muted-foreground py-4 text-center">
+                        {busy && (
+                            <ListState variant="loading" message="Searching knowledge base…" testid="kb-search-loading"/>
+                        )}
+                        {filteredResults.length === 0 && results.length > 0 && !busy && (
+                            <div className="text-xs text-muted-foreground py-4 text-center" role="status">
                                 No results match the selected source filter ({selectedSourceFilter}).
                             </div>
                         )}
-                        {results.length === 0 && (
-                            <div className="text-xs text-muted-foreground soc-card p-6 text-center">
-                                Enter a query and search — hybrid uses LanceDB when the vector store is healthy.
-                                Pick a mode in the left pane first if you want BM25-only or dense-only.
-                            </div>
+                        {results.length === 0 && !busy && (
+                            <ListState
+                                variant="empty"
+                                message="Enter a query and search — hybrid uses LanceDB when the vector store is healthy. Pick BM25-only or dense-only in the left pane if needed."
+                                testid="kb-search-empty"
+                            />
                         )}
                     </div>
                 </div>

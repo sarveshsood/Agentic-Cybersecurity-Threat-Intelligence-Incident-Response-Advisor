@@ -1,7 +1,13 @@
 /**
  * Ops realtime: WebSocket primary → SSE fallback → HTTP poll.
  *
- * Listens for kpi.queue_snapshot events so Dashboard queue KPIs update without refresh.
+ * Opens browser WebSocket / EventSource so Dashboard KPIs + queue charts move
+ * without waiting for the slow setInterval HTTP poll.
+ *
+ * Events:
+ *   kpi.ops_snapshot  — { queue, kpis, pull_mode, cache_bypassed }  (preferred)
+ *   kpi.queue_snapshot — queue dict only (legacy)
+ *
  * Flag: FEATURE_REALTIME_OPS on backend (default on). Client can force-off via
  * REACT_APP_REALTIME_OPS=0.
  */
@@ -42,17 +48,46 @@ function sseUrl(intervalSec) {
     return `${origin}/api/sse/ops?interval_sec=${encodeURIComponent(String(intervalSec))}`;
 }
 
-function extractQueuePayload(msg) {
+/**
+ * Normalize WS/SSE message into { queue, kpis }.
+ * @returns {{queue: object|null, kpis: object|null}|null}
+ */
+export function extractOpsPayload(msg) {
     if (!msg || typeof msg !== "object") return null;
-    // Envelope: { type, payload } or raw queue snapshot
-    if (msg.type === "kpi.queue_snapshot" && msg.payload && typeof msg.payload === "object") {
-        return msg.payload;
+
+    // Preferred envelope
+    if (msg.type === "kpi.ops_snapshot" && msg.payload && typeof msg.payload === "object") {
+        const p = msg.payload;
+        return {
+            queue: p.queue && typeof p.queue === "object" ? p.queue : null,
+            kpis: p.kpis && typeof p.kpis === "object" ? p.kpis : null,
+        };
     }
-    if (msg.payload && typeof msg.payload === "object" && ("assigned" in msg.payload || "waiting_review" in msg.payload)) {
-        return msg.payload;
+
+    // Nested payload without type (SSE data is full envelope)
+    if (msg.payload && typeof msg.payload === "object") {
+        const p = msg.payload;
+        if (p.queue || p.kpis) {
+            return {
+                queue: p.queue && typeof p.queue === "object" ? p.queue : null,
+                kpis: p.kpis && typeof p.kpis === "object" ? p.kpis : null,
+            };
+        }
+        if ("assigned" in p || "waiting_review" in p || "sla_risk" in p) {
+            return {queue: p, kpis: null};
+        }
+    }
+
+    // Legacy queue snapshot type or raw queue object
+    if (msg.type === "kpi.queue_snapshot" && msg.payload && typeof msg.payload === "object") {
+        return {queue: msg.payload, kpis: null};
     }
     if ("assigned" in msg || "waiting_review" in msg || "sla_risk" in msg) {
-        return msg;
+        return {queue: msg, kpis: null};
+    }
+    // Full KPI facet shape (poll of /kpis)
+    if ("total_incidents" in msg || "severity_distribution" in msg) {
+        return {queue: null, kpis: msg};
     }
     return null;
 }
@@ -60,25 +95,43 @@ function extractQueuePayload(msg) {
 /**
  * @param {object} opts
  * @param {(queue: object) => void} [opts.onQueue]
+ * @param {(kpis: object) => void} [opts.onKpis]
+ * @param {(snap: {queue: object|null, kpis: object|null}) => void} [opts.onOps]
  * @param {number} [opts.intervalSec=10]
  * @param {boolean} [opts.enabled=true]
  */
-export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {}) {
+export function useOpsRealtime({
+    onQueue,
+    onKpis,
+    onOps,
+    intervalSec = 10,
+    enabled = true,
+} = {}) {
     const [channel, setChannel] = useState(/** @type {RealtimeChannel} */ (
         DISABLED || !enabled ? "off" : "connecting"
     ));
     const [lastTs, setLastTs] = useState(null);
+    /** Monotonic counter — Dashboard charts can key off this to re-render live series. */
+    const [updateSeq, setUpdateSeq] = useState(0);
     const [error, setError] = useState(null);
     const onQueueRef = useRef(onQueue);
+    const onKpisRef = useRef(onKpis);
+    const onOpsRef = useRef(onOps);
     onQueueRef.current = onQueue;
+    onKpisRef.current = onKpis;
+    onOpsRef.current = onOps;
     const interval = Math.max(3, Math.min(60, Number(intervalSec) || 10));
     const wsFailRef = useRef(0);
 
     const deliver = useCallback((raw) => {
-        const q = extractQueuePayload(raw);
-        if (q) {
-            onQueueRef.current?.(q);
+        const snap = extractOpsPayload(raw);
+        if (!snap) return;
+        if (snap.queue) onQueueRef.current?.(snap.queue);
+        if (snap.kpis) onKpisRef.current?.(snap.kpis);
+        onOpsRef.current?.(snap);
+        if (snap.queue || snap.kpis) {
             setLastTs(new Date().toISOString());
+            setUpdateSeq((n) => n + 1);
             setError(null);
         }
     }, []);
@@ -132,20 +185,28 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
             cleanupWs();
             cleanupEs();
             setChannel("poll");
-            // Poll path is handled by Dashboard's existing load(); we only mark channel.
-            // Optional light poll of queue only:
+            // Force-refresh so wallboards are not stuck on 30s analytics cache
             const tick = async () => {
                 if (cancelled) return;
                 try {
                     const {api} = await import("../lib/api");
-                    const r = await api.get("/kpis/queue", {params: {_t: Date.now()}});
-                    if (!cancelled && r?.data) deliver(r.data);
+                    const [qRes, kRes] = await Promise.all([
+                        api.get("/kpis/queue", {
+                            params: {_t: Date.now(), force_refresh: true},
+                        }),
+                        api.get("/kpis", {
+                            params: {_t: Date.now(), force_refresh: true},
+                        }),
+                    ]);
+                    if (cancelled) return;
+                    if (qRes?.data) deliver({type: "kpi.queue_snapshot", payload: qRes.data});
+                    if (kRes?.data) deliver(kRes.data);
                 } catch (e) {
                     if (!cancelled) setError(e?.message || "poll failed");
                 }
             };
             tick();
-            pollId = setInterval(tick, Math.max(15_000, interval * 1000));
+            pollId = setInterval(tick, Math.max(10_000, interval * 1000));
         };
 
         const startSse = () => {
@@ -154,6 +215,7 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
             cleanupPoll();
             setChannel("connecting");
             try {
+                // Cookie session (A-F1): withCredentials sends actira_access_token
                 es = new EventSource(sseUrl(interval), {withCredentials: true});
             } catch (e) {
                 setError(String(e?.message || e));
@@ -161,13 +223,15 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
                 return;
             }
             let opened = false;
-            es.addEventListener("kpi.queue_snapshot", (ev) => {
+            const onStreamEvent = (ev) => {
                 try {
                     deliver(JSON.parse(ev.data));
                     opened = true;
                     setChannel("sse");
                 } catch { /* ignore parse */ }
-            });
+            };
+            es.addEventListener("kpi.ops_snapshot", onStreamEvent);
+            es.addEventListener("kpi.queue_snapshot", onStreamEvent);
             es.addEventListener("heartbeat", () => {
                 if (opened) setChannel("sse");
             });
@@ -177,7 +241,6 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
                 setError(null);
             };
             es.onerror = () => {
-                // EventSource auto-reconnects; after sustained failure fall to poll
                 if (cancelled) return;
                 if (es && es.readyState === EventSource.CLOSED) {
                     cleanupEs();
@@ -186,7 +249,6 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
                     setError("SSE reconnecting…");
                 }
             };
-            // If no open within 8s, fall back to poll
             reconnectTimer = setTimeout(() => {
                 if (cancelled || opened) return;
                 cleanupEs();
@@ -200,6 +262,7 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
             cleanupPoll();
             setChannel("connecting");
             try {
+                // Cookie auth is browser-native on the handshake; optional ?token= for lab/Bearer
                 ws = new WebSocket(wsUrl(interval));
             } catch (e) {
                 wsFailRef.current += 1;
@@ -231,7 +294,6 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
             ws.onclose = () => {
                 if (cancelled) return;
                 wsFailRef.current += 1;
-                // One retry then SSE
                 if (wsFailRef.current < 2 && !opened) {
                     reconnectTimer = setTimeout(() => {
                         if (!cancelled) startWs();
@@ -253,7 +315,16 @@ export function useOpsRealtime({onQueue, intervalSec = 10, enabled = true} = {})
         };
     }, [enabled, interval, deliver]);
 
-    return {channel, lastTs, error, disabled: DISABLED || !enabled};
+    return {
+        channel,
+        lastTs,
+        /** Increments on each successful ops payload — use as React chart key when live. */
+        updateSeq,
+        error,
+        disabled: DISABLED || !enabled,
+        /** True when browser opened a push channel (not HTTP poll). */
+        isPush: channel === "ws" || channel === "sse",
+    };
 }
 
 export default useOpsRealtime;

@@ -304,9 +304,9 @@ export default function GoldenBenchmark() {
         }
     };
 
-    const history = meta?.history || [];
     // Chronological (oldest→newest) + sparkline series for trend strip
     const historyTrend = useMemo(() => {
+        const history = meta?.history || [];
         const chrono = [...history].reverse();
         const f1Series = chrono
             .map((h) => Number(h?.summary?.mean_ioc_f1))
@@ -340,7 +340,7 @@ export default function GoldenBenchmark() {
             f1Delta: delta(f1Series),
             rDelta: delta(recallSeries),
         };
-    }, [history]);
+    }, [meta?.history]);
     const summary = result?.summary;
     const thresholds = useMemo(
         () =>

@@ -138,12 +138,15 @@ class TestKnowledgeBaseHybrid:
         importlib.reload(knowledge_base)
 
         kb = knowledge_base.KnowledgeBase(knowledge_base.KB_DOCS)
-        bm25 = kb.search("brute force ssh", top_k=3, mode="bm25")
+        # rerank=False: live Cohere key would rewrite retriever to "bm25+cohere"
+        bm25 = kb.search("brute force ssh", top_k=3, mode="bm25", rerank=False)
         assert bm25
-        assert all(r.get("retriever") == "bm25" for r in bm25)
+        assert all(str(r.get("retriever") or "").startswith("bm25") for r in bm25), [
+            r.get("retriever") for r in bm25
+        ]
 
         # hybrid: if lancedb missing, still returns bm25
-        hybrid = kb.search("brute force ssh", top_k=3, mode="hybrid")
+        hybrid = kb.search("brute force ssh", top_k=3, mode="hybrid", rerank=False)
         assert hybrid
         assert len(hybrid) >= 1
         # ids should be real KB docs
@@ -152,14 +155,26 @@ class TestKnowledgeBaseHybrid:
         if pytest.importorskip("lancedb", reason="lancedb optional for hybrid dense path"):
             re = kb.reindex_vectors()
             assert re.get("ok") is True
-            # Hash embedder is bag-of-ngrams — assert plumbing, not semantic quality
-            dense = kb.search("CVE-2021-44228 Log4Shell jndi ldap", top_k=5, mode="dense")
+            # Hash embedder is bag-of-ngrams — assert plumbing, not semantic quality.
+            dense = kb.search(
+                "CVE-2021-44228 Log4Shell jndi ldap",
+                top_k=5,
+                mode="dense",
+                rerank=False,
+            )
             assert dense
-            assert all(r.get("retriever") == "dense" for r in dense)
+            assert all(
+                str(r.get("retriever") or "").startswith("dense") for r in dense
+            ), [r.get("retriever") for r in dense]
             assert all(r.get("id") for r in dense)
-            hybrid2 = kb.search("brute force authentication failure", top_k=3, mode="hybrid")
+            hybrid2 = kb.search(
+                "brute force authentication failure",
+                top_k=3,
+                mode="hybrid",
+                rerank=False,
+            )
             assert hybrid2
-            assert hybrid2[0].get("retriever") == "hybrid"
+            assert str(hybrid2[0].get("retriever") or "").startswith("hybrid")
 
         st = kb.vector_status()
         assert "ok" in st or "error" in st

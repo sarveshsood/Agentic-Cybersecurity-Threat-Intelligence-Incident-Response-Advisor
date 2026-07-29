@@ -1089,6 +1089,12 @@
         ],
         "technique_ids": [
           "T1110"
+        ],
+        "playbook_phases": [
+          "containment",
+          "eradication",
+          "recovery",
+          "lessons_learned"
         ]
       }
     }

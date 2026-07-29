@@ -8,8 +8,13 @@ on:
   pull_request:
     paths:
       - "backend/**"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
       - "requirements-test.txt"
       - ".github/workflows/security.yml"
+      - "Dockerfile*"
+      - "backend/Dockerfile"
+      - "frontend/Dockerfile"
   workflow_dispatch:
 
 jobs:
@@ -69,3 +74,60 @@ jobs:
         env:
           ENV: test
           JWT_SECRET: ci-jwt-secret-not-for-production-use-32b
+
+  npm-audit:
+    name: npm audit (frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: npm audit
+        run: |
+          mkdir -p ../reports/security
+          npm audit --audit-level=high --json > ../reports/security/npm-audit.json || true
+          npm audit --audit-level=high || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-report
+          path: reports/security/
+          if-no-files-found: ignore
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+        continue-on-error: true
+
+  image-scan:
+    name: Container image scan (Trivy)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'docker')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -t actira-api:ci -f backend/Dockerfile .
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: actira-api:ci
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true

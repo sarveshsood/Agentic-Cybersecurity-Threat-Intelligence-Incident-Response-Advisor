@@ -83,7 +83,7 @@ cd backend && pytest tests/test_golden_benchmark.py -n 0
 | Variable                | Default / CI                |
 |-------------------------|-----------------------------|
 | `ENV`                   | `test` or `dev`             |
-| `JWT_SECRET`            | ≥32 char secret             |
+| `JWT_SECRET`            | Policy ≥32; runtime ≥16 outside lab |
 | `MONGO_URL`             | `mongodb://127.0.0.1:27017` |
 | `DB_NAME`               | `soc_console_test`          |
 | `FORCE_MOCK_TI`         | `true` in tests             |

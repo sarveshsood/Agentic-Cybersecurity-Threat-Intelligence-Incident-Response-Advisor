@@ -182,6 +182,8 @@ security-scan: reports
 	$(PIP) install -q pip-audit 2>/dev/null; pip-audit -r $(BACKEND)/requirements.txt -f json -o $(REPORTS)/security/pip-audit.json || true
 
 deps-audit: security-scan
+	@echo "==> npm audit (frontend, high+)"
+	cd frontend && npm audit --audit-level=high || true
 
 clean:
 	rm -rf $(REPORTS) .coverage .coverage.* htmlcov .pytest_cache .mypy_cache .ruff_cache

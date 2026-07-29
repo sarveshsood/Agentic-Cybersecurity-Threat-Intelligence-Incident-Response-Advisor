@@ -1,7 +1,15 @@
 """Ops real-time channels: WebSocket primary; SSE fallback.
 
-Sprint 5+: SSE ``GET /sse/ops`` and WebSocket ``/ws/ops`` push queue snapshots.
-In-process only (no multi-replica pub/sub). Flag: ``FEATURE_REALTIME_OPS``.
+Sprint 5+: SSE ``GET /sse/ops`` and WebSocket ``/ws/ops`` push KPI + queue snapshots.
+
+Honesty (not claimed):
+- In-process interval **pull** of ``kpis`` / ``queue_kpis`` every N seconds.
+- Not event-driven from job completion.
+- No multi-replica fan-out (needs Redis / Mongo change streams later).
+- Each push **bypasses** the in-process analytics KPI cache so wallboards move
+  when Mongo changes (unlike silent Dashboard HTTP poll).
+
+Flag: ``FEATURE_REALTIME_OPS``.
 """
 from __future__ import annotations
 
@@ -38,10 +46,33 @@ def _evt(etype: str, payload: Dict[str, Any], eid: str | None = None) -> Dict[st
     }
 
 
-async def _queue_payload() -> Dict[str, Any]:
+async def _ops_snapshot() -> Dict[str, Any]:
+    """Fresh queue + full KPIs for wallboards (cache bypassed on facet).
+
+    ``queue_kpis`` reuses the just-written KPI cache entry so we do not double
+    the heavy facet; assigned/SLA counts always hit Mongo.
+    """
     from backend.services import analytics_service
 
-    return await analytics_service.queue_kpis(force_refresh=False)
+    kpis = await analytics_service.kpis(force_refresh=True)
+    queue = await analytics_service.queue_kpis(force_refresh=False)
+    return {
+        "queue": queue,
+        "kpis": kpis,
+        "pull_mode": "interval",
+        "cache_bypassed": True,
+        "scope": "in-process",
+        "note": (
+            "Interval pull of aggregations — not job-completion push; "
+            "not multi-replica pub/sub."
+        ),
+    }
+
+
+# Back-compat alias used by tests / call sites
+async def _queue_payload() -> Dict[str, Any]:
+    snap = await _ops_snapshot()
+    return snap.get("queue") or {}
 
 
 def _token_from_ws(websocket: WebSocket, token: Optional[str] = None) -> Optional[str]:
@@ -79,12 +110,21 @@ def _decode_user(raw_token: Optional[str]) -> Optional[dict]:
         return None
 
 
+async def _push_loop_body(n: int) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """Build ops + legacy queue events for one tick."""
+    snap = await _ops_snapshot()
+    ops = _evt("kpi.ops_snapshot", snap, eid=f"ops{n}")
+    # Legacy event: queue dict only (older FE)
+    q_evt = _evt("kpi.queue_snapshot", snap.get("queue") or {}, eid=f"q{n}")
+    return ops, q_evt
+
+
 @router.get("/sse/ops")
 async def sse_ops(
     interval_sec: float = Query(10, ge=3, le=60),
     user=Depends(get_current_user),
 ):
-    """Server-Sent Events fallback for ops dashboard (queue snapshot + heartbeat)."""
+    """Server-Sent Events fallback for ops dashboard (fresh KPIs + queue + heartbeat)."""
     _ = user
     if not _realtime_enabled():
         return StreamingResponse(
@@ -103,14 +143,20 @@ async def sse_ops(
         while True:
             n += 1
             try:
-                q = await _queue_payload()
-                body = _evt("kpi.queue_snapshot", q, eid=f"q{n}")
-                yield f"id: {body['id']}\nevent: kpi.queue_snapshot\ndata: {json.dumps(body, default=str)}\n\n"
+                ops, q_evt = await _push_loop_body(n)
+                yield (
+                    f"id: {ops['id']}\nevent: kpi.ops_snapshot\n"
+                    f"data: {json.dumps(ops, default=str)}\n\n"
+                )
+                yield (
+                    f"id: {q_evt['id']}\nevent: kpi.queue_snapshot\n"
+                    f"data: {json.dumps(q_evt, default=str)}\n\n"
+                )
             except Exception as e:
                 logger.debug("sse ops queue failed: %s", e)
                 err = _evt("error", {"message": str(e)[:200]})
                 yield f"event: error\ndata: {json.dumps(err)}\n\n"
-            hb = _evt("heartbeat", {"n": n})
+            hb = _evt("heartbeat", {"n": n, "pull_mode": "interval"})
             yield f"event: heartbeat\ndata: {json.dumps(hb)}\n\n"
             await asyncio.sleep(float(interval_sec))
 
@@ -127,7 +173,7 @@ async def sse_ops(
 
 @router.websocket("/ws/ops")
 async def ws_ops(websocket: WebSocket, token: str | None = None):
-    """WebSocket primary channel for ops (subscribe + queue snapshots).
+    """WebSocket primary channel for ops (subscribe + fresh KPI/queue snapshots).
 
     Auth: httpOnly cookie ``actira_access_token``, optional ``?token=`` Bearer,
     or lab-env anonymous when ENV is dev/test/local/lab.
@@ -148,7 +194,6 @@ async def ws_ops(websocket: WebSocket, token: str | None = None):
 
     await websocket.accept()
     interval = 10.0
-    # Allow client to pass interval via query
     try:
         qiv = websocket.query_params.get("interval_sec")
         if qiv:
@@ -156,11 +201,18 @@ async def ws_ops(websocket: WebSocket, token: str | None = None):
     except (TypeError, ValueError):
         pass
 
+    n = 0
+
+    async def push_once() -> None:
+        nonlocal n
+        n += 1
+        ops, q_evt = await _push_loop_body(n)
+        await websocket.send_json(ops)
+        await websocket.send_json(q_evt)
+
     try:
-        # Immediate first snapshot
         try:
-            q = await _queue_payload()
-            await websocket.send_json(_evt("kpi.queue_snapshot", q))
+            await push_once()
         except Exception as e:
             logger.debug("ws ops initial push failed: %s", e)
 
@@ -182,8 +234,7 @@ async def ws_ops(websocket: WebSocket, token: str | None = None):
             except WebSocketDisconnect:
                 return
             try:
-                q = await _queue_payload()
-                await websocket.send_json(_evt("kpi.queue_snapshot", q))
+                await push_once()
             except WebSocketDisconnect:
                 return
             except Exception as e:
