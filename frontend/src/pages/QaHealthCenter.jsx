@@ -165,9 +165,8 @@ export default function QaHealthCenter() {
             if (covFile) fd.append("coverage", covFile);
             if (buildId) fd.append("build_id", buildId);
             fd.append("suite_type", "unit");
-            const r = await api.post("/qa/ingest", fd, {
-                headers: {"Content-Type": "multipart/form-data"},
-            });
+            // Do not set Content-Type — axios must add multipart boundary
+            const r = await api.post("/qa/ingest", fd);
             const verdict = r.data?.release?.verdict;
             toast.success(verdict ? `Ingested — release ${verdict}` : "Ingested");
             setJunitFile(null);

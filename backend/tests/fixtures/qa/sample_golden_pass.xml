@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="golden">
+  <testsuite name="pytest" errors="0" failures="0" skipped="0" tests="2" time="0.50">
+    <testcase classname="backend.tests.test_golden_benchmark" name="test_gates" time="0.25"/>
+    <testcase classname="backend.tests.test_golden_benchmark" name="test_dataset_size" time="0.25"/>
+  </testsuite>
+</testsuites>
