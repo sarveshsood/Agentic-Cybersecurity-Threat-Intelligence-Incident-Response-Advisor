@@ -8,6 +8,8 @@ import {Link, useSearchParams} from "react-router-dom";
 import {
     ArrowClockwise,
     CheckCircle,
+    ListChecks,
+    Play,
     ShieldWarning,
     TestTube,
     UploadSimple,
@@ -33,6 +35,7 @@ import {
 
 const TABS = [
     {id: "overview", label: "Overview"},
+    {id: "usecases", label: "Use cases"},
     {id: "suites", label: "Suites"},
     {id: "coverage", label: "Coverage"},
     {id: "release", label: "Release"},
@@ -51,8 +54,9 @@ function formatPct(v) {
 }
 
 function StatusPill({status}) {
-    const ok = status === "passed" || status === "READY";
-    const bad = status === "failed" || status === "error" || status === "NOT_READY";
+    const s = String(status || "").toLowerCase();
+    const ok = s === "passed" || s === "pass" || s === "ready";
+    const bad = s === "failed" || s === "fail" || s === "error" || s === "not_ready";
     const cls = ok
         ? "bg-success-soft text-success border-[var(--success-border)]"
         : bad
@@ -87,6 +91,15 @@ export default function QaHealthCenter() {
     const [release, setRelease] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
 
+    // Use cases catalog
+    const [cases, setCases] = useState([]);
+    const [caseStats, setCaseStats] = useState(null);
+    const [caseTotal, setCaseTotal] = useState(0);
+    const [caseFilter, setCaseFilter] = useState({q: "", module: "", runner: "", automation: ""});
+    const [selectedIds, setSelectedIds] = useState(() => new Set());
+    const [running, setRunning] = useState(false);
+    const [caseDetail, setCaseDetail] = useState(null);
+
     // Admin ingest form
     const [junitFile, setJunitFile] = useState(null);
     const [covFile, setCovFile] = useState(null);
@@ -113,16 +126,20 @@ export default function QaHealthCenter() {
                 setError(null);
             }
             try {
-                const [s, r, c, rel] = await Promise.all([
+                const [s, r, c, rel, uc] = await Promise.all([
                     api.get("/qa/summary"),
                     api.get("/qa/runs", {params: {limit: 50}}),
                     api.get("/qa/coverage"),
                     api.get("/qa/release/latest"),
+                    api.get("/qa/cases", {params: {limit: 500}}),
                 ]);
                 setSummary(s.data);
                 setRuns(r.data?.items || []);
                 setCoverage(c.data);
                 setRelease(rel.data);
+                setCases(uc.data?.items || []);
+                setCaseTotal(uc.data?.catalog_total || uc.data?.total || 0);
+                setCaseStats(uc.data?.stats || null);
                 setError(null);
             } catch (e) {
                 const msg = apiErrorMessage(e) || "Failed to load QA Health";
@@ -191,6 +208,88 @@ export default function QaHealthCenter() {
             toast.error(apiErrorMessage(err) || "Recompute failed");
         }
     };
+
+    const loadCases = useCallback(async () => {
+        try {
+            const params = {limit: 500};
+            if (caseFilter.q) params.q = caseFilter.q;
+            if (caseFilter.module) params.module = caseFilter.module;
+            if (caseFilter.runner) params.runner = caseFilter.runner;
+            if (caseFilter.automation) params.automation = caseFilter.automation;
+            const r = await api.get("/qa/cases", {params});
+            setCases(r.data?.items || []);
+            setCaseTotal(r.data?.catalog_total || r.data?.total || 0);
+            setCaseStats(r.data?.stats || null);
+        } catch (err) {
+            toast.error(apiErrorMessage(err) || "Failed to load use cases");
+        }
+    }, [caseFilter]);
+
+    useEffect(() => {
+        if (flagOn && tab === "usecases") {
+            loadCases();
+        }
+    }, [flagOn, tab, loadCases]);
+
+    const toggleSelect = (id) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const selectAllVisible = () => {
+        setSelectedIds(new Set(cases.map((c) => c.id)));
+    };
+
+    const clearSelection = () => setSelectedIds(new Set());
+
+    const onRunUseCases = async (scope, ids) => {
+        if (!isAdmin) {
+            toast.error("Running use cases requires admin");
+            return;
+        }
+        setRunning(true);
+        try {
+            const body = {scope};
+            if (ids?.length) body.case_ids = ids;
+            const r = await api.post("/qa/usecases/run", body);
+            const n = r.data?.result_count ?? 0;
+            const g = r.data?.golden;
+            if (g?.ran) {
+                toast.success(
+                    `Golden suite ${g.passed ? "PASSED" : "FAILED"} · ${n} use case row(s) updated`,
+                );
+            } else {
+                toast.message(`Processed ${n} use case(s) (manual listed, not auto-run)`);
+            }
+            await load({silent: true});
+            await loadCases();
+            setTab("usecases");
+        } catch (err) {
+            toast.error(apiErrorMessage(err) || "Run failed");
+        } finally {
+            setRunning(false);
+        }
+    };
+
+    const onSeedCatalog = async () => {
+        try {
+            const r = await api.post("/qa/seed/catalog", null, {params: {force: true}});
+            toast.success(`Catalog seeded: ${r.data?.upserted || r.data?.seed_count || 0} cases`);
+            await loadCases();
+        } catch (err) {
+            toast.error(apiErrorMessage(err) || "Seed failed");
+        }
+    };
+
+    const filteredHint = useMemo(() => {
+        if (!caseStats) return "";
+        const r = caseStats.by_runner || {};
+        return `${caseTotal} total · golden runnable: ${r.golden || 0} · manual: ${r.manual || 0}`;
+    }, [caseStats, caseTotal]);
 
     if (!flagReady || loading) {
         return (
@@ -314,11 +413,11 @@ export default function QaHealthCenter() {
                     {empty && (
                         <EmptyState
                             title="No quality artifacts yet"
-                            description="Ingest JUnit XML and coverage.xml from CI or the Admin tab to populate readiness."
+                            description="Ingest JUnit XML and coverage.xml from CI or the Admin tab to populate readiness. Use cases are listed under the Use cases tab."
                             testid="qa-empty-overview"
                         />
                     )}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <KpiCard
                             label="Release readiness"
                             value={verdict || "—"}
@@ -347,6 +446,13 @@ export default function QaHealthCenter() {
                             tipTitle="Code coverage"
                             tipBody="Backend Cobertura line-rate percent. Org gate is 95% (.coveragerc / make coverage). Soft mode does not force NOT_READY."
                             testid="qa-kpi-coverage"
+                        />
+                        <KpiCard
+                            label="Use cases"
+                            value={caseTotal || "—"}
+                            tipTitle="Catalog size"
+                            tipBody="Capstone master test catalog (all TC-* use cases). Open the Use cases tab to list and run."
+                            testid="qa-kpi-usecases"
                         />
                     </div>
 
@@ -403,6 +509,242 @@ export default function QaHealthCenter() {
                             </div>
                         )}
                     </Panel>
+                </div>
+            )}
+
+            {tab === "usecases" && (
+                <div className="space-y-4" data-testid="qa-panel-usecases">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <SectionLabel
+                            tipTitle="Use case catalog"
+                            tipBody="All TC-* cases from the capstone master test catalog (seeded into Mongo). Golden-runner cases can execute offline IR golden suite from this UI."
+                        >
+                            All use cases
+                        </SectionLabel>
+                        <div className="flex flex-wrap gap-2">
+                            {isAdmin && (
+                                <>
+                                    <DsButton
+                                        size="sm"
+                                        variant="primary"
+                                        loading={running}
+                                        tooltip="Run offline golden IR suite and update golden-mapped use cases"
+                                        onClick={() => onRunUseCases("golden")}
+                                        data-testid="qa-run-golden"
+                                    >
+                                        <Play size={14}/>
+                                        Run golden suite
+                                    </DsButton>
+                                    <DsButton
+                                        size="sm"
+                                        variant="secondary"
+                                        loading={running}
+                                        disabled={!selectedIds.size}
+                                        tooltip="Run selected (golden auto; manual shows steps only)"
+                                        onClick={() => onRunUseCases("case", [...selectedIds])}
+                                        data-testid="qa-run-selected"
+                                    >
+                                        <Play size={14}/>
+                                        Run selected ({selectedIds.size})
+                                    </DsButton>
+                                    <DsButton
+                                        size="sm"
+                                        variant="secondary"
+                                        tooltip="Reseed catalog from backend/data/qa_catalog_seed_v1.json"
+                                        onClick={onSeedCatalog}
+                                        data-testid="qa-seed-catalog"
+                                    >
+                                        <ListChecks size={14}/>
+                                        Reseed catalog
+                                    </DsButton>
+                                </>
+                            )}
+                            <DsButton
+                                size="sm"
+                                variant="secondary"
+                                tooltip="Reload use case list"
+                                onClick={loadCases}
+                                data-testid="qa-reload-cases"
+                            >
+                                <ArrowClockwise size={14}/>
+                                Reload
+                            </DsButton>
+                        </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground" data-testid="qa-usecase-stats">
+                        {filteredHint || `${cases.length} shown`}
+                        {!isAdmin && " · Sign in as admin to run golden suite"}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2 items-end" data-testid="qa-usecase-filters">
+                        <label className="text-xs">
+                            <span className="text-muted-foreground">Search</span>
+                            <input
+                                className="sbp-input mt-0.5 block rounded-md px-2 py-1.5 text-sm min-w-[10rem]"
+                                value={caseFilter.q}
+                                onChange={(e) => setCaseFilter((f) => ({...f, q: e.target.value}))}
+                                placeholder="TC-AUTH, login…"
+                                data-testid="qa-filter-q"
+                            />
+                        </label>
+                        <label className="text-xs">
+                            <span className="text-muted-foreground">Module</span>
+                            <select
+                                className="sbp-input mt-0.5 block rounded-md px-2 py-1.5 text-sm"
+                                value={caseFilter.module}
+                                onChange={(e) => setCaseFilter((f) => ({...f, module: e.target.value}))}
+                                data-testid="qa-filter-module"
+                            >
+                                <option value="">All</option>
+                                {["Backend", "Frontend", "API", "AI", "Security", "Documentation", "DevOps", "Unmapped"].map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="text-xs">
+                            <span className="text-muted-foreground">Runner</span>
+                            <select
+                                className="sbp-input mt-0.5 block rounded-md px-2 py-1.5 text-sm"
+                                value={caseFilter.runner}
+                                onChange={(e) => setCaseFilter((f) => ({...f, runner: e.target.value}))}
+                                data-testid="qa-filter-runner"
+                            >
+                                <option value="">All</option>
+                                <option value="golden">golden (runnable)</option>
+                                <option value="manual">manual</option>
+                                <option value="e2e_manual">e2e_manual</option>
+                                <option value="semi">semi</option>
+                            </select>
+                        </label>
+                        <label className="text-xs">
+                            <span className="text-muted-foreground">Automation</span>
+                            <select
+                                className="sbp-input mt-0.5 block rounded-md px-2 py-1.5 text-sm"
+                                value={caseFilter.automation}
+                                onChange={(e) => setCaseFilter((f) => ({...f, automation: e.target.value}))}
+                                data-testid="qa-filter-auto"
+                            >
+                                <option value="">All</option>
+                                <option value="auto">auto</option>
+                                <option value="semi">semi</option>
+                                <option value="manual">manual</option>
+                            </select>
+                        </label>
+                        <DsButton size="sm" variant="secondary" tooltip="Apply filters" onClick={loadCases} data-testid="qa-filter-apply">
+                            Apply
+                        </DsButton>
+                        <DsButton size="sm" variant="ghost" tooltip="Select all visible rows" onClick={selectAllVisible}>
+                            Select all
+                        </DsButton>
+                        <DsButton size="sm" variant="ghost" tooltip="Clear selection" onClick={clearSelection}>
+                            Clear
+                        </DsButton>
+                    </div>
+
+                    {!cases.length ? (
+                        <EmptyState
+                            title="No use cases"
+                            description="Click Reseed catalog (admin) or ensure backend/data/qa_catalog_seed_v1.json is present."
+                            testid="qa-empty-cases"
+                        />
+                    ) : (
+                        <div className="overflow-x-auto rounded border border-border max-h-[32rem] overflow-y-auto">
+                            <table className="w-full text-xs" data-testid="qa-cases-table">
+                                <thead className="bg-muted/40 text-left text-muted-foreground sticky top-0">
+                                    <tr>
+                                        <th className="p-2 w-8"/>
+                                        <th className="p-2 font-medium">ID</th>
+                                        <th className="p-2 font-medium">Title</th>
+                                        <th className="p-2 font-medium">Module</th>
+                                        <th className="p-2 font-medium">Priority</th>
+                                        <th className="p-2 font-medium">Type</th>
+                                        <th className="p-2 font-medium">Runner</th>
+                                        <th className="p-2 font-medium">Status</th>
+                                        <th className="p-2 font-medium">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cases.map((c) => (
+                                        <tr key={c.id} className="border-t border-border hover:bg-muted/20" data-testid={`qa-case-${c.id}`}>
+                                            <td className="p-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.has(c.id)}
+                                                    onChange={() => toggleSelect(c.id)}
+                                                    aria-label={`Select ${c.id}`}
+                                                />
+                                            </td>
+                                            <td className="p-2 font-mono font-semibold whitespace-nowrap">{c.id}</td>
+                                            <td className="p-2 max-w-[14rem]">
+                                                <button
+                                                    type="button"
+                                                    className="text-left hover:text-primary hover:underline"
+                                                    onClick={() => setCaseDetail(c)}
+                                                >
+                                                    {c.title}
+                                                </button>
+                                            </td>
+                                            <td className="p-2">{c.module}</td>
+                                            <td className="p-2 font-mono">{c.priority}</td>
+                                            <td className="p-2">{c.type || c.category}</td>
+                                            <td className="p-2 font-mono">{c.runner}</td>
+                                            <td className="p-2"><StatusPill status={c.status}/></td>
+                                            <td className="p-2">
+                                                {isAdmin && c.runner === "golden" ? (
+                                                    <DsButton
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        tooltip={`Run golden suite (covers ${c.id})`}
+                                                        loading={running}
+                                                        onClick={() => onRunUseCases("case", [c.id])}
+                                                    >
+                                                        <Play size={12}/>
+                                                        Run
+                                                    </DsButton>
+                                                ) : (
+                                                    <DsButton
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        tooltip="View steps / expected"
+                                                        onClick={() => setCaseDetail(c)}
+                                                    >
+                                                        View
+                                                    </DsButton>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {caseDetail && (
+                        <Panel
+                            title={`${caseDetail.id} — ${caseDetail.title}`}
+                            tipTitle="Use case detail"
+                            tipBody="Steps and expected results from the master catalog."
+                            testid="qa-case-detail"
+                            actions={
+                                <DsButton size="sm" variant="ghost" tooltip="Close detail" onClick={() => setCaseDetail(null)}>
+                                    Close
+                                </DsButton>
+                            }
+                        >
+                            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                <div><dt className="text-muted-foreground">Module</dt><dd className="font-medium">{caseDetail.module}</dd></div>
+                                <div><dt className="text-muted-foreground">Runner</dt><dd className="font-mono">{caseDetail.runner}</dd></div>
+                                <div><dt className="text-muted-foreground">Priority</dt><dd>{caseDetail.priority}</dd></div>
+                                <div><dt className="text-muted-foreground">Automation</dt><dd>{caseDetail.automation}</dd></div>
+                                <div className="sm:col-span-2"><dt className="text-muted-foreground">Steps</dt><dd className="mt-0.5">{caseDetail.description}</dd></div>
+                                <div className="sm:col-span-2"><dt className="text-muted-foreground">Expected</dt><dd className="mt-0.5">{caseDetail.expected}</dd></div>
+                                {caseDetail.actual_last && (
+                                    <div className="sm:col-span-2"><dt className="text-muted-foreground">Last actual</dt><dd className="mt-0.5 font-mono text-[11px]">{caseDetail.actual_last}</dd></div>
+                                )}
+                            </dl>
+                        </Panel>
+                    )}
                 </div>
             )}
 

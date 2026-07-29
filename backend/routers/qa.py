@@ -8,10 +8,11 @@ from __future__ import annotations
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Header, Query, Request, UploadFile
+from pydantic import BaseModel, Field
 
 from backend.feature_flags import require_feature
 from backend.security import require_roles
-from backend.services import qa_health_service, qa_ingest_service
+from backend.services import qa_catalog_service, qa_health_service, qa_ingest_service
 
 router = APIRouter(
     prefix="/qa",
@@ -23,6 +24,16 @@ _READ = require_roles("admin", "senior_reviewer")
 _ADMIN = require_roles("admin")
 
 
+class UseCaseRunBody(BaseModel):
+    """Run use cases from QA UI."""
+
+    scope: str = Field(
+        "golden",
+        description="golden | all_runnable | case — golden runs offline IR suite",
+    )
+    case_ids: Optional[List[str]] = Field(None, description="Required when scope=case")
+
+
 @router.get(
     "/healthz",
     summary="QA Health Center feature probe",
@@ -31,7 +42,7 @@ async def qa_healthz(user=Depends(_READ)):
     return {
         "ok": True,
         "feature": "qa_health_center",
-        "phase": "pr3_ingest",
+        "phase": "pr4_usecases",
         "role": user.get("role"),
     }
 
@@ -80,6 +91,52 @@ async def qa_release_recompute(
     user=Depends(_ADMIN),
 ):
     return await qa_health_service.force_recompute(user, build_id=build_id)
+
+
+@router.get("/cases", summary="List all use cases (capstone catalog)")
+async def qa_list_cases(
+    q: Optional[str] = Query(None, description="Search id/title/steps"),
+    module: Optional[str] = Query(None),
+    runner: Optional[str] = Query(None, description="golden|manual|e2e_manual|…"),
+    automation: Optional[str] = Query(None, description="auto|semi|manual"),
+    status: Optional[str] = Query(None),
+    priority: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+    user=Depends(_READ),
+):
+    return await qa_catalog_service.list_cases(
+        q=q,
+        module=module,
+        runner=runner,
+        automation=automation,
+        status=status,
+        priority=priority,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get("/cases/{case_id}", summary="Use case detail")
+async def qa_get_case(case_id: str, user=Depends(_READ)):
+    return await qa_catalog_service.get_case(case_id)
+
+
+@router.post("/seed/catalog", summary="Seed use-case catalog from JSON fixture")
+async def qa_seed_catalog(
+    force: bool = Query(False),
+    user=Depends(_ADMIN),
+):
+    return await qa_catalog_service.seed_catalog(force=force)
+
+
+@router.post("/usecases/run", summary="Run use cases from UI (golden offline suite)")
+async def qa_run_usecases(body: UseCaseRunBody, user=Depends(_ADMIN)):
+    return await qa_catalog_service.run_usecases(
+        actor=user,
+        scope=body.scope,
+        case_ids=body.case_ids,
+    )
 
 
 @router.post(
