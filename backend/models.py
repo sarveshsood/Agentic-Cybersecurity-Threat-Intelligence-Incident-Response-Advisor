@@ -42,21 +42,37 @@ class User(UserBase):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=new_id)
     created_at: datetime = Field(default_factory=utc_now)
+    mfa_enabled: bool = False
 
 
 class UserInDB(User):
     password_hash: str
+    mfa_enabled: bool = False
+    mfa_secret: Optional[str] = None  # TOTP secret when FEATURE_MFA=1
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    mfa_code: Optional[str] = None  # TOTP when MFA enrolled
+
+
+class MfaVerifyRequest(BaseModel):
+    mfa_token: str
+    code: str = Field(..., min_length=6, max_length=8)
+
+
+class MfaEnableRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=8)
+    secret: str = Field(..., min_length=16)
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: User
+    mfa_required: bool = False
+    mfa_token: Optional[str] = None
 
 
 # ---------- IoCs ----------

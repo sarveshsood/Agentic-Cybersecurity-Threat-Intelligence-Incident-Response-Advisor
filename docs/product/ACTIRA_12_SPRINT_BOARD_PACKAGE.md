@@ -279,11 +279,11 @@ REACT_APP_REALTIME_OPS=1
 
 ### Strategic (future programs)
 
-- MFA / step-up (IdP configuration in customer env)  
-- Multi-tenant org isolation  
-- Multi-replica realtime bus  
-- sbert default quality profile  
-- Dedicated playbook “judge” model productization  
+- ~~MFA / step-up~~ — **partial:** optional TOTP (`FEATURE_MFA` + pyotp) + IdP MFA residual  
+- Multi-tenant org isolation — **still out of scope** (single-tenant)  
+- ~~Multi-replica realtime bus~~ — **partial:** Mongo `ops_bus` invalidate on job done  
+- ~~sbert quality profile~~ — **`ACTIRA_EMBEDDING_PROFILE=quality`** tries sbert, falls back hash  
+- ~~Playbook judge~~ — **rules engine** `playbook_judge.py` (LLM judge still optional)  
 
 ---
 

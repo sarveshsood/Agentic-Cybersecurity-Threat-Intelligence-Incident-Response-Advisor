@@ -118,13 +118,27 @@ Generate the incident response playbook JSON now."""
         eff_provider = "template"
         eff_model = "fallback"
 
-    return Playbook(
+    pb = Playbook(
         steps=steps,
         grounding_score=grounding,
         citation_quality=citation_quality,
         llm_provider=eff_provider,
         llm_model=eff_model,
     )
+    # Offline rule judge — adjusts grounding floor when structure is weak
+    try:
+        from backend.playbook_judge import judge_playbook
+
+        verdict = judge_playbook(pb, valid_citation_ids=valid_ids)
+        if verdict.get("confidence") is not None:
+            # Blend structural judge into grounding (never inflate above LLM score)
+            j = float(verdict["confidence"])
+            pb.grounding_score = round(min(float(pb.grounding_score or 0), max(j, 0.0)), 2)
+            if not verdict.get("ok") and not used_fallback:
+                logger.info("playbook_judge findings=%s conf=%s", verdict.get("findings"), j)
+    except Exception as je:
+        logger.debug("playbook_judge skipped: %s", je)
+    return pb
 
 
 def _fallback_playbook(techniques, retrieved) -> List[PlaybookStep]:

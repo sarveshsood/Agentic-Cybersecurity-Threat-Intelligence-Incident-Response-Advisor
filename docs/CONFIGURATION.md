@@ -400,3 +400,19 @@ REACT_APP_BACKEND_URL=http://localhost:8001
 
 Admin Settings supports **apply profile** for lab vs stricter ops presets (see API `/api/settings/profiles`). Prefer UI
 for day-2 changes; restart only needed for pure env-only vars read at import time.
+
+### Optional MFA (TOTP)
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `FEATURE_MFA` | off | Set `1` + install `pyotp` for password TOTP |
+| Routes | | `POST /auth/mfa/setup`, `/enable`, `/disable`, `/verify`; login may return `mfa_required` + `mfa_token` |
+
+Prefer IdP MFA when OIDC is enabled. Pending MFA challenges are process-local (use sticky sessions or re-login on multi-replica).
+
+### Embedding profile
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `ACTIRA_EMBEDDING_PROFILE` | `offline` | `quality` / `sbert` ? try sentence-transformers (fallback hash) |
+| `ACTIRA_EMBEDDING_BACKEND` | (empty) | Explicit `hash` / `sbert` / `lora` / `none` overrides profile |

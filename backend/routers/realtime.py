@@ -2,12 +2,10 @@
 
 Sprint 5+: SSE ``GET /sse/ops`` and WebSocket ``/ws/ops`` push KPI + queue snapshots.
 
-Honesty (not claimed):
-- In-process interval **pull** of ``kpis`` / ``queue_kpis`` every N seconds.
-- Not event-driven from job completion.
-- No multi-replica fan-out (needs Redis / Mongo change streams later).
-- Each push **bypasses** the in-process analytics KPI cache so wallboards move
-  when Mongo changes (unlike silent Dashboard HTTP poll).
+Honesty:
+- Interval **pull** of ``kpis`` / ``queue_kpis`` every N seconds.
+- Plus **Mongo ops_bus** invalidates when jobs complete (multi-replica safe poll).
+- Each push **bypasses** analytics KPI cache so wallboards move with Mongo.
 
 Flag: ``FEATURE_REALTIME_OPS``.
 """
@@ -59,12 +57,12 @@ async def _ops_snapshot() -> Dict[str, Any]:
     return {
         "queue": queue,
         "kpis": kpis,
-        "pull_mode": "interval",
+        "pull_mode": "interval+ops_bus",
         "cache_bypassed": True,
-        "scope": "in-process",
+        "scope": "multi-replica-safe",
         "note": (
-            "Interval pull of aggregations — not job-completion push; "
-            "not multi-replica pub/sub."
+            "Interval pull of aggregations plus Mongo ops_bus invalidates "
+            "when jobs complete (cross-replica)."
         ),
     }
 
@@ -139,7 +137,11 @@ async def sse_ops(
         )
 
     async def gen():
+        from backend.core.database import db
+        from backend.ops_bus import latest_ts
+
         n = 0
+        last_bus: str | None = None
         while True:
             n += 1
             try:
@@ -156,9 +158,23 @@ async def sse_ops(
                 logger.debug("sse ops queue failed: %s", e)
                 err = _evt("error", {"message": str(e)[:200]})
                 yield f"event: error\ndata: {json.dumps(err)}\n\n"
-            hb = _evt("heartbeat", {"n": n, "pull_mode": "interval"})
+            hb = _evt("heartbeat", {"n": n, "pull_mode": "interval+ops_bus"})
             yield f"event: heartbeat\ndata: {json.dumps(hb)}\n\n"
-            await asyncio.sleep(float(interval_sec))
+            # Wake early on bus invalidate (multi-replica job completions)
+            slept = 0.0
+            step = min(1.0, float(interval_sec))
+            while slept < float(interval_sec):
+                try:
+                    ts = await latest_ts(db)
+                    if ts and ts != last_bus:
+                        first = last_bus is None
+                        last_bus = ts
+                        if not first:
+                            break
+                except Exception:
+                    pass
+                await asyncio.sleep(step)
+                slept += step
 
     return StreamingResponse(
         gen(),
@@ -202,6 +218,7 @@ async def ws_ops(websocket: WebSocket, token: str | None = None):
         pass
 
     n = 0
+    last_bus: str | None = None
 
     async def push_once() -> None:
         nonlocal n
@@ -239,7 +256,27 @@ async def ws_ops(websocket: WebSocket, token: str | None = None):
                 return
             except Exception as e:
                 logger.debug("ws ops push failed: %s", e)
-            await asyncio.sleep(interval)
+            # Sleep with early wake on ops_bus invalidate (other replicas)
+            slept = 0.0
+            step = min(1.0, float(interval))
+            while slept < float(interval):
+                try:
+                    from backend.core.database import db
+                    from backend.ops_bus import latest_ts
+
+                    ts = await latest_ts(db)
+                    if ts and ts != last_bus:
+                        first = last_bus is None
+                        last_bus = ts
+                        if not first:
+                            break
+                except Exception:
+                    pass
+                try:
+                    await asyncio.sleep(step)
+                except asyncio.CancelledError:
+                    return
+                slept += step
     except WebSocketDisconnect:
         return
     except Exception as e:
