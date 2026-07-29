@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="pytest tests">
+  <testsuite name="pytest" errors="1" failures="1" skipped="1" tests="5" time="1.250">
+    <testcase classname="tests.unit.test_parsers_basic" name="test_syslog" time="0.010"/>
+    <testcase classname="tests.security.test_auth" name="test_login_lockout" time="0.020">
+      <failure message="assert False">AssertionError: expected lockout</failure>
+    </testcase>
+    <testcase classname="backend.tests.test_golden_benchmark" name="test_gates" time="0.500"/>
+    <testcase classname="tests.performance.test_load" name="test_smoke_rps" time="0.100">
+      <skipped message="needs ACTIRA_PERF=1"/>
+    </testcase>
+    <testcase classname="tests.api.test_health" name="test_ready" time="0.005">
+      <error message="boom">RuntimeError: boom</error>
+    </testcase>
+  </testsuite>
+</testsuites>
