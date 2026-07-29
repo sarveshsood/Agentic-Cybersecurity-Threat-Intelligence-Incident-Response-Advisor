@@ -80,6 +80,11 @@ def forward_siem(entry: Dict[str, Any]) -> Dict[str, Any]:
     try:
         import requests
 
+        # Bind timeout to a local so bandit B113 sees an explicit timeout kwarg
+        try:
+            timeout_s = float(os.environ.get("AUDIT_SIEM_TIMEOUT") or 5)
+        except (TypeError, ValueError):
+            timeout_s = 5.0
         r = requests.post(
             url,
             json={
@@ -89,7 +94,7 @@ def forward_siem(entry: Dict[str, Any]) -> Dict[str, Any]:
                 "entry": entry,
             },
             headers={"Content-Type": "application/json", "User-Agent": "ACTIRA-AuditExport/1.0"},
-            timeout=float(os.environ.get("AUDIT_SIEM_TIMEOUT") or 5),
+            timeout=timeout_s,
         )
         return {"ok": 200 <= r.status_code < 300, "status_code": r.status_code}
     except Exception as e:

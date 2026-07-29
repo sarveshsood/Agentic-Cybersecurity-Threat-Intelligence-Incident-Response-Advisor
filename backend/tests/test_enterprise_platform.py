@@ -109,11 +109,14 @@ def test_settings_public_snapshot_strips_secrets():
     assert snap["grounding_threshold"] == 0.7
 
 
-def test_enrich_concurrency_env_default():
+def test_enrich_concurrency_env_default(monkeypatch):
     """Semaphore pool is clamped 1..32 via pipeline_parallel + _enrich_all (smoke)."""
     from backend.pipeline import _enrich_all
     from backend.pipeline_parallel import resolve_enrich_concurrency
     import inspect
+
+    monkeypatch.delenv("PARSE_CONCURRENCY", raising=False)
+    monkeypatch.delenv("ENRICH_CONCURRENCY", raising=False)
 
     src = inspect.getsource(_enrich_all)
     assert "Semaphore" in src
@@ -121,13 +124,18 @@ def test_enrich_concurrency_env_default():
     # Env/settings clamp lives in pipeline_parallel (Sprint 4)
     assert resolve_enrich_concurrency({"enrich_concurrency": 100}) == 32
     assert resolve_enrich_concurrency({"enrich_concurrency": 0}) == 1
+    assert resolve_enrich_concurrency({}) == 8
 
 
-def test_parse_concurrency_pool():
+def test_parse_concurrency_pool(monkeypatch):
     """Multi-file parse uses bounded semaphore + resolve_parse_concurrency."""
     from backend.pipeline import _parse_all, run_batch_pipeline
     from backend.pipeline_parallel import resolve_parse_concurrency
     import inspect
+
+    # Isolate from suite pollution (other tests may set PARSE_CONCURRENCY via platform apply)
+    monkeypatch.delenv("PARSE_CONCURRENCY", raising=False)
+    monkeypatch.delenv("ENRICH_CONCURRENCY", raising=False)
 
     src = inspect.getsource(_parse_all)
     assert "Semaphore" in src
