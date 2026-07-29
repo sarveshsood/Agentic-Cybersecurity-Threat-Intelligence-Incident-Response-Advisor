@@ -34,6 +34,9 @@ def test_embedding_profile_quality(monkeypatch):
     assert embeddings._env_backend() == "sbert"
     monkeypatch.setenv("ACTIRA_EMBEDDING_PROFILE", "offline")
     assert embeddings._env_backend() == "hash"
+    monkeypatch.setenv("ACTIRA_EMBEDDING_PROFILE", "auto")
+    monkeypatch.setenv("ENV", "test")
+    assert embeddings._env_backend() == "hash"
 
 
 def test_mfa_disabled_by_default(monkeypatch):
@@ -58,3 +61,41 @@ def test_ops_bus_module_importable():
     from backend import ops_bus
 
     assert ops_bus.COLLECTION == "ops_bus"
+
+
+def test_tenancy_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("FEATURE_MULTI_TENANT", raising=False)
+    from backend import tenancy
+
+    assert tenancy.multi_tenant_enabled() is False
+    assert tenancy.org_filter() == {}
+    assert tenancy.stamp_org({"id": "1"}) == {"id": "1"}
+
+
+def test_tenancy_stamp_and_filter(monkeypatch):
+    monkeypatch.setenv("FEATURE_MULTI_TENANT", "1")
+    monkeypatch.setenv("ACTIRA_DEFAULT_ORG_ID", "acme")
+    # re-import not needed — functions read env live
+    from backend import tenancy
+
+    assert tenancy.multi_tenant_enabled() is True
+    assert tenancy.org_filter() == {"org_id": "acme"}
+    assert tenancy.stamp_org({"id": "1"})["org_id"] == "acme"
+
+
+def test_embedding_auto_prod_uses_sbert(monkeypatch):
+    from backend import embeddings
+
+    monkeypatch.delenv("ACTIRA_EMBEDDING_BACKEND", raising=False)
+    monkeypatch.setenv("ACTIRA_EMBEDDING_PROFILE", "auto")
+    monkeypatch.setenv("ENV", "production")
+    assert embeddings._env_backend() == "sbert"
+    monkeypatch.setenv("ENV", "dev")
+    assert embeddings._env_backend() == "hash"
+
+
+def test_llm_judge_flag_off(monkeypatch):
+    monkeypatch.delenv("ACTIRA_PLAYBOOK_JUDGE_LLM", raising=False)
+    from backend.playbook_judge import llm_judge_enabled
+
+    assert llm_judge_enabled() is False

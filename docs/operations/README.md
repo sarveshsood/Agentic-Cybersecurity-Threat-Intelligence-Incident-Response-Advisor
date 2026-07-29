@@ -63,6 +63,7 @@ This documentation is intended for:
 | [PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md) | Application and infrastructure optimization | Engineering |
 | [SECURITY_HARDENING.md](SECURITY_HARDENING.md) | Production security configuration and hardening | Security Engineering |
 | [STAGING_SIGN_OFF.md](STAGING_SIGN_OFF.md) | Go-live sign-off template (staging/prod) | Security, Platform |
+| [OIDC_MFA_CUSTOMER_GUIDE.md](OIDC_MFA_CUSTOMER_GUIDE.md) | Entra/Okta/Keycloak MFA setup | Security, IdP admins |
 | [PATCH_MANAGEMENT.md](PATCH_MANAGEMENT.md) | Vulnerability remediation, dependency updates, SBOM | Engineering, Security |
 
 ---

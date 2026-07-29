@@ -277,13 +277,13 @@ REACT_APP_REALTIME_OPS=1
 - Supply-chain CI wiring  
 - MFA residual documented (IdP)  
 
-### Strategic (future programs)
+### Strategic (future programs) — **landed as opt-in scaffolds**
 
-- ~~MFA / step-up~~ — **partial:** optional TOTP (`FEATURE_MFA` + pyotp) + IdP MFA residual  
-- Multi-tenant org isolation — **still out of scope** (single-tenant)  
-- ~~Multi-replica realtime bus~~ — **partial:** Mongo `ops_bus` invalidate on job done  
-- ~~sbert quality profile~~ — **`ACTIRA_EMBEDDING_PROFILE=quality`** tries sbert, falls back hash  
-- ~~Playbook judge~~ — **rules engine** `playbook_judge.py` (LLM judge still optional)  
+- ~~MFA / step-up~~ — TOTP (`FEATURE_MFA`) + [OIDC_MFA_CUSTOMER_GUIDE.md](../operations/OIDC_MFA_CUSTOMER_GUIDE.md)  
+- ~~Multi-tenant~~ — scaffold `backend/tenancy.py` (`FEATURE_MULTI_TENANT`) — not full SaaS  
+- ~~Multi-replica realtime~~ — Mongo `ops_bus` invalidate  
+- ~~sbert default~~ — `ACTIRA_EMBEDDING_PROFILE=auto` → sbert in production/staging, hash in lab/CI  
+- ~~Playbook judge~~ — rules + optional LLM (`ACTIRA_PLAYBOOK_JUDGE_LLM=1`)  
 
 ---
 

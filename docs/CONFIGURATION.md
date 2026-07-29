@@ -416,3 +416,18 @@ Prefer IdP MFA when OIDC is enabled. Pending MFA challenges are process-local (u
 |----------|---------|-------|
 | `ACTIRA_EMBEDDING_PROFILE` | `offline` | `quality` / `sbert` ? try sentence-transformers (fallback hash) |
 | `ACTIRA_EMBEDDING_BACKEND` | (empty) | Explicit `hash` / `sbert` / `lora` / `none` overrides profile |
+
+### Multi-tenant scaffold (optional)
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `FEATURE_MULTI_TENANT` | off | When on, helpers stamp/filter `org_id` (`backend/tenancy.py`) |
+| `ACTIRA_DEFAULT_ORG_ID` | `default` | Single-org id for a multi-tenant-flagged deploy |
+
+Not a full multi-tenant SaaS — no org admin UI. See roadmap H-01.
+
+### Playbook LLM judge
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `ACTIRA_PLAYBOOK_JUDGE_LLM` | off | When on, second-pass LLM quality score (plus rules) |

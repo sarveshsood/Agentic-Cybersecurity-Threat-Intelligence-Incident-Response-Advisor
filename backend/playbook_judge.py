@@ -6,6 +6,7 @@ uses a small prompt; default is deterministic rules only (no cost).
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -82,3 +83,69 @@ def judge_playbook(
         "phases_present": sorted(phases),
         "engine": "rules_v1",
     }
+
+
+def llm_judge_enabled() -> bool:
+    raw = (os.environ.get("ACTIRA_PLAYBOOK_JUDGE_LLM") or "0").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+JUDGE_SYSTEM = """You are a SOC quality reviewer. Score an IR playbook JSON for structure and usefulness.
+Return ONLY JSON:
+{"confidence": 0.0-1.0, "ok": true/false, "findings": ["short issues"], "summary": "one sentence"}
+Be strict about missing phases, vague actions, and uncited steps. Do not invent evidence."""
+
+
+async def judge_playbook_llm(
+    playbook: Any,
+    *,
+    settings: Optional[Dict[str, Any]] = None,
+    valid_citation_ids: Optional[set] = None,
+) -> Dict[str, Any]:
+    """Optional LLM second-pass judge. Falls back to rules if disabled or on error."""
+    rules = judge_playbook(playbook, valid_citation_ids=valid_citation_ids)
+    if not llm_judge_enabled():
+        return rules
+
+    try:
+        from backend.llm_provider import call_llm, parse_llm_json
+
+        if hasattr(playbook, "model_dump"):
+            data = playbook.model_dump()
+        else:
+            data = playbook if isinstance(playbook, dict) else {}
+        import json
+
+        user = (
+            "Playbook steps to review:\n"
+            + json.dumps(data.get("steps") or [], ensure_ascii=False)[:6000]
+            + "\n\nAllowed citation ids: "
+            + ", ".join(sorted(valid_citation_ids or []))[:500]
+        )
+        text, prov, model = await call_llm(
+            system=JUDGE_SYSTEM,
+            user=user,
+            settings=settings or {},
+            json_mode=True,
+            session_id="playbook-judge",
+        )
+        parsed = parse_llm_json(text) or {}
+        conf = float(parsed.get("confidence", rules["confidence"]))
+        conf = max(0.0, min(1.0, conf))
+        findings = list(parsed.get("findings") or []) + list(rules.get("findings") or [])
+        # Never score above rules by more than 0.15 (LLM optimism guard)
+        conf = min(conf, float(rules["confidence"]) + 0.15)
+        return {
+            "ok": bool(parsed.get("ok", conf >= 0.5)) and rules.get("ok", True),
+            "confidence": round(conf, 3),
+            "findings": findings[:12],
+            "summary": (parsed.get("summary") or "")[:300],
+            "engine": f"rules+llm:{prov}/{model}",
+            "rules_confidence": rules.get("confidence"),
+        }
+    except Exception as e:
+        logger.info("LLM playbook judge failed, using rules: %s", e)
+        rules = dict(rules)
+        rules["engine"] = "rules_v1_llm_fallback"
+        rules["findings"] = list(rules.get("findings") or []) + [f"llm_judge_error:{type(e).__name__}"]
+        return rules

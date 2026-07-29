@@ -46,14 +46,23 @@ def _env_backend() -> str:
     """Resolve backend from explicit ACTIRA_EMBEDDING_BACKEND or profile.
 
     Profiles (ACTIRA_EMBEDDING_PROFILE):
-      - ``offline`` / default — hash
+      - ``offline`` — hash only
       - ``quality`` / ``sbert`` — try sentence-transformers (falls back to hash)
+      - ``auto`` / empty — **sbert in production/staging**, hash in lab/CI/test
+
+    Explicit ``ACTIRA_EMBEDDING_BACKEND`` always wins.
     """
     explicit = (os.environ.get("ACTIRA_EMBEDDING_BACKEND") or "").strip().lower()
     if explicit:
         return explicit
-    profile = (os.environ.get("ACTIRA_EMBEDDING_PROFILE") or "offline").strip().lower()
+    profile = (os.environ.get("ACTIRA_EMBEDDING_PROFILE") or "auto").strip().lower()
+    if profile in ("offline", "hash", "lab", "ci", "test"):
+        return "hash"
     if profile in ("quality", "sbert", "semantic", "prod", "production"):
+        return "sbert"
+    # auto: production-like ENV → quality; otherwise offline-safe hash
+    env = (os.environ.get("ENV") or "dev").strip().lower()
+    if env in ("production", "prod", "staging"):
         return "sbert"
     return "hash"
 
