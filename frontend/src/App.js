@@ -79,6 +79,7 @@ const Analytics = lazyRetry(() => import("./pages/Analytics"));
 const Roadmap = lazyRetry(() => import("./pages/Roadmap"));
 const GoldenBenchmark = lazyRetry(() => import("./pages/GoldenBenchmark"));
 const OpsHealth = lazyRetry(() => import("./pages/OpsHealth"));
+const QaHealthCenter = lazyRetry(() => import("./pages/QaHealthCenter"));
 
 const REVIEWER_ROLES = ["senior_reviewer", "admin"];
 const ADMIN_ROLES = ["admin"];
@@ -149,6 +150,10 @@ export default function App() {
                             />
                             <Route path="/knowledge" element={<Protected><Knowledge/></Protected>}/>
                             <Route path="/roadmap" element={<Protected><Roadmap/></Protected>}/>
+                            <Route
+                                path="/qa"
+                                element={<Protected roles={REVIEWER_ROLES}><QaHealthCenter/></Protected>}
+                            />
                             <Route
                                 path="/benchmark"
                                 element={<Protected roles={ADMIN_ROLES}><GoldenBenchmark/></Protected>}

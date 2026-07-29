@@ -1,9 +1,9 @@
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {NavLink, useLocation, useNavigate} from "react-router-dom";
 import {useAuth} from "../lib/auth";
 import {useTheme} from "../lib/theme";
 import {api, apiErrorMessage} from "../lib/api";
-import {loadFeatures} from "../lib/features";
+import {isFeatureEnabled, loadFeatures} from "../lib/features";
 import {
     ArrowsLeftRight,
     CaretLeft,
@@ -24,7 +24,6 @@ import {countLiveIntel, liveIntelLabels, TI_HAS_FLAGS, TI_PROVIDERS,} from "../c
 import {Tip} from "./HelpTip";
 import CommandPalette from "./CommandPalette";
 import {NotificationBell} from "./collab/NotificationCenter";
-import {isFeatureEnabled} from "../lib/features";
 import {formatDateTime, loadUiPrefs, saveRoutePrefs} from "../lib/uiPrefs";
 import {cn} from "../lib/utils";
 
@@ -157,11 +156,14 @@ export default function Layout({children}) {
         return () => clearInterval(id);
     }, []);
 
-    // H-07 PR-1: product feature flags (default all off). Load once for shell + later collab gates.
+    // Product feature flags (default all off). Re-render nav when snapshot loads.
+    const [featuresEpoch, setFeaturesEpoch] = useState(0);
     useEffect(() => {
-        loadFeatures().catch(() => {
-            /* defaults stay off */
-        });
+        loadFeatures()
+            .catch(() => {
+                /* defaults stay off */
+            })
+            .finally(() => setFeaturesEpoch((n) => n + 1));
     }, []);
 
     // Close mobile drawer on route change
@@ -314,7 +316,12 @@ export default function Layout({children}) {
         }
     }, [isAdmin, routeBusy]);
 
-    const items = navForRole(user?.role);
+    const items = useMemo(
+        () => navForRole(user?.role, {isFeatureEnabled}),
+        // featuresEpoch forces refresh after loadFeatures()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [user?.role, featuresEpoch],
+    );
     const groups = groupNav(items);
     const intelLive = tiLive > 0;
     const intelLabel = intelLive ? `INTEL ${tiLive}/${tiTotal}` : "MOCK INTEL";
