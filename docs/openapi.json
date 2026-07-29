@@ -461,6 +461,17 @@
             "title": "Email",
             "type": "string"
           },
+          "mfa_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Code"
+          },
           "password": {
             "title": "Password",
             "type": "string"
@@ -518,6 +529,47 @@
           }
         },
         "title": "LoraTrainRequest",
+        "type": "object"
+      },
+      "MfaEnableRequest": {
+        "properties": {
+          "code": {
+            "maxLength": 8,
+            "minLength": 6,
+            "title": "Code",
+            "type": "string"
+          },
+          "secret": {
+            "minLength": 16,
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "secret"
+        ],
+        "title": "MfaEnableRequest",
+        "type": "object"
+      },
+      "MfaVerifyRequest": {
+        "properties": {
+          "code": {
+            "maxLength": 8,
+            "minLength": 6,
+            "title": "Code",
+            "type": "string"
+          },
+          "mfa_token": {
+            "title": "Mfa Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mfa_token",
+          "code"
+        ],
+        "title": "MfaVerifyRequest",
         "type": "object"
       },
       "NoteCreate": {
@@ -1412,6 +1464,22 @@
             "title": "Access Token",
             "type": "string"
           },
+          "mfa_required": {
+            "default": false,
+            "title": "Mfa Required",
+            "type": "boolean"
+          },
+          "mfa_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Token"
+          },
           "token_type": {
             "default": "bearer",
             "title": "Token Type",
@@ -1443,6 +1511,11 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "mfa_enabled": {
+            "default": false,
+            "title": "Mfa Enabled",
+            "type": "boolean"
           },
           "name": {
             "title": "Name",
@@ -2412,6 +2485,181 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/disable": {
+      "post": {
+        "operationId": "mfa_disable_api_auth_mfa_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Disable",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/enable": {
+      "post": {
+        "operationId": "mfa_enable_api_auth_mfa_enable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Enable",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/setup": {
+      "post": {
+        "operationId": "mfa_setup_api_auth_mfa_setup_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Setup",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/status": {
+      "get": {
+        "operationId": "mfa_status_api_auth_mfa_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Status",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/verify": {
+      "post": {
+        "operationId": "mfa_verify_api_auth_mfa_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mfa Verify",
         "tags": [
           "auth"
         ]
@@ -5482,7 +5730,7 @@
     },
     "/api/meta/features": {
       "get": {
-        "description": "Public snapshot of env-gated product flags (KD-9 / H-07 PR-1).\n\nSPA loads once at login / Layout mount. When a flag is false, collab routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.",
+        "description": "Public snapshot of env-gated product flags.\n\nSPA loads once at login / Layout mount. When a flag is false, gated routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.\nIncludes ``qa_health_center`` (Testing Health Center).",
         "operationId": "features_api_api_meta_features_get",
         "responses": {
           "200": {
@@ -5491,7 +5739,7 @@
                 "schema": {}
               }
             },
-            "description": "Booleans for H-07/H-08 collab & productivity surfaces (default all false)"
+            "description": "Booleans for product feature flags (collab, productivity, QA; default all false)"
           }
         },
         "summary": "Product feature flags snapshot",
@@ -5882,6 +6130,31 @@
         "summary": "Delete Pin",
         "tags": [
           "productivity"
+        ]
+      }
+    },
+    "/api/qa/healthz": {
+      "get": {
+        "description": "Lightweight readiness for the QA surface (no artifact data yet).\n\nUsed by SPA/nav to confirm the flag path works before full ingest APIs land.",
+        "operationId": "qa_healthz_api_qa_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "200 when FEATURE_QA_HEALTH_CENTER is on and caller is admin or senior_reviewer"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "QA Health Center feature probe",
+        "tags": [
+          "qa"
         ]
       }
     },
@@ -8417,6 +8690,181 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/disable": {
+      "post": {
+        "operationId": "mfa_disable_api_v1_auth_mfa_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Disable",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/enable": {
+      "post": {
+        "operationId": "mfa_enable_api_v1_auth_mfa_enable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Enable",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/setup": {
+      "post": {
+        "operationId": "mfa_setup_api_v1_auth_mfa_setup_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Setup",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/status": {
+      "get": {
+        "operationId": "mfa_status_api_v1_auth_mfa_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mfa Status",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/verify": {
+      "post": {
+        "operationId": "mfa_verify_api_v1_auth_mfa_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mfa Verify",
         "tags": [
           "auth"
         ]
@@ -11487,7 +11935,7 @@
     },
     "/api/v1/meta/features": {
       "get": {
-        "description": "Public snapshot of env-gated product flags (KD-9 / H-07 PR-1).\n\nSPA loads once at login / Layout mount. When a flag is false, collab routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.",
+        "description": "Public snapshot of env-gated product flags.\n\nSPA loads once at login / Layout mount. When a flag is false, gated routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.\nIncludes ``qa_health_center`` (Testing Health Center).",
         "operationId": "features_api_api_v1_meta_features_get",
         "responses": {
           "200": {
@@ -11496,7 +11944,7 @@
                 "schema": {}
               }
             },
-            "description": "Booleans for H-07/H-08 collab & productivity surfaces (default all false)"
+            "description": "Booleans for product feature flags (collab, productivity, QA; default all false)"
           }
         },
         "summary": "Product feature flags snapshot",
@@ -11887,6 +12335,31 @@
         "summary": "Delete Pin",
         "tags": [
           "productivity"
+        ]
+      }
+    },
+    "/api/v1/qa/healthz": {
+      "get": {
+        "description": "Lightweight readiness for the QA surface (no artifact data yet).\n\nUsed by SPA/nav to confirm the flag path works before full ingest APIs land.",
+        "operationId": "qa_healthz_api_v1_qa_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "200 when FEATURE_QA_HEALTH_CENTER is on and caller is admin or senior_reviewer"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "QA Health Center feature probe",
+        "tags": [
+          "qa"
         ]
       }
     },

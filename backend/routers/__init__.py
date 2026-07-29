@@ -22,6 +22,7 @@ from . import workspace
 from . import hunt
 from . import collab
 from . import productivity
+from . import qa
 from . import realtime
 
 # system router is mounted at app root only (see server.py) — meta already
@@ -45,6 +46,7 @@ ALL_DOMAIN_ROUTERS = (
     meta,
     collab,
     productivity,
+    qa,
     realtime,
 )
 

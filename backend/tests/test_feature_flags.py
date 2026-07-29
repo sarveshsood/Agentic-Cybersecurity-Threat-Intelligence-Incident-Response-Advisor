@@ -111,6 +111,8 @@ def test_meta_features_route_shape():
         "notification_center",
         "saved_filters",
         "pins",
+        "qa_health_center",
     ):
         assert key in body
         assert isinstance(body[key], bool)
+    assert body["qa_health_center"] is False

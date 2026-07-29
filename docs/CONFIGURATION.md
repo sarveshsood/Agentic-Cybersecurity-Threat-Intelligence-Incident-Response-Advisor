@@ -294,8 +294,9 @@ off, future collab APIs return **404** via `require_feature` — not only hide U
 | `FEATURE_NOTIFICATION_CENTER` | off | In-app notification inbox |
 | `FEATURE_SAVED_FILTERS` | off | Named saved incident filters |
 | `FEATURE_PINS` | off | User favorites / pins |
+| `FEATURE_QA_HEALTH_CENTER` | off | Testing Health Center (`/qa/*`); PR-1 = healthz scaffold only |
 
-Truth values: `1` / `true` / `yes` / `on`. See `docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md` (PR-1).
+Truth values: `1` / `true` / `yes` / `on`. See `docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md` (PR-1) and `docs/product/TESTING_HEALTH_CENTER_DESIGN.md` (QA Health).
 
 ### OpenTelemetry (optional)
 

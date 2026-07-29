@@ -1,10 +1,11 @@
 /**
- * Product feature flags (H-07 / H-08) — SPA snapshot from GET /api/meta/features.
+ * Product feature flags — SPA snapshot from GET /api/meta/features.
  *
  * Defaults are all false (flags off until env enables them). Load once at Layout
- * mount / after login; later collab UI gates on isFeatureEnabled().
+ * mount / after login; UI gates on isFeatureEnabled().
  *
  * @see docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md KD-9 / PR-1
+ * @see docs/product/TESTING_HEALTH_CENTER_DESIGN.md KD-4 / PR-1
  */
 import {api} from "./api";
 
@@ -15,6 +16,8 @@ export const FEATURE_DEFAULTS = Object.freeze({
     notification_center: false,
     saved_filters: false,
     pins: false,
+    /** Testing Health Center (/qa) — FEATURE_QA_HEALTH_CENTER */
+    qa_health_center: false,
 });
 
 /** @type {Record<string, boolean> | null} */

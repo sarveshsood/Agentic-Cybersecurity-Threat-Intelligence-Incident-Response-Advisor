@@ -39,13 +39,14 @@ async def version_api():
 @router.get(
     "/meta/features",
     summary="Product feature flags snapshot",
-    response_description="Booleans for H-07/H-08 collab & productivity surfaces (default all false)",
+    response_description="Booleans for product feature flags (collab, productivity, QA; default all false)",
 )
 async def features_api():
-    """Public snapshot of env-gated product flags (KD-9 / H-07 PR-1).
+    """Public snapshot of env-gated product flags.
 
-    SPA loads once at login / Layout mount. When a flag is false, collab routes
+    SPA loads once at login / Layout mount. When a flag is false, gated routes
     must return 404 via ``require_feature`` — UI hide alone is not enough.
+    Includes ``qa_health_center`` (Testing Health Center).
     """
     return collab_features()
 

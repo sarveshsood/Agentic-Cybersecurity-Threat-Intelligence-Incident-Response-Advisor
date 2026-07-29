@@ -1,9 +1,14 @@
-"""Product feature flags (H-07 / H-08 Collaboration & Productivity).
+"""Product feature flags (env-gated, default **off**).
 
-Env-gated flags default **off**. SPA reads the snapshot via ``GET /api/meta/features``.
-Future collab routes use ``require_feature("…")`` so disabled features return **404**.
+SPA reads the snapshot via ``GET /api/meta/features``. Disabled features use
+``require_feature("…")`` so routes return **404** (not 403).
 
-See ``docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md`` KD-9 / PR-1.
+Includes H-07/H-08 collab & productivity plus QA Health Center
+(``qa_health_center`` / ``FEATURE_QA_HEALTH_CENTER``). Function name
+``collab_features()`` is retained for stable call sites (do not rename).
+
+See ``docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md`` KD-9 / PR-1 and
+``docs/product/TESTING_HEALTH_CENTER_DESIGN.md`` KD-4 / PR-1.
 """
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ FEATURE_ENV_MAP: Dict[str, str] = {
     "notification_center": "FEATURE_NOTIFICATION_CENTER",
     "saved_filters": "FEATURE_SAVED_FILTERS",
     "pins": "FEATURE_PINS",
+    "qa_health_center": "FEATURE_QA_HEALTH_CENTER",
 }
 
 # Stable order for API responses / tests
@@ -39,7 +45,10 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 def collab_features() -> Dict[str, bool]:
-    """Snapshot of collaboration / productivity flags (all default off)."""
+    """Snapshot of product feature flags (all default off).
+
+    Name retained for stable imports; includes collab, productivity, and QA flags.
+    """
     return {key: env_bool(env_name, False) for key, env_name in FEATURE_ENV_MAP.items()}
 
 
