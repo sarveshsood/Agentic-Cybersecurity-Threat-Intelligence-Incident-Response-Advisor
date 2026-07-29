@@ -93,6 +93,10 @@ export default function QaHealthCenter() {
     const [selectedIds, setSelectedIds] = useState(() => new Set());
     const [running, setRunning] = useState(false);
     const [caseDetail, setCaseDetail] = useState(null);
+    const [apiCaps, setApiCaps] = useState({
+        cases: false,
+        healthzPhase: null,
+    });
 
     // Admin ingest form
     const [junitFile, setJunitFile] = useState(null);
@@ -160,8 +164,28 @@ export default function QaHealthCenter() {
                     setCases(uc.items || []);
                     setCaseTotal(uc.catalog_total || uc.total || 0);
                     setCaseStats(uc.stats || null);
+                    setApiCaps((prev) => ({...prev, cases: true}));
+                    // Auto-seed once if catalog empty (admin only)
+                    if ((uc.catalog_total || 0) === 0 && isAdmin) {
+                        try {
+                            await api.post("/qa/seed/catalog", null, {params: {force: false}});
+                            const again = await api.get("/qa/cases", {params: {limit: 500}});
+                            setCases(again.data?.items || []);
+                            setCaseTotal(again.data?.catalog_total || again.data?.total || 0);
+                            setCaseStats(again.data?.stats || null);
+                        } catch {
+                            /* seed optional */
+                        }
+                    }
+                } else {
+                    setApiCaps((prev) => ({...prev, cases: false}));
                 }
-                // cases optional — older API without catalog still shows Overview
+                try {
+                    const hz = await api.get("/qa/healthz");
+                    setApiCaps((prev) => ({...prev, healthzPhase: hz.data?.phase || null}));
+                } catch {
+                    /* ignore */
+                }
             } catch (e) {
                 const msg = apiErrorMessage(e) || "Failed to load QA Health";
                 if (!silent) setError(msg);
@@ -170,7 +194,7 @@ export default function QaHealthCenter() {
                 setRefreshing(false);
             }
         },
-        [],
+        [isAdmin],
     );
 
     useEffect(() => {
@@ -410,9 +434,76 @@ export default function QaHealthCenter() {
                     {error}
                 </AlertBanner>
             )}
-            {flagOn && caseTotal === 0 && cases.length === 0 && tab === "usecases" && (
-                <AlertBanner variant="info" title="Use-case API" testid="qa-cases-api-hint">
-                    Catalog empty or API not upgraded. Restart backend to load GET /qa/cases, then click Reseed catalog (admin).
+
+            <Panel
+                title="What works now (Phase 0)"
+                tipTitle="Scope honesty"
+                tipBody="Full enterprise TMS is multi-phase. This strip reflects live API capabilities."
+                testid="qa-capability-strip"
+            >
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs" data-testid="qa-capabilities">
+                    <li className="flex items-center gap-2">
+                        <CheckCircle size={14} className="text-success" weight="fill"/> Overview KPIs + release readiness
+                    </li>
+                    <li className="flex items-center gap-2">
+                        <CheckCircle size={14} className="text-success" weight="fill"/> Suites / coverage ingest (Admin or CI token)
+                    </li>
+                    <li className="flex items-center gap-2">
+                        {apiCaps.cases ? (
+                            <CheckCircle size={14} className="text-success" weight="fill"/>
+                        ) : (
+                            <XCircle size={14} className="text-error"/>
+                        )}
+                        Use-case catalog (84 TC-*) {apiCaps.cases ? "— API ready" : "— restart API for /qa/cases"}
+                    </li>
+                    <li className="flex items-center gap-2">
+                        {isAdmin ? (
+                            <CheckCircle size={14} className="text-success" weight="fill"/>
+                        ) : (
+                            <Warning size={14} className="text-warning"/>
+                        )}
+                        Run golden suite from UI {isAdmin ? "(admin)" : "(admin only)"}
+                    </li>
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                        <Warning size={14}/> Manual / e2e use cases: listed only (not auto-executed in-process)
+                    </li>
+                    <li className="flex items-center gap-2 text-muted-foreground">
+                        <Warning size={14}/> Not yet: RTM, security/ZAP dashboards, FE coverage, trends charts, PDF export
+                    </li>
+                </ul>
+                {apiCaps.healthzPhase && (
+                    <p className="text-[10px] font-mono text-muted-foreground mt-2">
+                        API phase: {apiCaps.healthzPhase} · cases API: {apiCaps.cases ? "yes" : "no"} · catalog: {caseTotal || 0}
+                    </p>
+                )}
+                {isAdmin && apiCaps.cases && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                        <DsButton
+                            size="sm"
+                            tooltip="Offline golden IR suite — updates golden-mapped use cases"
+                            loading={running}
+                            onClick={() => onRunUseCases("golden")}
+                            data-testid="qa-overview-run-golden"
+                        >
+                            <Play size={14}/>
+                            Run golden suite
+                        </DsButton>
+                        <DsButton
+                            size="sm"
+                            variant="secondary"
+                            tooltip="Open full use-case catalog"
+                            onClick={() => setTab("usecases")}
+                        >
+                            <ListChecks size={14}/>
+                            All use cases ({caseTotal || "…"})
+                        </DsButton>
+                    </div>
+                )}
+            </Panel>
+
+            {!apiCaps.cases && (
+                <AlertBanner variant="warning" title="Use-case routes not on this API process" testid="qa-cases-api-hint">
+                    Restart the backend from this repo (FEATURE_QA_HEALTH_CENTER=1) so GET /qa/cases loads. Core tabs still work.
                 </AlertBanner>
             )}
 
