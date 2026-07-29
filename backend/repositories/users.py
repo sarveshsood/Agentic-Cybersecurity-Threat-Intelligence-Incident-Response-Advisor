@@ -28,7 +28,10 @@ class UserRepository:
         )
 
     async def find_by_id_public(self, user_id: str) -> Optional[Dict[str, Any]]:
-        return await self.col.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+        return await self.col.find_one(
+            {"id": user_id},
+            {"_id": 0, "password_hash": 0, "mfa_secret": 0},
+        )
 
     async def search_public(self, q: str, *, limit: int = 20) -> List[Dict[str, Any]]:
         """Authenticated user picker: id, email, name, role only (no secrets)."""

@@ -5,7 +5,14 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from backend.models import LoginRequest, TokenResponse, User, UserCreatePublic
+from backend.models import (
+    LoginRequest,
+    MfaEnableRequest,
+    MfaVerifyRequest,
+    TokenResponse,
+    User,
+    UserCreatePublic,
+)
 from backend.security import get_current_user
 from backend.services import auth_service
 from backend.services import oidc_service
@@ -38,7 +45,45 @@ async def me(user=Depends(get_current_user)):
 @router.get("/oidc/config")
 async def oidc_config():
     """Public: SSO flag + public_register policy (no secrets)."""
-    return auth_service.auth_public_config()
+    cfg = auth_service.auth_public_config()
+    try:
+        from backend import mfa as mfa_mod
+
+        cfg["mfa"] = mfa_mod.status_public()
+    except Exception:
+        cfg["mfa"] = {"feature_enabled": False, "available": False}
+    return cfg
+
+
+@router.get("/mfa/status")
+async def mfa_status(user=Depends(get_current_user)):
+    from backend import mfa as mfa_mod
+    from backend.core.database import db
+
+    st = mfa_mod.status_public()
+    doc = await db.users.find_one({"id": user["sub"]}, {"_id": 0, "mfa_enabled": 1})
+    st["user_enrolled"] = bool((doc or {}).get("mfa_enabled"))
+    return st
+
+
+@router.post("/mfa/setup")
+async def mfa_setup(user=Depends(get_current_user)):
+    return await auth_service.mfa_setup(user)
+
+
+@router.post("/mfa/enable")
+async def mfa_enable(body: MfaEnableRequest, user=Depends(get_current_user)):
+    return await auth_service.mfa_enable(user, body.secret, body.code)
+
+
+@router.post("/mfa/disable")
+async def mfa_disable(body: MfaEnableRequest, user=Depends(get_current_user)):
+    return await auth_service.mfa_disable(user, body.code)
+
+
+@router.post("/mfa/verify")
+async def mfa_verify(body: MfaVerifyRequest):
+    return await auth_service.mfa_verify(body.mfa_token, body.code)
 
 
 @router.get("/oidc/login")

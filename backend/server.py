@@ -150,6 +150,12 @@ async def lifespan(app: FastAPI):
         except Exception as eci:
             logger.warning("enrichment_cache indexes skipped: %s", eci)
         try:
+            from backend.ops_bus import ensure_ops_bus_indexes
+
+            await ensure_ops_bus_indexes(db)
+        except Exception as obe:
+            logger.warning("ops_bus indexes skipped: %s", obe)
+        try:
             await db.log_jobs.create_index([("queue_state", 1), ("queued_at", 1)])
         except Exception as qe:
             logger.warning("queue index skipped: %s", qe)

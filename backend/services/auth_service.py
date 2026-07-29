@@ -133,6 +133,40 @@ async def login(body: LoginRequest) -> JSONResponse:
         raise HTTPException(401, "Invalid credentials")
 
     await clear_login_failures(db, email_key)
+
+    # Optional TOTP second factor (FEATURE_MFA=1 + pyotp)
+    try:
+        from backend import mfa as mfa_mod
+
+        if mfa_mod.available() and doc.get("mfa_enabled") and doc.get("mfa_secret"):
+            code = (getattr(body, "mfa_code", None) or "").strip()
+            if not code:
+                mfa_token = mfa_mod.create_pending_challenge(
+                    doc["id"],
+                    doc.get("email") or email_key,
+                    doc.get("role") or "analyst",
+                    name=doc.get("name") or "",
+                )
+                return JSONResponse(
+                    content={
+                        "access_token": "",
+                        "token_type": "bearer",
+                        "user": None,
+                        "mfa_required": True,
+                        "mfa_token": mfa_token,
+                    }
+                )
+            if not mfa_mod.verify_code(str(doc.get("mfa_secret")), code):
+                limit = await svc.lockout_limit()
+                lock_msg = await record_login_failure(db, email_key, limit)
+                if lock_msg:
+                    raise HTTPException(429, lock_msg)
+                raise HTTPException(401, "Invalid MFA code")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
     session_hours = await svc.session_hours()
     token = create_access_token(doc["id"], doc["email"], doc["role"], expire_hours=session_hours)
     try:
@@ -145,6 +179,72 @@ async def login(body: LoginRequest) -> JSONResponse:
         )
     except Exception:
         pass
+    return _token_response(token, doc, session_hours)
+
+
+async def mfa_setup(user: dict) -> Dict[str, Any]:
+    from backend import mfa as mfa_mod
+
+    if not mfa_mod.mfa_feature_enabled():
+        raise HTTPException(404, "MFA feature disabled (set FEATURE_MFA=1)")
+    if not mfa_mod.available():
+        raise HTTPException(503, "pyotp not installed — pip install pyotp")
+    secret = mfa_mod.generate_secret()
+    email = user.get("email") or user.get("sub") or "user"
+    return {
+        "secret": secret,
+        "otpauth_uri": mfa_mod.provisioning_uri(secret, str(email)),
+        "note": "Confirm with POST /auth/mfa/enable {secret, code} then store authenticator app",
+    }
+
+
+async def mfa_enable(user: dict, secret: str, code: str) -> Dict[str, Any]:
+    from backend import mfa as mfa_mod
+
+    if not mfa_mod.available():
+        raise HTTPException(503, "MFA unavailable")
+    if not mfa_mod.verify_code(secret, code):
+        raise HTTPException(400, "Invalid code — check authenticator clock")
+    await users_repo.update_fields(
+        user["sub"],
+        {"mfa_enabled": True, "mfa_secret": secret},
+    )
+    return {"ok": True, "mfa_enabled": True}
+
+
+async def mfa_disable(user: dict, code: str) -> Dict[str, Any]:
+    from backend import mfa as mfa_mod
+    from backend.core.database import db
+
+    doc = await db.users.find_one({"id": user["sub"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "User not found")
+    if doc.get("mfa_enabled") and doc.get("mfa_secret"):
+        if not mfa_mod.verify_code(str(doc["mfa_secret"]), code):
+            raise HTTPException(400, "Invalid MFA code")
+    await db.users.update_one(
+        {"id": user["sub"]},
+        {"$set": {"mfa_enabled": False}, "$unset": {"mfa_secret": ""}},
+    )
+    return {"ok": True, "mfa_enabled": False}
+
+
+async def mfa_verify(mfa_token: str, code: str) -> JSONResponse:
+    from backend import mfa as mfa_mod
+    from backend.core.database import db
+
+    if not mfa_mod.available():
+        raise HTTPException(503, "MFA unavailable")
+    pending = mfa_mod.consume_pending(mfa_token)
+    if not pending:
+        raise HTTPException(401, "MFA challenge expired — login again")
+    doc = await db.users.find_one({"id": pending["user_id"]}, {"_id": 0})
+    if not doc or not doc.get("mfa_secret"):
+        raise HTTPException(401, "MFA not configured")
+    if not mfa_mod.verify_code(str(doc["mfa_secret"]), code):
+        raise HTTPException(401, "Invalid MFA code")
+    session_hours = await svc.session_hours()
+    token = create_access_token(doc["id"], doc["email"], doc["role"], expire_hours=session_hours)
     return _token_response(token, doc, session_hours)
 
 

@@ -43,7 +43,19 @@ DEFAULT_LORA_PATH = Path(__file__).resolve().parent / "data" / "lora_adapters" /
 
 
 def _env_backend() -> str:
-    return (os.environ.get("ACTIRA_EMBEDDING_BACKEND") or "hash").strip().lower()
+    """Resolve backend from explicit ACTIRA_EMBEDDING_BACKEND or profile.
+
+    Profiles (ACTIRA_EMBEDDING_PROFILE):
+      - ``offline`` / default — hash
+      - ``quality`` / ``sbert`` — try sentence-transformers (falls back to hash)
+    """
+    explicit = (os.environ.get("ACTIRA_EMBEDDING_BACKEND") or "").strip().lower()
+    if explicit:
+        return explicit
+    profile = (os.environ.get("ACTIRA_EMBEDDING_PROFILE") or "offline").strip().lower()
+    if profile in ("quality", "sbert", "semantic", "prod", "production"):
+        return "sbert"
+    return "hash"
 
 
 def _env_model() -> str:

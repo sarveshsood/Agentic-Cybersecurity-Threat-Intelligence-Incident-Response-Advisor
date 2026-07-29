@@ -644,6 +644,13 @@ async def mark_queue_done(db, job_id: str, *, failed: bool = False) -> None:
         await clear_payload_async(db, job_id)
     except Exception:
         pass
+    # Cross-replica ops invalidate (Dashboard WS/SSE on other nodes)
+    try:
+        from backend.ops_bus import publish_invalidate
+
+        await publish_invalidate(db, reason="job_failed" if failed else "job_done")
+    except Exception:
+        pass
 
 
 async def _load_live_settings(db) -> dict:
