@@ -239,7 +239,11 @@ export default function QaHealthCenter() {
             setCaseTotal(r.data?.catalog_total || r.data?.total || 0);
             setCaseStats(r.data?.stats || null);
         } catch (err) {
-            toast.error(apiErrorMessage(err) || "Failed to load use cases");
+            // Do not toast on every tab open if API not upgraded — empty state + banner handle it
+            setCases([]);
+            if (err?.response?.status !== 404) {
+                toast.error(apiErrorMessage(err) || "Failed to load use cases");
+            }
         }
     }, [caseFilter]);
 
