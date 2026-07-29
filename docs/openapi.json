@@ -205,6 +205,232 @@
         "title": "Body_kb_ingest_api_v1_kb_ingest_post",
         "type": "object"
       },
+      "Body_qa_ingest_api_qa_ingest_post": {
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "build_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Id"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "coverage.xml Cobertura",
+            "title": "Coverage"
+          },
+          "junit": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Primary JUnit XML",
+            "title": "Junit"
+          },
+          "junit_e2e": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Junit E2E"
+          },
+          "junit_security": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Junit Security"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "meta.json",
+            "title": "Meta"
+          },
+          "suite_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suite Type"
+          }
+        },
+        "title": "Body_qa_ingest_api_qa_ingest_post",
+        "type": "object"
+      },
+      "Body_qa_ingest_api_v1_qa_ingest_post": {
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "build_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Id"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "coverage.xml Cobertura",
+            "title": "Coverage"
+          },
+          "junit": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Primary JUnit XML",
+            "title": "Junit"
+          },
+          "junit_e2e": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Junit E2E"
+          },
+          "junit_security": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Junit Security"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "format": "binary",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "meta.json",
+            "title": "Meta"
+          },
+          "suite_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suite Type"
+          }
+        },
+        "title": "Body_qa_ingest_api_v1_qa_ingest_post",
+        "type": "object"
+      },
       "Body_upload_batch_api_logs_upload_batch_post": {
         "properties": {
           "files": {
@@ -6133,9 +6359,62 @@
         ]
       }
     },
+    "/api/qa/coverage": {
+      "get": {
+        "operationId": "qa_coverage_api_qa_coverage_get",
+        "parameters": [
+          {
+            "description": "build.id",
+            "in": "query",
+            "name": "build",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "build.id",
+              "title": "Build"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Latest or build-scoped coverage snapshot",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
     "/api/qa/healthz": {
       "get": {
-        "description": "Lightweight readiness for the QA surface (no artifact data yet).\n\nUsed by SPA/nav to confirm the flag path works before full ingest APIs land.",
         "operationId": "qa_healthz_api_qa_healthz_get",
         "responses": {
           "200": {
@@ -6144,7 +6423,7 @@
                 "schema": {}
               }
             },
-            "description": "200 when FEATURE_QA_HEALTH_CENTER is on and caller is admin or senior_reviewer"
+            "description": "Successful Response"
           }
         },
         "security": [
@@ -6153,6 +6432,327 @@
           }
         ],
         "summary": "QA Health Center feature probe",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/ingest": {
+      "post": {
+        "operationId": "qa_ingest_api_qa_ingest_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-QA-Ingest-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Qa-Ingest-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_qa_ingest_api_qa_ingest_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest JUnit / coverage artifacts (admin session or X-QA-Ingest-Token)",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/release/latest": {
+      "get": {
+        "operationId": "qa_release_latest_api_qa_release_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Latest release readiness snapshot",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/release/recompute": {
+      "post": {
+        "operationId": "qa_release_recompute_api_qa_release_recompute_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "build_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Build Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Force readiness recompute",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/release/{rel_id}": {
+      "get": {
+        "operationId": "qa_release_get_api_qa_release__rel_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rel_id",
+            "required": true,
+            "schema": {
+              "title": "Rel Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Release snapshot by id",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/runs": {
+      "get": {
+        "operationId": "qa_list_runs_api_qa_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "skip",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Skip",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "suite_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Suite Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Paginated suite runs",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/runs/{run_id}": {
+      "get": {
+        "operationId": "qa_get_run_api_qa_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Suite run detail",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/summary": {
+      "get": {
+        "operationId": "qa_summary_api_qa_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Overview KPIs from rollups + latest readiness",
         "tags": [
           "qa"
         ]
@@ -12338,9 +12938,62 @@
         ]
       }
     },
+    "/api/v1/qa/coverage": {
+      "get": {
+        "operationId": "qa_coverage_api_v1_qa_coverage_get",
+        "parameters": [
+          {
+            "description": "build.id",
+            "in": "query",
+            "name": "build",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "build.id",
+              "title": "Build"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Latest or build-scoped coverage snapshot",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
     "/api/v1/qa/healthz": {
       "get": {
-        "description": "Lightweight readiness for the QA surface (no artifact data yet).\n\nUsed by SPA/nav to confirm the flag path works before full ingest APIs land.",
         "operationId": "qa_healthz_api_v1_qa_healthz_get",
         "responses": {
           "200": {
@@ -12349,7 +13002,7 @@
                 "schema": {}
               }
             },
-            "description": "200 when FEATURE_QA_HEALTH_CENTER is on and caller is admin or senior_reviewer"
+            "description": "Successful Response"
           }
         },
         "security": [
@@ -12358,6 +13011,327 @@
           }
         ],
         "summary": "QA Health Center feature probe",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/ingest": {
+      "post": {
+        "operationId": "qa_ingest_api_v1_qa_ingest_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-QA-Ingest-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Qa-Ingest-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_qa_ingest_api_v1_qa_ingest_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest JUnit / coverage artifacts (admin session or X-QA-Ingest-Token)",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/release/latest": {
+      "get": {
+        "operationId": "qa_release_latest_api_v1_qa_release_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Latest release readiness snapshot",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/release/recompute": {
+      "post": {
+        "operationId": "qa_release_recompute_api_v1_qa_release_recompute_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "build_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Build Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Force readiness recompute",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/release/{rel_id}": {
+      "get": {
+        "operationId": "qa_release_get_api_v1_qa_release__rel_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rel_id",
+            "required": true,
+            "schema": {
+              "title": "Rel Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Release snapshot by id",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/runs": {
+      "get": {
+        "operationId": "qa_list_runs_api_v1_qa_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "skip",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Skip",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "suite_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Suite Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Paginated suite runs",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/runs/{run_id}": {
+      "get": {
+        "operationId": "qa_get_run_api_v1_qa_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Suite run detail",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/summary": {
+      "get": {
+        "operationId": "qa_summary_api_v1_qa_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Overview KPIs from rollups + latest readiness",
         "tags": [
           "qa"
         ]
