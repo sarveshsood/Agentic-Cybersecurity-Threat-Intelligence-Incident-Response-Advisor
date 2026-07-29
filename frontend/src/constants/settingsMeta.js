@@ -18,6 +18,8 @@ export const FACTORY_OPS = {
     llm_token_budget_monthly: 0,
     llm_fallback_enabled: true,
     llm_fallback_provider: "anthropic",
+    llm_fallback_model: "",
+    llm_manual_route: "primary",
     grounding_threshold: 0.7,
     hitl_severity_min: "critical",
     auto_approve_grounding_min: 0.9,
@@ -61,6 +63,8 @@ export const RECOMMENDED_OPS = {
     llm_token_budget_monthly: 500000,
     llm_fallback_enabled: true,
     llm_fallback_provider: "anthropic",
+    llm_fallback_model: "",
+    llm_manual_route: "primary",
     grounding_threshold: 0.75,
     hitl_severity_min: "high",
     auto_approve_grounding_min: 0.92,
@@ -724,6 +728,51 @@ export const FIELD_META = {
             "When set (>0), ACTIRA blocks new LLM calls once estimated monthly tokens reach the budget. GET /settings shows llm_usage.",
         notes:
             "Estimated tokens (chars/4) per call are summed in Mongo llm_usage for the calendar month. 0 = unlimited. Raise the budget or wait for next month after exhaustion.",
+    },
+    llm_fallback_enabled: {
+        title: "Automatic LLM fallback",
+        default: "on",
+        recommended: "on",
+        whyRecommended:
+            "Keeps playbook generation alive when the primary provider is rate-limited or down — still never bypasses HiTL.",
+        valid: "boolean",
+        impact: "When primary fails, try preferred fallback then FALLBACK_PROVIDER_ORDER (keys required).",
+        notes:
+            "Automatic mode only. Manual routing (backup) forces the preferred fallback stack even without an error. Test primary / Test backup probe each path.",
+    },
+    llm_fallback_provider: {
+        title: "Preferred fallback provider",
+        default: "anthropic",
+        recommended: "anthropic (or groq for free-tier latency demos)",
+        whyRecommended:
+            "Pin a known-good backup provider so operators control which stack runs after primary failure.",
+        valid: "openai | anthropic | gemini | groq | none",
+        impact: "First hop on automatic fallback and the target for manual backup routing.",
+        notes:
+            "Requires that provider’s API key. none disables preferred pin (chain still uses FALLBACK_PROVIDER_ORDER when enabled).",
+    },
+    llm_fallback_model: {
+        title: "Preferred fallback model",
+        default: "(provider default)",
+        recommended: "empty (provider default) or openai/gpt-oss-120b when fallback=groq",
+        whyRecommended:
+            "Explicit model pin avoids silent provider defaults after an outage and matches free-tier Groq demos.",
+        valid: "model id for the fallback provider, or empty",
+        impact: "Used on automatic fallback and manual backup route for the preferred provider.",
+        notes:
+            "Empty → backend default_model_for_provider. Changing fallback provider can auto-fill a catalog default in the UI.",
+    },
+    llm_manual_route: {
+        title: "Manual routing",
+        default: "primary",
+        recommended: "primary",
+        whyRecommended:
+            "primary keeps automatic failover; switch to backup only for controlled drills or primary outages.",
+        valid: "primary | backup",
+        impact:
+            "primary = normal path + auto chain on error. backup = force preferred fallback stack for all LLM calls until switched back.",
+        notes:
+            "Does not bypass HiTL or grounding. Use Test primary / Test backup before flipping routing in production.",
     },
     anthropic_api_key: {
         title: "Anthropic API key",

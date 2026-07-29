@@ -22,6 +22,7 @@ from . import workspace
 from . import hunt
 from . import collab
 from . import productivity
+from . import realtime
 
 # Public registry for include_all_routers / tests
 ALL_DOMAIN_ROUTERS = (
@@ -41,6 +42,7 @@ ALL_DOMAIN_ROUTERS = (
     meta,
     collab,
     productivity,
+    realtime,
 )
 
 

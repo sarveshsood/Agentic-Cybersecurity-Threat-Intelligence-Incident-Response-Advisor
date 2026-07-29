@@ -63,6 +63,8 @@ const OPS_KEYS = [
     "llm_token_budget_monthly",
     "llm_fallback_enabled",
     "llm_fallback_provider",
+    "llm_fallback_model",
+    "llm_manual_route",
     "grounding_threshold",
     "hitl_severity_min",
     "auto_approve_grounding_min",
@@ -129,6 +131,8 @@ const FIELD_TO_TAB = {
     llm_token_budget_monthly: "llm",
     llm_fallback_enabled: "llm",
     llm_fallback_provider: "llm",
+    llm_fallback_model: "llm",
+    llm_manual_route: "llm",
     anthropic_api_key: "llm",
     openai_api_key: "llm",
     gemini_api_key: "llm",
@@ -565,6 +569,8 @@ function formFromSettings(d) {
         llm_token_budget_monthly: d?.llm_token_budget_monthly ?? 0,
         llm_fallback_enabled: d?.llm_fallback_enabled !== false,
         llm_fallback_provider: normalizeProvider(d?.llm_fallback_provider || "anthropic"),
+        llm_fallback_model: d?.llm_fallback_model || "",
+        llm_manual_route: d?.llm_manual_route === "backup" ? "backup" : "primary",
         grounding_threshold: d?.grounding_threshold ?? 0.7,
         hitl_severity_min: d?.hitl_severity_min || "high",
         auto_approve_grounding_min: d?.auto_approve_grounding_min ?? 0.85,
@@ -637,6 +643,7 @@ export default function Settings() {
     // Catalog lives in React state so provider/model UI always re-renders correctly
     const [llmCatalog, setLlmCatalog] = useState(() => cloneModelCatalog());
     const [llmEffective, setLlmEffective] = useState(null);
+    const [routeHealth, setRouteHealth] = useState({primary: null, backup: null});
     const [tiEditField, setTiEditField] = useState(null);
     const [showSlackHelp, setShowSlackHelp] = useState(false);
     const [uiPrefs, setUiPrefs] = useState(() => loadUiPrefs());
@@ -767,6 +774,8 @@ export default function Settings() {
             llm_token_budget_monthly: 0,
             llm_fallback_enabled: true,
             llm_fallback_provider: "anthropic",
+            llm_fallback_model: "",
+            llm_manual_route: "primary",
             grounding_threshold: 0.7,
             hitl_severity_min: "high",
             auto_approve_grounding_min: 0.85,
@@ -790,7 +799,8 @@ export default function Settings() {
         Promise.all([
             api.get("/settings/llm-catalog").catch(() => ({data: null})),
             api.get("/settings").catch(() => null),
-        ]).then(([catRes, settingsRes]) => {
+            api.get("/settings/llm-routes").catch(() => null),
+        ]).then(([catRes, settingsRes, routesRes]) => {
             if (!isSubscribed) return;
             resolved = true;
             clearTimeout(safetyTimer);
@@ -810,6 +820,27 @@ export default function Settings() {
             } else {
                 hydrate(fallback, cat);
                 setSettingsLoadMode("fallback");
+            }
+            if (routesRes?.data) {
+                const d = routesRes.data;
+                setRouteHealth({
+                    primary: d.primary?.latency_ms != null || d.primary?.probe_ok != null
+                        ? {
+                            ok: d.primary.probe_ok,
+                            latency_ms: d.primary.latency_ms,
+                            provider: d.primary.provider,
+                            model: d.primary.model,
+                        }
+                        : null,
+                    backup: d.backup?.latency_ms != null || d.backup?.probe_ok != null
+                        ? {
+                            ok: d.backup.probe_ok,
+                            latency_ms: d.backup.latency_ms,
+                            provider: d.backup.provider,
+                            model: d.backup.model,
+                        }
+                        : null,
+                });
             }
         });
 
@@ -1625,19 +1656,60 @@ export default function Settings() {
                                             label="Preferred fallback provider"
                                             fieldKey="llm_fallback_provider"
                                             matchesRecommended={isRec(form, "llm_fallback_provider")}
-                                            hint="Tried first after primary; requires that provider’s key"
+                                            hint="Tried first after primary (automatic); also used for manual backup route"
                                         >
                                             <select
                                                 data-testid="llm-fallback-provider"
                                                 className={`${inputCls(false)} font-mono text-[12px]`}
                                                 value={form.llm_fallback_provider || "anthropic"}
-                                                onChange={(e) => upd("llm_fallback_provider", e.target.value)}
+                                                onChange={(e) => {
+                                                    const p = e.target.value;
+                                                    upd("llm_fallback_provider", p);
+                                                    if (p && p !== "none") {
+                                                        const def = defaultModelForProvider(p, llmCatalog);
+                                                        if (def) upd("llm_fallback_model", def);
+                                                    }
+                                                }}
                                                 disabled={form.llm_fallback_enabled === false}
                                             >
                                                 {SUPPORTED_PROVIDERS.map((p) => (
                                                     <option key={p} value={p}>{PROVIDER_LABELS[p] || p}</option>
                                                 ))}
                                                 <option value="none">none (disable preferred)</option>
+                                            </select>
+                                        </Field>
+                                        <Field
+                                            label="Preferred fallback model"
+                                            fieldKey="llm_fallback_model"
+                                            hint="Model used on automatic fallback and manual backup route"
+                                        >
+                                            <input
+                                                data-testid="llm-fallback-model"
+                                                type="text"
+                                                className={`${inputCls(false)} font-mono text-[12px]`}
+                                                value={form.llm_fallback_model || ""}
+                                                placeholder={
+                                                    form.llm_fallback_provider === "groq"
+                                                        ? "openai/gpt-oss-120b"
+                                                        : "provider default if empty"
+                                                }
+                                                onChange={(e) => upd("llm_fallback_model", e.target.value)}
+                                                disabled={form.llm_fallback_enabled === false || form.llm_fallback_provider === "none"}
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Manual routing"
+                                            fieldKey="llm_manual_route"
+                                            hint="primary = normal auto path; backup = force preferred fallback stack for all LLM calls"
+                                        >
+                                            <select
+                                                data-testid="llm-manual-route"
+                                                className={`${inputCls(false)} font-mono text-[12px]`}
+                                                value={form.llm_manual_route || "primary"}
+                                                onChange={(e) => upd("llm_manual_route", e.target.value)}
+                                            >
+                                                <option value="primary">Primary (+ automatic fallback on error)</option>
+                                                <option value="backup">Manual backup only (preferred fallback)</option>
                                             </select>
                                         </Field>
                                         <div className="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-2">
@@ -1648,28 +1720,166 @@ export default function Settings() {
                                                 onClick={async () => {
                                                     setBusy(true);
                                                     try {
-                                                        const res = await api.post("/settings/test-llm");
+                                                        const res = await api.post("/settings/test-llm", {route: "primary"});
                                                         const d = res.data || {};
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            primary: {
+                                                                ok: true,
+                                                                latency_ms: d.latency_ms,
+                                                                provider: d.provider,
+                                                                model: d.model,
+                                                            },
+                                                        }));
                                                         toast.success(
-                                                            `LLM ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
+                                                            `Primary ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
                                                         );
                                                     } catch (e) {
                                                         const detail = e?.response?.data?.detail;
                                                         const msg = typeof detail === "object"
                                                             ? (detail.message || detail.error || JSON.stringify(detail))
                                                             : (e?.userMessage || e?.message || "LLM test failed");
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            primary: {
+                                                                ok: false,
+                                                                latency_ms: typeof detail === "object" ? detail.latency_ms : null,
+                                                                error: msg,
+                                                            },
+                                                        }));
                                                         toast.error(msg);
                                                     } finally {
                                                         setBusy(false);
                                                     }
                                                 }}
                                                 className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
-                                                title="Sends a minimal completion using the saved provider/model"
+                                                title="Test primary provider/model"
                                             >
-                                                Test LLM connection
+                                                Test primary
+                                            </button>
+                                            <button
+                                                type="button"
+                                                data-testid="llm-test-backup"
+                                                disabled={busy || form.llm_fallback_enabled === false}
+                                                onClick={async () => {
+                                                    setBusy(true);
+                                                    try {
+                                                        const res = await api.post("/settings/test-llm", {route: "backup"});
+                                                        const d = res.data || {};
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            backup: {
+                                                                ok: true,
+                                                                latency_ms: d.latency_ms,
+                                                                provider: d.provider,
+                                                                model: d.model,
+                                                            },
+                                                        }));
+                                                        toast.success(
+                                                            `Backup ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
+                                                        );
+                                                    } catch (e) {
+                                                        const detail = e?.response?.data?.detail;
+                                                        const msg = typeof detail === "object"
+                                                            ? (detail.message || detail.error || JSON.stringify(detail))
+                                                            : (e?.userMessage || e?.message || "Backup LLM test failed");
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            backup: {
+                                                                ok: false,
+                                                                latency_ms: typeof detail === "object" ? detail.latency_ms : null,
+                                                                error: msg,
+                                                            },
+                                                        }));
+                                                        toast.error(msg);
+                                                    } finally {
+                                                        setBusy(false);
+                                                    }
+                                                }}
+                                                className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
+                                                title="Test preferred fallback provider/model (manual backup path)"
+                                            >
+                                                Test backup
+                                            </button>
+                                            <button
+                                                type="button"
+                                                data-testid="llm-one-click-backup-settings"
+                                                disabled={busy}
+                                                onClick={async () => {
+                                                    const next = form.llm_manual_route === "backup" ? "primary" : "backup";
+                                                    upd("llm_manual_route", next);
+                                                    setBusy(true);
+                                                    try {
+                                                        await api.put("/settings", {llm_manual_route: next});
+                                                        setInitialForm((prev) => ({...prev, llm_manual_route: next}));
+                                                        toast.success(
+                                                            next === "backup"
+                                                                ? "Saved: manual routing = backup"
+                                                                : "Saved: manual routing = primary",
+                                                        );
+                                                    } catch (e) {
+                                                        toast.error(e?.userMessage || e?.message || "Could not save route");
+                                                    } finally {
+                                                        setBusy(false);
+                                                    }
+                                                }}
+                                                className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
+                                                title="Save one-click manual backup/primary without full form save"
+                                            >
+                                                {form.llm_manual_route === "backup" ? "Save → primary" : "Save → backup"}
                                             </button>
                                             <span className="text-[10px] text-muted-foreground">
-                                                Uses the last saved settings (save first if you changed provider/model).
+                                                Save settings first for model/key changes. Automatic = chain on error; Manual routing = force backup.
+                                            </span>
+                                        </div>
+                                        {/* Route health strip (latency chips) */}
+                                        <div
+                                            className="md:col-span-2 xl:col-span-3 flex flex-wrap gap-2"
+                                            data-testid="llm-route-health"
+                                        >
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border ${
+                                                    routeHealth?.primary?.ok === true
+                                                        ? "border-success/40 text-success"
+                                                        : routeHealth?.primary?.ok === false
+                                                          ? "border-error/40 text-error"
+                                                          : "theme-border text-muted-foreground"
+                                                }`}
+                                                data-testid="llm-primary-health-chip"
+                                            >
+                                                Primary
+                                                {routeHealth?.primary?.latency_ms != null
+                                                    ? ` · ${routeHealth.primary.latency_ms}ms`
+                                                    : " · not probed"}
+                                                {routeHealth?.primary?.ok === true ? " · ok" : ""}
+                                                {routeHealth?.primary?.ok === false ? " · fail" : ""}
+                                            </span>
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border ${
+                                                    routeHealth?.backup?.ok === true
+                                                        ? "border-success/40 text-success"
+                                                        : routeHealth?.backup?.ok === false
+                                                          ? "border-error/40 text-error"
+                                                          : "theme-border text-muted-foreground"
+                                                }`}
+                                                data-testid="llm-backup-health-chip"
+                                            >
+                                                Backup
+                                                {routeHealth?.backup?.latency_ms != null
+                                                    ? ` · ${routeHealth.backup.latency_ms}ms`
+                                                    : " · not probed"}
+                                                {routeHealth?.backup?.ok === true ? " · ok" : ""}
+                                                {routeHealth?.backup?.ok === false ? " · fail" : ""}
+                                            </span>
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border ${
+                                                    form.llm_manual_route === "backup"
+                                                        ? "border-warning/40 text-warning"
+                                                        : "border-success/40 text-success"
+                                                }`}
+                                                data-testid="llm-active-route-chip"
+                                            >
+                                                Active route · {form.llm_manual_route === "backup" ? "backup" : "primary"}
                                             </span>
                                         </div>
                                         {settings?.llm_usage && (
@@ -1733,6 +1943,20 @@ export default function Settings() {
                                             {form.llm_fallback_enabled === false
                                                 ? "—"
                                                 : (form.llm_fallback_provider || "anthropic")}
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <dt className="text-muted-foreground">Fallback model</dt>
+                                        <dd className="font-mono text-xs text-right break-all max-w-[60%]" data-testid="llm-fallback-model-display">
+                                            {form.llm_fallback_enabled === false
+                                                ? "—"
+                                                : (form.llm_fallback_model || "(provider default)")}
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <dt className="text-muted-foreground">Manual routing</dt>
+                                        <dd className="font-mono text-xs uppercase" data-testid="llm-manual-route-display">
+                                            {form.llm_manual_route === "backup" ? "backup" : "primary"}
                                         </dd>
                                     </div>
                                 </dl>

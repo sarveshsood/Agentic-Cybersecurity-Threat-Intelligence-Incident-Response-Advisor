@@ -110,25 +110,29 @@ def test_settings_public_snapshot_strips_secrets():
 
 
 def test_enrich_concurrency_env_default():
-    """Semaphore pool is clamped 1..32 via pipeline settings/env (smoke)."""
+    """Semaphore pool is clamped 1..32 via pipeline_parallel + _enrich_all (smoke)."""
     from backend.pipeline import _enrich_all
+    from backend.pipeline_parallel import resolve_enrich_concurrency
     import inspect
 
     src = inspect.getsource(_enrich_all)
-    assert "ENRICH_CONCURRENCY" in src
     assert "Semaphore" in src
+    assert "resolve_enrich_concurrency" in src
+    # Env/settings clamp lives in pipeline_parallel (Sprint 4)
+    assert resolve_enrich_concurrency({"enrich_concurrency": 100}) == 32
+    assert resolve_enrich_concurrency({"enrich_concurrency": 0}) == 1
 
 
 def test_parse_concurrency_pool():
-    """Multi-file parse uses bounded semaphore + PARSE_CONCURRENCY / parse_concurrency."""
-    from backend.pipeline import _parse_all
+    """Multi-file parse uses bounded semaphore + resolve_parse_concurrency."""
+    from backend.pipeline import _parse_all, run_batch_pipeline
+    from backend.pipeline_parallel import resolve_parse_concurrency
     import inspect
 
     src = inspect.getsource(_parse_all)
     assert "Semaphore" in src
     assert "to_thread" in src
-    # Pipeline entry reads settings/env (see run_batch_pipeline)
-    from backend.pipeline import run_batch_pipeline
-
     batch_src = inspect.getsource(run_batch_pipeline)
-    assert "PARSE_CONCURRENCY" in batch_src or "parse_concurrency" in batch_src
+    assert "resolve_parse_concurrency" in batch_src or "parse_concurrency" in batch_src
+    assert resolve_parse_concurrency({"parse_concurrency": 100}) == 16
+    assert resolve_parse_concurrency({}) == 4

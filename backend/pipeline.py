@@ -88,15 +88,9 @@ async def run_batch_pipeline(db, job_id: str, files: List[Tuple[str, bytes]], us
         await update_job("extracting", 25)
         all_events = []
         per_file_meta = []
-        try:
-            parse_pool = int(
-                settings.get("parse_concurrency")
-                or __import__("os").environ.get("PARSE_CONCURRENCY")
-                or 4
-            )
-        except (TypeError, ValueError):
-            parse_pool = 4
-        parse_pool = max(1, min(16, parse_pool))
+        from backend.pipeline_parallel import resolve_parse_concurrency
+
+        parse_pool = resolve_parse_concurrency(settings)
         with trace.stage("parse", files=len(expanded), concurrency=parse_pool):
             parsed_rows = await _parse_all(expanded, concurrency=parse_pool)
             for row in parsed_rows:
@@ -516,15 +510,9 @@ async def _enrich_all(iocs: List[IoC], settings: dict, db=None) -> List[IoC]:
         import os
         import time as _time
 
-        try:
-            pool = int(
-                settings.get("enrich_concurrency")
-                or os.environ.get("ENRICH_CONCURRENCY")
-                or 8
-            )
-        except (TypeError, ValueError):
-            pool = 8
-        pool = max(1, min(32, pool))
+        from backend.pipeline_parallel import resolve_enrich_concurrency
+
+        pool = resolve_enrich_concurrency(settings)
         sem = asyncio.Semaphore(pool)
         t_batch = _time.perf_counter()
 

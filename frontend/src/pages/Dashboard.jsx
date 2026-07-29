@@ -8,6 +8,7 @@ import {HelpTip, Tip} from "../components/HelpTip";
 import {SortableTh} from "../components/SortableTh";
 import {IncidentPreview} from "../components/IncidentPreview";
 import {useSortableData} from "../hooks/useSortableData";
+import {useOpsRealtime} from "../hooks/useOpsRealtime";
 import {formatDateTime, loadUiPrefs} from "../lib/uiPrefs";
 import {HoverCard, HoverCardContent, HoverCardTrigger,} from "../components/ui/hover-card";
 import {
@@ -27,6 +28,7 @@ import {
 } from "recharts";
 import {
     ArrowsClockwise,
+    CheckCircle,
     Database,
     Fingerprint,
     FolderSimpleLock,
@@ -219,6 +221,41 @@ const DASH_TIPS = {
     trend: {title: "Incident creation trend", body: "Daily volume from the recent incident sample on this page (not all-time)."},
     status_mix: {title: "Lifecycle status mix", body: "Where cases sit in the IR lifecycle."},
     top_tech: {title: "Top ATT&CK techniques", body: "Most frequent MITRE technique IDs mapped by the pipeline. Click a row to filter incidents."},
+    q_assigned: {
+        title: "Assigned",
+        body: "Incidents with a primary or secondary assignee (collaboration flags).",
+        how: "COUNT where assignee_id or secondary_assignee_id is set. GET /kpis/queue.",
+    },
+    q_open: {
+        title: "Open",
+        body: "Active analyst workload: new + in_progress.",
+        how: "new + in_progress from KPI status counts.",
+    },
+    q_waiting: {
+        title: "Waiting review",
+        body: "Cases in the HiTL reviewer queue.",
+        how: "COUNT status=pending_review.",
+    },
+    q_escalated: {
+        title: "Escalated",
+        body: "High/critical severity, HiTL-required, or pending review.",
+        how: "Union of hitl_required, severity high/critical, status pending_review.",
+    },
+    q_done_today: {
+        title: "Completed today",
+        body: "Approved or closed cases in the UTC day window.",
+        how: "COUNT status in approved|closed with reviewed_at or created_at ≥ day start (UTC).",
+    },
+    q_sla: {
+        title: "SLA risk",
+        body: "Non-terminal cases with due_at within 24h or already past due.",
+        how: "COUNT due_at ≤ now+24h and status not approved/rejected/closed.",
+    },
+    q_trend: {
+        title: "Queue trend (7d)",
+        body: "Opened vs completed per UTC day from GET /kpis/queue. Updates live over WebSocket / SSE without full page refresh.",
+        how: "Daily COUNT created_at / approved|closed windows. Pushed on kpi.queue_snapshot.",
+    },
 };
 
 function kpiTip(tip) {
@@ -249,6 +286,7 @@ export default function Dashboard() {
     const highThreat = Number(prefs.high_threat_score_threshold) || 70;
 
     const [rawKpis, setRawKpis] = useState(null);
+    const [queueKpis, setQueueKpis] = useState(null);
     const [incidents, setIncidents] = useState([]);
     const [ready, setReady] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -328,9 +366,15 @@ export default function Dashboard() {
         else setLoadError(null);
 
         try {
-            // Atomic dual fetch — avoid staggered KPI vs table paints
-            const [kpiRes, incRes] = await Promise.all([
+            // Atomic fetch — KPIs + rich queue + incidents
+            const [kpiRes, queueRes, incRes] = await Promise.all([
                 api.get("/kpis", {
+                    params: {
+                        _t: Date.now(),
+                        ...(forceRefresh ? {force_refresh: true} : {}),
+                    },
+                }).catch((e) => ({__err: e, data: null})),
+                api.get("/kpis/queue", {
                     params: {
                         _t: Date.now(),
                         ...(forceRefresh ? {force_refresh: true} : {}),
@@ -345,6 +389,9 @@ export default function Dashboard() {
                 if (!silent) setRawKpis(null);
             } else {
                 setRawKpis(kpiRes?.data && typeof kpiRes.data === "object" ? kpiRes.data : {});
+            }
+            if (!queueRes?.__err && queueRes?.data) {
+                setQueueKpis(queueRes.data);
             }
 
             if (incRes?.__err) {
@@ -367,15 +414,27 @@ export default function Dashboard() {
         }
     }, [limit]);
 
+    const onQueueRealtime = useCallback((q) => {
+        if (q && typeof q === "object") setQueueKpis(q);
+    }, []);
+
+    const realtime = useOpsRealtime({
+        onQueue: onQueueRealtime,
+        intervalSec: 10,
+        enabled: true,
+    });
+
     useEffect(() => {
         load({silent: false});
-        // Cap auto-refresh so “recommended” 60s does not thrash under load
+        // When WS/SSE is live, slow HTTP poll to reduce load; when poll-only, keep prefs interval.
         const rawMs = Number(prefs.dashboard_refresh_ms) || 0;
-        const ms = rawMs > 0 ? Math.max(30_000, rawMs) : 0;
+        const live = realtime.channel === "ws" || realtime.channel === "sse";
+        const base = rawMs > 0 ? Math.max(30_000, rawMs) : 0;
+        const ms = live ? Math.max(base || 60_000, 60_000) : base;
         if (ms <= 0) return undefined;
         const id = setInterval(() => load({silent: true}), ms);
         return () => clearInterval(id);
-    }, [load, prefs.dashboard_refresh_ms]);
+    }, [load, prefs.dashboard_refresh_ms, realtime.channel]);
 
     const severityPie = useMemo(() => {
         if (kpis?.severity_distribution?.length) {
@@ -424,7 +483,10 @@ export default function Dashboard() {
     ]), []);
 
     const workloadBars = useMemo(() => {
-        const rawDist = kpis?.status_distribution;
+        // Prefer live queue snapshot (WS/SSE) status counts when present, else full KPI facet
+        const rawDist = queueKpis?.status_distribution?.length
+            ? queueKpis.status_distribution
+            : kpis?.status_distribution;
         const map = {};
         if (Array.isArray(rawDist)) {
             for (const item of rawDist) {
@@ -433,14 +495,14 @@ export default function Dashboard() {
                 map[key] = Number(item.count) || 0;
             }
         }
-        // Top-level KPI counters (same Mongo facet) — take max so partial/stale rows cannot zero a bar
+        // Top-level counters — queue live fields win when pushed over realtime
         const counters = {
-            new: Number(kpis?.new) || 0,
-            in_progress: Number(kpis?.in_progress) || 0,
-            pending_review: Number(kpis?.pending_review) || 0,
-            approved: Number(kpis?.approved) || 0,
-            rejected: Number(kpis?.rejected) || 0,
-            closed: Number(kpis?.closed) || 0,
+            new: Number(queueKpis?.new ?? kpis?.new) || 0,
+            in_progress: Number(queueKpis?.in_progress ?? kpis?.in_progress) || 0,
+            pending_review: Number(queueKpis?.pending_review ?? kpis?.pending_review) || 0,
+            approved: Number(queueKpis?.approved ?? kpis?.approved) || 0,
+            rejected: Number(queueKpis?.rejected ?? kpis?.rejected) || 0,
+            closed: Number(queueKpis?.closed ?? kpis?.closed) || 0,
         };
         return WORKLOAD_STATUS_ORDER.map(({rawKey, label}) => {
             const fromDist = map[rawKey];
@@ -456,7 +518,18 @@ export default function Dashboard() {
                 fill: (chart.status && chart.status[rawKey]) || chart.chart?.gray || "#64748B",
             };
         });
-    }, [kpis, chart, WORKLOAD_STATUS_ORDER]);
+    }, [kpis, queueKpis, chart, WORKLOAD_STATUS_ORDER]);
+
+    /** Live 7-day open/complete series from /kpis/queue (realtime-capable). */
+    const queueTrendSeries = useMemo(() => {
+        const rows = queueKpis?.trend_7d;
+        if (!Array.isArray(rows) || !rows.length) return [];
+        return rows.map((r) => ({
+            date: r.date || "",
+            opened: Number(r.opened) || 0,
+            completed: Number(r.completed) || 0,
+        }));
+    }, [queueKpis]);
 
     const workloadHasData = useMemo(
         () => workloadBars.some((b) => Number(b.count) > 0),
@@ -478,7 +551,7 @@ export default function Dashboard() {
         return [];
     }, [kpis]);
 
-    const pendingCount = kpis?.pending_review ?? 0;
+    const pendingCount = queueKpis?.waiting_review ?? kpis?.pending_review ?? 0;
 
     /** Stable chart shell — avoids Recharts layout thrash on empty data */
     const ChartEmpty = ({label = "No data yet"}) => (
@@ -501,6 +574,31 @@ export default function Dashboard() {
                 }
                 actions={
                     <div className="flex items-center gap-2 shrink-0">
+                        <Tip
+                            content={
+                                realtime.channel === "ws"
+                                    ? "Live: WebSocket /api/ws/ops (queue KPIs push)."
+                                    : realtime.channel === "sse"
+                                      ? "Live: SSE /api/sse/ops fallback (queue KPIs stream)."
+                                      : realtime.channel === "poll"
+                                        ? "Polling GET /kpis/queue (realtime channel unavailable)."
+                                        : realtime.channel === "connecting"
+                                          ? "Connecting realtime ops channel…"
+                                          : "Realtime off (FEATURE_REALTIME_OPS / REACT_APP_REALTIME_OPS)."
+                            }
+                        >
+                            <span
+                                data-testid="dash-realtime-channel"
+                                className="text-[10px] font-mono font-bold uppercase tracking-wide theme-chip border theme-border px-2 py-1.5 rounded-md text-muted-foreground"
+                            >
+                                {realtime.channel === "ws" && "LIVE · WS"}
+                                {realtime.channel === "sse" && "LIVE · SSE"}
+                                {realtime.channel === "poll" && "POLL"}
+                                {realtime.channel === "connecting" && "…"}
+                                {realtime.channel === "off" && "RT OFF"}
+                                {realtime.channel === "error" && "RT ERR"}
+                            </span>
+                        </Tip>
                         <Tip content="Reload KPIs and recent incidents (bypasses analytics cache)">
                             <button
                                 type="button"
@@ -601,6 +699,98 @@ export default function Dashboard() {
                     <MagnifyingGlass size={14} weight="bold"/> Search knowledge
                 </Link>
             </div>
+
+            {/* Layer 1b — rich analyst queue metrics (GET /kpis/queue + live WS/SSE) */}
+            {queueKpis && (
+                <>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4" data-testid="dashboard-queue-kpis">
+                    <KpiCard loading={kpiLoading} testid="q-assigned" tip={kpiTip(DASH_TIPS.q_assigned)}
+                             label="Assigned" value={queueKpis.assigned} sub="has owner" icon={Users}
+                             tone="primary" to="/incidents"/>
+                    <KpiCard loading={kpiLoading} testid="q-open" tip={kpiTip(DASH_TIPS.q_open)}
+                             label="Open" value={queueKpis.open} sub="new + in progress" icon={ShieldCheck}
+                             tone="primary" to="/incidents?status=in_progress"/>
+                    <KpiCard loading={kpiLoading} testid="q-waiting" tip={kpiTip(DASH_TIPS.q_waiting)}
+                             label="Waiting review" value={queueKpis.waiting_review} sub="HiTL queue"
+                             icon={HandTap} tone="warning" to="/review"/>
+                    <KpiCard loading={kpiLoading} testid="q-escalated" tip={kpiTip(DASH_TIPS.q_escalated)}
+                             label="Escalated" value={queueKpis.escalated} sub="high/crit/HiTL"
+                             icon={ShieldWarning} tone="critical"/>
+                    <KpiCard loading={kpiLoading} testid="q-done-today" tip={kpiTip(DASH_TIPS.q_done_today)}
+                             label="Completed today" value={queueKpis.completed_today} sub="approved/closed"
+                             icon={CheckCircle} tone="ok"/>
+                    <KpiCard loading={kpiLoading} testid="q-sla" tip={kpiTip(DASH_TIPS.q_sla)}
+                             label="SLA risk" value={queueKpis.sla_risk} sub="due ≤24h" icon={TrendUp}
+                             tone="warning"/>
+                </div>
+                {/* Live queue trend — moves with WS/SSE without full refresh */}
+                <div
+                    className="soc-card p-4 mb-6 min-h-[200px]"
+                    data-testid="dashboard-queue-trend"
+                >
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <TrendUp size={14} className="text-primary"/> Queue trend · 7d
+                        </div>
+                        <HelpTip title={DASH_TIPS.q_trend.title} body={DASH_TIPS.q_trend.body} how={DASH_TIPS.q_trend.how}/>
+                        {(realtime.channel === "ws" || realtime.channel === "sse") && (
+                            <span className="text-[9px] font-mono font-bold uppercase text-success border border-success/30 px-1.5 py-0.5 rounded">
+                                live
+                            </span>
+                        )}
+                    </div>
+                    {queueTrendSeries.length === 0 ? (
+                        <ChartEmpty label="No queue trend yet — open or close cases to populate."/>
+                    ) : (
+                        <ResponsiveContainer width="100%" height={140} debounce={50}>
+                            <AreaChart data={queueTrendSeries} margin={{top: 4, right: 8, left: -20, bottom: 0}}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid || "#f1f5f9"}/>
+                                <XAxis
+                                    dataKey="date"
+                                    tick={{fill: chart.tick?.fill || "#64748b", fontSize: 10}}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tickFormatter={(v) => String(v).slice(5)}
+                                />
+                                <YAxis
+                                    tick={{fill: chart.tick?.fill || "#94a3b8", fontSize: 10}}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    allowDecimals={false}
+                                />
+                                <ReTooltip
+                                    contentStyle={chart.contentStyle || {
+                                        borderRadius: 8,
+                                        border: "1px solid #e2e8f0",
+                                    }}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="opened"
+                                    name="Opened"
+                                    stroke={chart.series?.[0] || "#3b82f6"}
+                                    fill={chart.series?.[0] || "#3b82f6"}
+                                    fillOpacity={0.15}
+                                    strokeWidth={2}
+                                    isAnimationActive={false}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="completed"
+                                    name="Completed"
+                                    stroke={chart.series?.[2] || "#22c55e"}
+                                    fill={chart.series?.[2] || "#22c55e"}
+                                    fillOpacity={0.12}
+                                    strokeWidth={2}
+                                    isAnimationActive={false}
+                                />
+                                <Legend wrapperStyle={{fontSize: 11}} iconType="circle"/>
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+                </>
+            )}
 
             {/* Layer 2 — ops volume only (no overlap with executive strip) */}
             <div className="mb-2 flex items-center gap-1.5">

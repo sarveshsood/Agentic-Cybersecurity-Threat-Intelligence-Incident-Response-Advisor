@@ -1,493 +1,259 @@
-# ACTIRA — Agentic Cybersecurity Threat Intelligence & Incident Response Advisor
+# ACTIRA
 
-An AI SOC platform that ingests raw security logs, extracts and enriches IoCs, correlates them into attack
-narratives mapped to MITRE ATT&CK, and generates citation-grounded incident response playbooks — with a mandatory
-Human-in-the-Loop (HiTL) approval gate for critical incidents. Investigation uses a **controlled multi-stage pipeline**
-(named stage agents / copilot framing), not an unconstrained multi-agent or A2A swarm.
+**Agentic Cybersecurity Threat Intelligence & Incident Response Advisor**
 
-**Product mark:** ACTIRA (short UI name). Full project name appears on the login screen, browser title, and API docs.
+Single-tenant AI IR command center: ingest security logs → extract & enrich IoCs → correlate → map MITRE ATT&CK →
+hybrid RAG → LLM playbook → **Human-in-the-Loop**. Investigation uses a **controlled multi-stage pipeline**
+(named stage agents), not unconstrained multi-agent A2A.
+
+| Layer | Technology |
+|-------|------------|
+| UI | React 19 · Tailwind · design system (`design_guidelines.json`) |
+| API | FastAPI · entry **`backend.server:app`** (repo root) |
+| Data | MongoDB · LanceDB (local vectors) |
+| Jobs | Durable queue (`job_queue`) · optional multi-worker |
+| LLM | Anthropic · OpenAI · Gemini · Groq — **automatic + manual fallback** |
+
+> **Not** a SIEM/XDR replacement. Demo / education / controlled pilot.
 
 ![Stack](https://img.shields.io/badge/stack-React%2019%20%2B%20FastAPI%20%2B%20MongoDB-0B0F19)
-![LLM](https://img.shields.io/badge/LLM-Claude%20Sonnet%204.6-8b5cf6)
-![Maturity](https://img.shields.io/badge/maturity-Enterprise%20Demo%20Ready%20v1.6+-0ea5e9)
 ![Entry](https://img.shields.io/badge/API-backend.server%3Aapp-6366f1)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> **Positioning:** Single-tenant AI IR advisor for demos, education, and controlled pilots — **not** a full SIEM/XDR
-> replacement.  
-> **v1.0
-pack:** [presentation/](presentation/) · [diagrams/](diagrams/) · [deployments/](deployments/) · [ENTERPRISE_REVIEW.md](ENTERPRISE_REVIEW.md) · [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
+---
 
-### One-command demo
+## One-command demo
 
 ```powershell
-# Windows (Docker Compose when available; otherwise local API + UI)
+.\scripts\bootstrap-env.ps1
 .\scripts\start-demo.ps1
-# .\scripts\start-demo.ps1 -SkipDocker   # force local uvicorn + npm
-# .\scripts\start-demo.ps1 -ApiOnly      # API only
+.\scripts\start-demo.ps1 -SkipDocker
+.\scripts\diagnose.ps1
+.\scripts\healthcheck.ps1
+.\scripts\healthcheck.ps1 -Deep
+.\scripts\cleanup-runtime.ps1 -WhatIf
 ```
 
 ```bash
-# Unix
+./scripts/bootstrap-env.sh
 ./scripts/start-demo.sh
-# ./scripts/start-demo.sh --skip-docker
-# ./scripts/start-demo.sh --api-only
+./scripts/start-demo.sh --skip-docker
+./scripts/diagnose.sh
+./scripts/healthcheck.sh
+./scripts/healthcheck.sh --deep
+./scripts/cleanup-runtime.sh
 ```
 
-Then open http://localhost:3000 — lab users in [samples/demo/PERSONAS.md](samples/demo/PERSONAS.md).  
-Self-check: `.\scripts\diagnose.ps1` (Windows) or `./scripts/diagnose.sh`.
+| Surface | URL |
+|---------|-----|
+| UI | http://localhost:3000 |
+| API docs | http://localhost:8001/docs |
+| Health | http://localhost:8001/api/health |
+
+Lab users: [samples/demo/PERSONAS.md](samples/demo/PERSONAS.md)  
+(`analyst@` / `reviewer@` / `admin@` · `…@soc.example.com`)
 
 ---
 
-## Features
-
-- **Log ingestion** — drag-and-drop upload (Apache / Syslog / plain text)
-- **IoC extraction** — regex-based extraction of IPs, domains, URLs, MD5/SHA1/SHA256, CVEs, emails
-- **Threat intel enrichment** — AbuseIPDB · VirusTotal · GreyNoise · ThreatFox with weighted-mean scoring (mock mode by
-  default, real keys pluggable via Settings)
-- **MITRE ATT&CK mapping** — keyword-heuristic technique inference
-- **Hybrid RAG** — BM25 + local LanceDB ANN (RRF) + optional Cohere re-rank; hash embedder default; optional sbert
-  (`BAAI/bge-small-en-v1.5`)
-- **LLM playbook generation** — Anthropic / OpenAI / Gemini / Groq (defaults to Claude Sonnet 4.6) with
-  citation-grounded prompting, grounding-score validation, and optional cross-provider fallback (Groq as low-latency backup)
-- **Pipeline concurrency** — stages stay **sequential for audit**, but multi-file **parse** and IoC **enrich** use
-  bounded pools (`PARSE_CONCURRENCY` / `ENRICH_CONCURRENCY`, also Admin → Settings → Platform). Correlate → RAG →
-  playbook → HiTL remain single-threaded per job.
-- **HiTL gate** — routes incidents at/above Settings `hitl_severity_min` (default `critical`) or low grounding to the
-  reviewer queue; auto-approve never bypasses the severity gate; concurrent reviews are race-safe (HTTP 409)
-- **RBAC** — `analyst` / `senior_reviewer` / `admin` with JWT auth (public register always creates `analyst` only)
-- **Hardened settings secrets** — `GET /settings` never returns raw API keys (only `has_*` booleans)
-- **Analyst dashboard** — KPI cards, live analyst-queue lifecycle chart (status distribution, cache-aware refresh),
-  ATT&CK heatmap; opening a `new` case promotes it to `in_progress`
-- **Knowledge search** — left-pane retrieval mode, top_k, corpus filters, min confidence, sort, vector status, history
-- **LLM fallback honesty** — topbar + Settings Active stack show Groq backup (`openai/gpt-oss-120b`) readiness
-- **Agent honesty** — pipeline-first architecture; **not** A2A multi-agent (see [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md))
-
----
-
-## Tech Stack
-
-**Frontend**
-
-- React 19 · react-router-dom v7 · TanStack Query
-- Tailwind CSS + shadcn/ui · sonner · @phosphor-icons/react
-- Inter + IBM Plex Mono (enterprise design system — see `design_guidelines.json`)
-
-**Backend**
-
-- FastAPI · Motor (async MongoDB) · Pydantic v2
-- `rank-bm25` for retrieval · LanceDB hybrid RAG
-- Official `anthropic` / `openai` / `google-genai` (+ Groq-compatible) SDKs for LLM calls
-- JWT auth (`pyjwt` + `bcrypt`)
-
-**Design system**
-
-- Canonical tokens and UX guardrails: [`design_guidelines.json`](design_guidelines.json)
-- Agent honesty & A2A stance: [`docs/AGENT_ARCHITECTURE.md`](docs/AGENT_ARCHITECTURE.md)
-
----
-
-## Quick Start (Local)
+## Installation (canonical)
 
 ### Prerequisites
 
-- Python 3.11+
-- Node.js 18+ / Yarn
-- MongoDB running locally (or Atlas connection string)
+Python 3.11+ · Node 18+ · MongoDB 7 · (optional) Docker
 
-### 1. Clone & configure
-
-```bash
-git clone https://github.com/<your-username>/soc-playbook-ai-v2.git
-cd soc-playbook-ai-v2
-```
-
-### 2. Backend
-
-Install deps from the **repository root** (or activate a venv first):
+### Backend (from **repository root**)
 
 ```bash
 python -m venv .venv
 # Windows: .\.venv\Scripts\Activate.ps1
 # Unix:    source .venv/bin/activate
 pip install -r backend/requirements.txt
+cp backend/.env.example backend/.env   # set JWT_SECRET
+
+export PYTHONPATH=.                    # Windows: $env:PYTHONPATH = (Get-Location).Path
+python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
 ```
 
-Create `backend/.env` from the full template (recommended):
+**Do not** run `cd backend && uvicorn server:app` — package imports will fail.
+
+### Frontend
 
 ```bash
-# Windows PowerShell (repo root)
-Copy-Item backend\.env.example backend\.env
-# Unix
-# cp backend/.env.example backend/.env
+cd frontend
+npm install
+echo REACT_APP_BACKEND_URL=http://127.0.0.1:8001 > .env
+npm start
 ```
 
-`backend/.env.example` documents every bootstrap key: LLM, HiTL/pipeline, threat intel, Slack/email, security, data
-retention, and realtime ingest (`INGEST_API_KEY`). Minimum viable `.env`:
+---
+
+## Architecture (actual paths)
+
+```
+soc-playbook-ai-v2/
+├── backend/                 # API + pipeline + agents
+│   ├── server.py            # FastAPI app — uvicorn backend.server:app
+│   ├── pipeline.py          # IR orchestration
+│   ├── pipeline_parallel.py # parse/enrich pool resolution
+│   ├── job_queue.py         # durable jobs / worker loop
+│   ├── llm_provider.py      # multi-provider + dual fallback
+│   ├── routers/             # HTTP (incl. collab, productivity, realtime)
+│   ├── services/            # business logic
+│   └── repositories/        # Mongo access
+├── frontend/src/            # SPA pages + collab components
+├── scripts/                 # bootstrap-env, start-demo, diagnose, healthcheck, cleanup-runtime
+├── docs/                    # architecture, ops, product
+├── deployments/             # Helm / K8s
+├── monitoring/              # Prometheus / Grafana examples
+└── api/                     # Postman / Bruno / Insomnia clients (not the server)
+```
+
+There is **no** separate `workers/` or `pipelines/` top-level package — jobs and pipeline live under `backend/`.
+
+### Pipeline: sequential vs parallel
+
+| Stage | Parallel? | Config |
+|-------|-----------|--------|
+| Multi-file parse | **Yes** | Settings → Platform · `parse_concurrency` / `PARSE_CONCURRENCY` (1–16) |
+| IoC enrich | **Yes** | `enrich_concurrency` / `ENRICH_CONCURRENCY` (1–32) |
+| Correlate · ATT&CK · RAG · Playbook · HiTL | **No** | Sequential for auditability |
+
+### LLM routing (automatic + manual)
+
+| Mode | Behavior |
+|------|----------|
+| **Automatic** | Primary fails → preferred fallback provider/model → chain Anthropic→OpenAI→Gemini→Groq (keys required) |
+| **Manual** | Settings → **Manual routing = backup** forces preferred fallback stack for all calls |
+| **Test** | Settings → **Test primary** / **Test backup** (`POST /settings/test-llm` with `route`) |
+
+Routes snapshot: `GET /api/settings/llm-routes` (admin).  
+Groq free-tier default model: `openai/gpt-oss-120b`.
+
+### Real-time ops (WS primary + SSE fallback)
+
+| Channel | Path | Role |
+|---------|------|------|
+| Poll | `GET /api/kpis` · `GET /api/kpis/queue` | Always available |
+| WebSocket | `WS /api/ws/ops` | **Primary** push (cookie / token; lab anon in dev) |
+| SSE | `GET /api/sse/ops` | Fallback stream (queue snapshots + heartbeat) |
+
+Dashboard hook: `frontend/src/hooks/useOpsRealtime.js` — WS → SSE → poll.  
+Flag: `FEATURE_REALTIME_OPS` (default on; set `0` to disable). Client: `REACT_APP_REALTIME_OPS=0`.
+
+### Dual fallback UX
+
+| Surface | Behavior |
+|---------|----------|
+| Settings → LLM | Preferred fallback model, manual routing, Test primary / Test backup, latency chips |
+| Top bar | Route chip + **Use backup** one-click (admin) |
+| Left sidebar | Route health + one-click primary/backup |
+| API | `GET /settings/llm-routes`, `POST /settings/test-llm` `{route}` |
+
+### Quality gates
+
+```bash
+make smoke            # fast offline
+make quality-gate     # smoke → functional → security
+# or: ./scripts/quality-gate.sh  |  .\scripts\quality-gate.ps1
+```
+
+### Prod path (honest)
+
+| Concern | Guidance |
+|---------|----------|
+| Secrets | Set `SECRETS_MASTER_KEY` (do not rely on JWT-derived vault alone) |
+| Multi-worker | `ACTIRA_JOB_WORKER=0` on API replicas; worker Deployment = `1`; payloads `mongo` |
+| Broker | Optional AMQP wake-up only — **not** Celery; Mongo remains claim SoT |
+| Observability | [docs/operations/OBSERVABILITY_PACK.md](docs/operations/OBSERVABILITY_PACK.md) + `monitoring/` |
+
+### Collaboration (H-07 / H-08) — feature flags
+
+Default **off**. Enable in `backend/.env`:
+
+```env
+FEATURE_COLLAB_ASSIGN=1
+FEATURE_COLLAB_COMMENTS=1
+FEATURE_NOTIFICATION_CENTER=1
+FEATURE_SAVED_FILTERS=1
+FEATURE_PINS=1
+```
+
+Snapshot: `GET /api/meta/features`.
+
+---
+
+## Auth & roles
+
+| Role | Access |
+|------|--------|
+| `analyst` | Ingest, incidents, hunt, self-assign, comments |
+| `senior_reviewer` | + Review queue, reassign, elevated comments |
+| `admin` | + Settings, Ops, Benchmark, full assign |
+
+JWT cookie + Bearer. Public register is analyst-only when enabled.
+
+---
+
+## Knowledge Base
+
+Hybrid **BM25 + LanceDB** (RRF) + optional Cohere re-rank.  
+Knowledge page left pane: mode, top_k, corpus, min confidence, sort, vector status.
+
+---
+
+## Environment (bootstrap)
+
+See `backend/.env.example` and [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+Minimum:
 
 ```env
 MONGO_URL=mongodb://localhost:27017
 DB_NAME=soc_console
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-JWT_SECRET=<generate-a-32+char-random-string>
-LLM_PROVIDER=anthropic
-LLM_MODEL=claude-sonnet-4-6
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Optional bootstrap (also editable in Admin → Settings; synced back to .env on save)
-# GROUNDING_THRESHOLD=0.7
-# HITL_SEVERITY_MIN=critical
-# SLACK_WEBHOOK_URL=
-# EMAIL_ALERTS_TO=
-# SESSION_TIMEOUT_HOURS=24
-# INCIDENT_RETENTION_DAYS=90
-# INGEST_API_KEY=   # for SIEM/webhook push — see Realtime ingest below
+JWT_SECRET=<32+ random chars>
 ```
 
-**Two-layer config:** MongoDB (Admin → Settings) is source of truth at runtime; values also sync to `backend/.env` so a
-wiped DB can re-seed. Secret fields in the UI always show blank after load — look for “✓ configured”, not the raw key.
-
-Run from the **repository root** (package-style import — required for `from backend.*`):
-
-```powershell
-# Windows PowerShell (repo root)
-$env:PYTHONPATH = (Get-Location).Path
-python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
-```
-
-```bash
-# Unix (repo root)
-export PYTHONPATH=.
-python -m uvicorn backend.server:app --reload --host 0.0.0.0 --port 8001
-```
-
-Or use `.\scripts\start-demo.ps1 -SkipDocker` / `./scripts/start-demo.sh --skip-docker`.
-
-Verify backend is reachable (in another shell or browser):
-
-```powershell
-Invoke-WebRequest http://127.0.0.1:8001/api/health -UseBasicParsing
-# Should return JSON with "status": "ok" (and mongo: "up")
-```
-
-**Time display standard:** ACTIRA stores backend timestamps in timezone-aware UTC. The frontend displays timestamps
-using the browser UI preference configured under **Admin → Settings → UI prefs → Time display standard**. The default is
-**UTC**, which is recommended for SOC workflows, incident correlation, audit review, and cross-log analysis. Operators
-can switch display to browser-local time or a fixed IANA timezone such as `Asia/Kolkata`, `Europe/London`, or
-`America/New_York`.
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install    # yarn works too
-```
-
-Create `frontend/.env` (if not present):
-
-```env
-REACT_APP_BACKEND_URL=http://127.0.0.1:8001
-```
-
-Run (in a **second separate terminal window** — keep both open):
-
-```powershell
-cd frontend
-npm start
-```
-
-Once you see "webpack compiled successfully", open:
-
-- **Main app**: http://localhost:3000  (or http://127.0.0.1:3000)
-- **Backend API docs** (for debugging): http://127.0.0.1:8001/docs
-- **Health check**: http://127.0.0.1:8001/api/health
-
-**Important**: Start backend first. The frontend makes API calls immediately. If you see connection errors, check that
-port 8001 is listening and the backend terminal shows "Application startup complete".
-
-Quick port check (PowerShell):
-
-```powershell
-Get-NetTCPConnection -LocalPort 8001,3000 -State Listen
-```
-
-### 4. Demo accounts (auto-seeded on first backend boot)
-
-| Role            | Email                    | Password     |
-|-----------------|--------------------------|--------------|
-| analyst         | analyst@soc.example.com  | Analyst123!  |
-| senior_reviewer | reviewer@soc.example.com | Reviewer123! |
-| admin           | admin@soc.example.com    | Admin123!    |
-
-Click any demo card on the login screen to auto-fill.
+Runtime secrets also live in Admin → Settings (Mongo + vault).
 
 ---
 
-## Try It in 30 seconds
+## Documentation map
 
-1. Log in as **analyst**
-2. Go to **Ingest Logs** → click **"Try sample: SSH brute force + Log4Shell"**
-3. Watch the pipeline animate through `parsing → extracting → enriching → correlating → generating`
-4. Click **Open incident →** to see the drafted playbook with inline citation chips
-5. Log out, log back in as **senior_reviewer** → visit **Review Queue** → **Approve** the critical incident
+| Doc | Topic |
+|-----|--------|
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Install |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Env + Settings |
+| [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) | Agents + A2A honesty |
+| [docs/MULTI_WORKER.md](docs/MULTI_WORKER.md) | HA jobs |
+| [docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md](docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md) | H-07/H-08 |
+| [docs/product/ACTIRA_12_SPRINT_HARDENING_PROGRAM.md](docs/product/ACTIRA_12_SPRINT_HARDENING_PROGRAM.md) | 12-sprint program |
+| [docs/E2E_TESTING.md](docs/E2E_TESTING.md) | Playwright |
+| [docs/openapi.json](docs/openapi.json) | OpenAPI |
 
----
+### Screenshot checklist (capture for decks)
 
-## Project Structure
-
-```
-soc-playbook-ai-v2/
-├── backend/                   # FastAPI API + pipeline + agents
-│   ├── server.py              # App shell (lifespan, middleware) — uvicorn backend.server:app
-│   ├── core/                  # database + shared services
-│   ├── routers/               # Domain routes (/api + /api/v1)
-│   ├── pipeline.py            # Multi-file / ZIP orchestration
-│   ├── job_queue.py           # Durable job worker
-│   ├── hitl_gate.py           # Pure HiTL policy
-│   ├── playbook_agent.py      # Citation-grounded LLM playbooks
-│   ├── ai_investigator.py     # Incident Q&A agent
-│   ├── knowledge_base.py      # BM25 + hybrid RAG
-│   ├── vector_store.py        # LanceDB
-│   ├── secrets_util.py        # Secret resolve / .env sync
-│   ├── secret_vault.py        # Encrypt-at-rest
-│   ├── logging_setup.py       # Console + rotating file logs (user/rid fields)
-│   ├── platform_settings.py   # Enterprise knobs → env sync
-│   └── tests/                 # Offline unit + golden + modularization suites
-├── frontend/src/              # React SOC console
-│   ├── App.js                 # Router + role gating
-│   ├── lib/api.js             # Axios (cookie credentials)
-│   ├── lib/auth.jsx           # Auth context (httpOnly cookie first)
-│   ├── pages/                 # Login, Dashboard, Upload, Incidents, Knowledge, …
-│   ├── constants/nav.js       # Left-rail + Jump (command palette) single source
-│   └── components/            # Layout, heatmaps, shadcn UI
-├── scripts/                   # start-demo.ps1/.sh, diagnose.ps1/.sh
-├── docs/                      # Architecture, ops, agent honesty, configuration
-├── tests/                     # Cross-cutting api/security/perf
-├── .github/workflows/         # CI, security, e2e, golden, openapi
-├── docker-compose.yml
-└── Makefile
-```
-
-### Pipeline parallelization (what is / isn’t concurrent)
-
-| Stage | Parallel? | Config |
-|-------|-----------|--------|
-| Multi-file parse | Yes (per job) | Settings → Platform `parse_concurrency` / `PARSE_CONCURRENCY` (1–16) |
-| IoC enrich | Yes (per job) | Settings → Platform `enrich_concurrency` / `ENRICH_CONCURRENCY` (1–32) |
-| Correlate, ATT&CK, RAG, playbook, HiTL | No | Sequential for evidence chain |
-| Multiple jobs | Yes | Job worker claims one job at a time per process; scale with workers |
-
-Full detail: [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) · [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
-
-### A2A / multi-agent
-
-**Not implemented and not planned for demos.** ACTIRA is a **controlled IR pipeline** with one playbook LLM step +
-scoped investigator Q&A. Google A2A / agent meshes would add negotiation surface without auditability gains until SOAR
-actions exist. See [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) §11.
-
+1. Login + demo personas  
+2. Dashboard — queue KPIs + lifecycle chart  
+3. Ingest + job progress  
+4. Incident workspace (tabs, playbook citations)  
+5. Review queue approve/reject  
+6. Knowledge search left pane  
+7. Settings LLM dual fallback  
+8. Ops Health  
+9. Audit trail  
+10. Notification inbox (flags on)  
 
 ---
 
-## Documentation
+## Limitations
 
-| Doc                                                         | Purpose                             |
-|-------------------------------------------------------------|-------------------------------------|
-| [docs/QUICKSTART.md](docs/QUICKSTART.md)                    | 30-minute path                      |
-| [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)        | Product & maturity                  |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                | System architecture                 |
-| [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md)    | AI / RAG / HiTL                     |
-| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)                | Security threat model               |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                    | Install & production checklist      |
-| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)                  | Executive demo script               |
-| [docs/ENTERPRISE_REVIEW.md](docs/ENTERPRISE_REVIEW.md)      | Board scorecard                     |
-| [FAQ.md](FAQ.md) · [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Support                             |
-| [SECURITY.md](SECURITY.md)                                  | Vulnerability reporting & hardening |
-
-Full index: [docs/DOCUMENTATION_INDEX.md](docs/DOCUMENTATION_INDEX.md).
-
----
-
-## API Overview
-
-All routes are prefixed with `/api`. The SPA uses **httpOnly cookie** auth (`withCredentials`); API clients may use
-`Authorization: Bearer <jwt>` from login when enabled.
-
-| Method | Route                      | Role required     | Purpose                                                    |
-|--------|----------------------------|-------------------|------------------------------------------------------------|
-| POST   | `/auth/register`           | –                 | Create account                                             |
-| POST   | `/auth/login`              | –                 | Get JWT                                                    |
-| GET    | `/auth/me`                 | any               | Current user                                               |
-| POST   | `/logs/upload`             | any               | Multipart upload; runs pipeline                            |
-| POST   | `/logs/ingest`             | ingest key or JWT | Realtime JSON push (SIEM / forwarder)                      |
-| POST   | `/logs/ingest/raw`         | ingest key or JWT | Realtime raw body (syslog-ng / fluent-bit)                 |
-| GET    | `/logs/jobs`               | any               | List ingestion jobs                                        |
-| GET    | `/incidents`               | any               | Filter by severity/status                                  |
-| GET    | `/incidents/:id`           | any               | Detail + IoCs + playbook                                   |
-| GET    | `/incidents/:id/citations` | any               | Resolve playbook citations                                 |
-| GET    | `/review/queue`            | senior_reviewer   | HiTL-pending incidents                                     |
-| POST   | `/review/:id`              | senior_reviewer   | approve / reject / edit_and_approve                        |
-| GET    | `/kpis`                    | any               | Dashboard metrics + heatmap counts                         |
-| GET    | `/kb/search?q=`            | any               | Hybrid BM25+dense search (`mode=`)                         |
-| GET    | `/kb/vector-status`        | any               | LanceDB / embedder status                                  |
-| POST   | `/kb/reindex`              | admin             | Rebuild KB vector index                                    |
-| GET    | `/kb/retrieval-eval`       | admin             | Offline hit@k on golden Q→doc pairs                        |
-| GET    | `/settings`                | any               | Config only — secrets as `has_*` booleans (never raw keys) |
-| PUT    | `/settings`                | admin             | Update LLM/thresholds/keys                                 |
-| GET    | `/audit`                   | admin / reviewer  | Audit log                                                  |
-| POST   | `/auth/register`           | public            | Creates **analyst** only (role ignored)                    |
-
----
-
-## Testing & CI/CD
-
-**Full quality gate (recommended):**
-
-```bash
-pip install -r backend/requirements.txt -r requirements-test.txt
-make ci          # lint + unit + framework + openapi + frontend build
-make coverage    # coverage HTML under reports/ (fails if < 95%)
-make e2e         # Playwright (stack must be running)
-make docker-test # Mongo + backend + pytest in compose
-```
-
-**Backend offline suites:**
-
-```bash
-cd backend
-pytest tests/test_hardening.py -v -n 0
-pytest tests/test_golden_benchmark.py -v -n 0
-python -m golden_eval
-pytest tests/ -v -n 0
-```
-
-**Docs:** [docs/TESTING.md](docs/TESTING.md) · [docs/CI_CD.md](docs/CI_CD.md) · [docs/E2E_TESTING.md](docs/E2E_TESTING.md) · [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
-
-Code-review hardening: `memory/WEEKLY_DISCUSSIONS.md` §6.  
-Golden dataset: `backend/tests/golden/README.md` · workflows under `.github/workflows/`.
-
-**OpenAPI contract** (snapshot + CI drift check):
-
-```bash
-# from repo root — regenerate after route/model changes
-python backend/scripts/export_openapi.py
-python backend/scripts/export_openapi.py --check
-```
-
-Committed schema: `docs/openapi.json` · workflow `.github/workflows/openapi-ci.yml` · guide `docs/SPEC_WORKFLOW.md`.
-
----
-
-## Realtime log ingest
-
-Upload in the UI is one path. You can also **push logs as they arrive** via HTTP webhooks (no browser session required).
-
-1. Set `INGEST_API_KEY` in `backend/.env` (generated if you expanded the full template).
-2. Restart uvicorn.
-3. POST events from a SIEM, rsyslog/syslog-ng HTTP output, Fluent Bit, Vector, or a simple cron/tail script.
-
-Ingest keys are compared with constant-time equality (`secrets.compare_digest`).
-
-**JSON body** (good for custom forwarders):
-
-```bash
-curl -X POST http://127.0.0.1:8001/api/logs/ingest ^
-  -H "Content-Type: application/json" ^
-  -H "X-Ingest-Key: YOUR_INGEST_API_KEY" ^
-  -d "{\"text\":\"Failed password for root from 1.2.3.4 port 22\",\"source\":\"rsyslog\"}"
-```
-
-**Raw body** (good for syslog-ng / Fluent Bit `http` output):
-
-```bash
-curl -X POST http://127.0.0.1:8001/api/logs/ingest/raw ^
-  -H "Content-Type: text/plain" ^
-  -H "X-Ingest-Key: YOUR_INGEST_API_KEY" ^
-  -H "X-Log-Source: firewall" ^
-  --data-binary @events.log
-```
-
-Auth alternatives: header `X-Ingest-Key` **or** `Authorization: Bearer <user JWT>`. Invalid/missing credentials return
-**401**. Each push creates a log job and runs the same pipeline as file upload (parse → IoC → enrich → playbook → HiTL
-gate).
-
-**Fluent Bit example** (`out_http`):
-
-```ini
-[OUTPUT]
-    Name        http
-    Match       *
-    Host        127.0.0.1
-    Port        8001
-    URI         /api/logs/ingest/raw
-    Format      json_lines
-    Header      X-Ingest-Key YOUR_INGEST_API_KEY
-    Header      X-Log-Source fluent-bit
-```
-
-True continuous tailing (file watch / Splunk HEC / Elastic) can sit in front of these endpoints; the API is
-pull-agnostic — anything that can HTTP POST works today.
-
----
-
-## Branding
-
-UI short name and full project name live in one place:
-
-```js
-// frontend/src/constants/branding.js
-export const BRAND = {
-  shortName: "ACTIRA",  // sidebar + login mark
-  fullName: "Agentic Cybersecurity Threat Intelligence & Incident Response Advisor",
-  tagline: "Agentic TI & IR Advisor",
-};
-```
-
-Also mirrored in `frontend/public/index.html` (`<title>` / meta) and FastAPI `title`/`description`
-in `backend/server.py`. Prefer **ACTIRA** in the chrome (sidebar); the full proposal name is too long for navigation —
-it shows as tooltip + login subtitle.
-
----
-
-## Deployment Notes
-
-- Backend binds to `0.0.0.0:8001` and must be reachable at `/api/*`
-- All frontend calls use `REACT_APP_BACKEND_URL` — no hardcoded URLs
-- MongoDB connection lives entirely in `MONGO_URL` env var — use a **persistent volume**
-  (not an ephemeral container) or Settings / incidents disappear on restart
-- **Do not commit `.env` files** — they contain your provider API key (s) and `JWT_SECRET`
-
----
-
-## Roadmap
-
-- Streaming SSE playbook generation
-- ~~HF domain embedding fine-tune~~ **DONE** — `python -m lora_train` / admin Knowledge → Train domain LoRA
-  (`ACTIRA_EMBEDDING_BACKEND=lora`)
-- Pagination on list endpoints & file-size cap on upload
-- WebSocket-based HiTL notifications
-- EVTX (Windows Event Log) binary parser
-- LangGraph orchestration + LangSmith observability
-- Native SIEM connectors (Splunk HEC / Elastic Agent) on top of `/logs/ingest`
-
----
+- Mock TI without keys  
+- Single-tenant  
+- Not legal WORM unless storage is immutable  
+- Not A2A multi-agent mesh  
+- Live TI may fail SSL/rate limits in restricted networks  
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for vulnerability reporting and the production hardening checklist.
-
-### Production checklist (Phase 1)
-
-| Control     | Setting                                         |
-|-------------|-------------------------------------------------|
-| Environment | `ENV=production` (or `staging`)                 |
-| JWT         | Strong `JWT_SECRET` (≥32 random chars)          |
-| Vault       | Prefer explicit `SECRETS_MASTER_KEY`            |
-| Demo users  | Never set `SEED_DEMO_USERS` outside labs        |
-| Metrics     | `METRICS_TOKEN` for scrapers, or admin JWT only |
-| CORS        | Explicit `CORS_ORIGINS`                         |
-
-Local empty-DB demos require **both** `ENV=dev` (or `test`/`local`) **and** `SEED_DEMO_USERS=true`.

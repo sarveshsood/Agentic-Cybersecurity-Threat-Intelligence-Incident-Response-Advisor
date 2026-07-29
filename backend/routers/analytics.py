@@ -20,6 +20,15 @@ async def kpis(
     return await analytics_service.kpis(force_refresh=force_refresh)
 
 
+@router.get("/kpis/queue")
+async def kpis_queue(
+    force_refresh: bool = Query(False),
+    user=Depends(get_current_user),
+):
+    """Rich analyst-queue metrics (Assigned, Open, Waiting Review, SLA risk, trends)."""
+    return await analytics_service.queue_kpis(force_refresh=force_refresh)
+
+
 @router.get("/analytics")
 async def analytics(
     window_days: int = Query(30, ge=1, le=365),

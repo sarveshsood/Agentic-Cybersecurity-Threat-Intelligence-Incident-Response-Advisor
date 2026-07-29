@@ -1,10 +1,11 @@
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {NavLink, useLocation, useNavigate} from "react-router-dom";
 import {useAuth} from "../lib/auth";
 import {useTheme} from "../lib/theme";
-import {api} from "../lib/api";
+import {api, apiErrorMessage} from "../lib/api";
 import {loadFeatures} from "../lib/features";
 import {
+    ArrowsLeftRight,
     CaretLeft,
     CaretRight,
     Circle,
@@ -16,6 +17,7 @@ import {
     Sun,
     X,
 } from "@phosphor-icons/react";
+import {toast} from "sonner";
 import {BRAND} from "../constants/branding";
 import {groupNav, navForRole} from "../constants/nav";
 import {countLiveIntel, liveIntelLabels, TI_HAS_FLAGS, TI_PROVIDERS,} from "../constants/threatIntel";
@@ -135,11 +137,20 @@ export default function Layout({children}) {
         hasGroq: false,
         fallbackEnabled: true,
         fallbackProvider: null,
+        fallbackModel: null,
+        manualRoute: "primary",
+        backupKeyReady: false,
+        primaryLatencyMs: null,
+        backupLatencyMs: null,
+        primaryProbeOk: null,
+        backupProbeOk: null,
     });
+    const [routeBusy, setRouteBusy] = useState(false);
     const [now, setNow] = useState(() => new Date());
     const isMac =
         typeof navigator !== "undefined" &&
         /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || "");
+    const isAdmin = user?.role === "admin";
 
     useEffect(() => {
         const id = setInterval(() => setNow(new Date()), 60_000);
@@ -222,26 +233,54 @@ export default function Layout({children}) {
                 const flag = PROVIDER_KEY_FLAG[provider];
                 const effectiveProvider = data.llm_effective_provider || null;
                 const effectiveModel = data.llm_effective_model || null;
-                setLlm({
+                const fbProv = data.llm_fallback_provider || null;
+                const fbFlag = fbProv ? PROVIDER_KEY_FLAG[fbProv] : null;
+                setLlm((prev) => ({
+                    ...prev,
                     provider,
                     model,
                     keyReady: flag ? Boolean(data[flag]) : false,
                     hasGroq: Boolean(data.has_groq),
                     fallbackEnabled: data.llm_fallback_enabled !== false,
-                    fallbackProvider: data.llm_fallback_provider || null,
+                    fallbackProvider: fbProv,
+                    fallbackModel: data.llm_fallback_model || null,
+                    manualRoute: data.llm_manual_route === "backup" ? "backup" : "primary",
+                    backupKeyReady: fbFlag ? Boolean(data[fbFlag]) : Boolean(data.has_groq),
                     effective:
                         effectiveProvider && effectiveProvider !== provider
                             ? {provider: effectiveProvider, model: effectiveModel}
                             : null,
-                });
+                }));
             } catch {
                 // Non-admin may not read full settings — keep last known TI/LLM; do not mark API down here
             }
         };
 
+        const loadRoutes = async () => {
+            if (!isAdmin) return;
+            try {
+                const r = await api.get("/settings/llm-routes");
+                if (cancelled) return;
+                const d = r.data || {};
+                setLlm((prev) => ({
+                    ...prev,
+                    manualRoute: d.manual_route === "backup" ? "backup" : "primary",
+                    primaryLatencyMs: d.primary?.latency_ms ?? null,
+                    backupLatencyMs: d.backup?.latency_ms ?? null,
+                    primaryProbeOk: d.primary?.probe_ok ?? null,
+                    backupProbeOk: d.backup?.probe_ok ?? null,
+                    backupKeyReady: Boolean(d.backup?.key_ready),
+                    fallbackProvider: d.backup?.provider || prev.fallbackProvider,
+                    fallbackModel: d.backup?.model || prev.fallbackModel,
+                }));
+            } catch {
+                /* admin-only; ignore */
+            }
+        };
+
         const loadAll = () => {
             loadHealth();
-            loadSettings();
+            loadSettings().then(() => loadRoutes());
         };
         loadAll();
 
@@ -254,7 +293,26 @@ export default function Layout({children}) {
             cancelled = true;
             if (id) clearInterval(id);
         };
-    }, []);
+    }, [isAdmin]);
+
+    const switchManualRoute = useCallback(async (next) => {
+        if (!isAdmin || routeBusy) return;
+        const route = next === "backup" ? "backup" : "primary";
+        setRouteBusy(true);
+        try {
+            await api.put("/settings", {llm_manual_route: route});
+            setLlm((prev) => ({...prev, manualRoute: route}));
+            toast.success(
+                route === "backup"
+                    ? "Manual routing → backup (preferred fallback stack)"
+                    : "Manual routing → primary (+ auto fallback on error)",
+            );
+        } catch (e) {
+            toast.error(apiErrorMessage(e, "Could not switch LLM route"));
+        } finally {
+            setRouteBusy(false);
+        }
+    }, [isAdmin, routeBusy]);
 
     const items = navForRole(user?.role);
     const groups = groupNav(items);
@@ -271,11 +329,15 @@ export default function Layout({children}) {
     const llmLabel = displayProvider
         ? `${String(displayProvider).toUpperCase()} · ${shortModel(displayModel)}`
         : "LLM …";
+    const manualBackup = llm.manualRoute === "backup";
     const llmTip = llm.provider
         ? [
               llm.effective
                   ? `Configured ${llm.provider}/${llm.model}. Effective after fallback: ${llm.effective.provider}/${llm.effective.model || "—"}.`
                   : `Active LLM: ${llm.provider} / ${llm.model}${llm.keyReady ? " (key ready)" : " (key missing — playbooks may use template fallback)"}.`,
+              manualBackup
+                  ? `Manual routing = BACKUP → ${llm.fallbackProvider || "preferred"} / ${llm.fallbackModel || "default"}.`
+                  : "Manual routing = primary (+ automatic fallback on error).",
               llm.hasGroq
                   ? "Groq backup key is stored (last in auto fallback chain · default model openai/gpt-oss-120b)."
                   : "Groq backup: no key (optional low-latency fallback · openai/gpt-oss-120b).",
@@ -284,6 +346,13 @@ export default function Layout({children}) {
                   : "Cross-provider fallback: off.",
           ].join(" ")
         : "Loading LLM settings…";
+
+    const routeChipTip = isAdmin
+        ? `Click to switch manual routing. Now: ${manualBackup ? "BACKUP" : "PRIMARY"}. Admin one-click override; does not bypass HiTL.`
+        : `LLM manual route: ${manualBackup ? "BACKUP" : "PRIMARY"} (admin can switch from Settings or top bar).`;
+
+    const fmtMs = (ms) =>
+        ms == null || !Number.isFinite(Number(ms)) ? null : `${Math.round(Number(ms))}ms`;
 
     const apiLabel =
         apiOk === null ? "API …" : apiOk ? "API ONLINE" : "API DOWN";
@@ -480,6 +549,98 @@ export default function Layout({children}) {
                         </div>
                     ))}
                 </nav>
+
+                {/* Left-pane dual-fallback rail (expanded or mobile drawer) */}
+                <div
+                    className={cn(
+                        "border-t theme-border px-2 py-2.5 space-y-1.5 shrink-0",
+                        collapsed && "md:px-1.5",
+                    )}
+                    data-testid="sidebar-llm-route-panel"
+                >
+                    <div
+                        className={cn(
+                            "text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--shell-sidebar-muted)] px-1",
+                            collapsed && "md:hidden",
+                        )}
+                    >
+                        LLM route
+                    </div>
+                    <div
+                        className={cn(
+                            "rounded-md border theme-border px-2 py-1.5 text-[10px] font-mono space-y-1",
+                            collapsed && "md:px-1 md:text-center",
+                        )}
+                    >
+                        <div
+                            className={cn(
+                                "flex items-center justify-between gap-1",
+                                collapsed && "md:justify-center",
+                            )}
+                            title={routeChipTip}
+                        >
+                            <span
+                                className={cn(
+                                    "uppercase font-bold",
+                                    manualBackup ? "text-warning" : "text-success",
+                                )}
+                                data-testid="sidebar-manual-route"
+                            >
+                                <span className={cn(collapsed && "md:hidden")}>
+                                    {manualBackup ? "BACKUP" : "PRIMARY"}
+                                </span>
+                                <span className={cn("hidden", collapsed && "md:inline")}>
+                                    {manualBackup ? "B" : "P"}
+                                </span>
+                            </span>
+                            {fmtMs(llm.primaryLatencyMs) && (
+                                <span
+                                    className={cn("text-muted-foreground", collapsed && "md:hidden")}
+                                    data-testid="sidebar-primary-lat"
+                                >
+                                    P {fmtMs(llm.primaryLatencyMs)}
+                                </span>
+                            )}
+                        </div>
+                        {!collapsed && llm.fallbackProvider && (
+                            <div className="text-[var(--shell-sidebar-muted)] truncate" title={llm.fallbackModel || ""}>
+                                fb · {String(llm.fallbackProvider).toUpperCase()}
+                                {fmtMs(llm.backupLatencyMs) ? ` · ${fmtMs(llm.backupLatencyMs)}` : ""}
+                            </div>
+                        )}
+                        {isAdmin && (
+                            <Tip
+                                content={
+                                    manualBackup
+                                        ? "Restore primary routing (+ auto fallback on error)"
+                                        : "One-click manual backup — force preferred fallback stack"
+                                }
+                            >
+                                <button
+                                    type="button"
+                                    data-testid="sidebar-one-click-backup"
+                                    disabled={routeBusy}
+                                    onClick={() => switchManualRoute(manualBackup ? "primary" : "backup")}
+                                    className={cn(
+                                        "w-full mt-0.5 rounded border border-primary/30 bg-primary/10 text-primary",
+                                        "text-[10px] font-bold uppercase tracking-wide py-1 hover:bg-primary/15 transition-colors",
+                                        "disabled:opacity-50",
+                                        collapsed && "md:px-0 md:text-[9px]",
+                                    )}
+                                >
+                                    {collapsed ? (
+                                        <>
+                                            <span className="md:hidden">{manualBackup ? "Primary" : "Backup"}</span>
+                                            <span className="hidden md:inline">{manualBackup ? "P" : "B"}</span>
+                                        </>
+                                    ) : (
+                                        manualBackup ? "Use primary" : "Use backup"
+                                    )}
+                                </button>
+                            </Tip>
+                        )}
+                    </div>
+                </div>
             </aside>
 
             <main id="main-content" className="flex-1 min-w-0 overflow-y-auto" tabIndex={-1}>
@@ -526,7 +687,15 @@ export default function Layout({children}) {
                             testid="llm-active-badge"
                             tip={llmTip}
                             title={llmTip}
-                            tone={llm.keyReady || llm.effective ? "primary" : llm.provider ? "warn" : "default"}
+                            tone={
+                                manualBackup
+                                    ? "warn"
+                                    : llm.keyReady || llm.effective
+                                      ? "primary"
+                                      : llm.provider
+                                        ? "warn"
+                                        : "default"
+                            }
                         >
                             <Cpu size={13} weight="bold" className="shrink-0" aria-hidden/>
                             <span className="font-mono truncate max-w-[11rem] sm:max-w-[14rem]">{llmLabel}</span>
@@ -544,6 +713,74 @@ export default function Layout({children}) {
                                 </span>
                             )}
                         </StatusChip>
+
+                        {/* Manual route + one-click backup (admin) */}
+                        <StatusChip
+                            testid="llm-manual-route-chip"
+                            tip={routeChipTip}
+                            title={routeChipTip}
+                            tone={manualBackup ? "warn" : "ok"}
+                            as={isAdmin ? "button" : "span"}
+                            onClick={
+                                isAdmin
+                                    ? () => switchManualRoute(manualBackup ? "primary" : "backup")
+                                    : undefined
+                            }
+                        >
+                            <ArrowsLeftRight size={12} weight="bold" className="shrink-0" aria-hidden/>
+                            <span className="font-mono text-[10px] uppercase">
+                                {manualBackup ? "ROUTE · BACKUP" : "ROUTE · PRIMARY"}
+                            </span>
+                            {routeBusy && <span className="text-[9px] opacity-70">…</span>}
+                        </StatusChip>
+
+                        {isAdmin && (
+                            <StatusChip
+                                testid="llm-one-click-backup"
+                                tip={
+                                    manualBackup
+                                        ? "Currently on backup. Click to restore primary routing."
+                                        : "One-click: force preferred fallback stack for all LLM calls (manual backup). Does not bypass HiTL."
+                                }
+                                title={manualBackup ? "Restore primary route" : "Force backup route"}
+                                tone={manualBackup ? "primary" : "warn"}
+                                as="button"
+                                onClick={() => switchManualRoute(manualBackup ? "primary" : "backup")}
+                                className="hidden sm:inline-flex"
+                            >
+                                <span className="font-semibold text-[10px] uppercase tracking-wide">
+                                    {manualBackup ? "Use primary" : "Use backup"}
+                                </span>
+                            </StatusChip>
+                        )}
+
+                        {/* Latency chips after Test primary / Test backup */}
+                        {fmtMs(llm.primaryLatencyMs) && (
+                            <StatusChip
+                                testid="llm-primary-latency-chip"
+                                tip={`Last primary probe: ${fmtMs(llm.primaryLatencyMs)}${llm.primaryProbeOk === false ? " (failed)" : ""}. Run Test primary in Settings.`}
+                                title="Primary route latency"
+                                tone={llm.primaryProbeOk === false ? "error" : "ok"}
+                                className="hidden lg:inline-flex"
+                            >
+                                <span className="font-mono text-[10px]">
+                                    P {fmtMs(llm.primaryLatencyMs)}
+                                </span>
+                            </StatusChip>
+                        )}
+                        {fmtMs(llm.backupLatencyMs) && (
+                            <StatusChip
+                                testid="llm-backup-latency-chip"
+                                tip={`Last backup probe: ${fmtMs(llm.backupLatencyMs)}${llm.backupProbeOk === false ? " (failed)" : ""}. Run Test backup in Settings.`}
+                                title="Backup route latency"
+                                tone={llm.backupProbeOk === false ? "error" : "ok"}
+                                className="hidden lg:inline-flex"
+                            >
+                                <span className="font-mono text-[10px]">
+                                    B {fmtMs(llm.backupLatencyMs)}
+                                </span>
+                            </StatusChip>
+                        )}
 
                         {llm.hasGroq && String(displayProvider || "").toLowerCase() !== "groq" && (
                             <StatusChip

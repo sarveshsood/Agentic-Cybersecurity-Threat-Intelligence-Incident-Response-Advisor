@@ -162,6 +162,61 @@ async def ops_status() -> Dict[str, Any]:
     except Exception:
         broker = {"enabled": False}
 
+    # Honesty: optional AMQP broker is not a Celery rewrite
+    broker_honesty = {
+        "optional": True,
+        "celery": False,
+        "note": (
+            "job_broker_* is optional wake-up only. Durable claims stay in Mongo "
+            "job_queue. Not multi-tenant SaaS; not a Celery rewrite."
+        ),
+        "enabled": bool(broker.get("enabled")) if isinstance(broker, dict) else False,
+        "status": broker if isinstance(broker, dict) else {},
+    }
+    if broker_honesty["enabled"] and env_name in ("production", "prod", "staging"):
+        ha_hints.append(
+            "Optional job broker is enabled — ensure JOB_BROKER_URL is shared and "
+            "durable queue still claims via Mongo (broker is not source of truth)."
+        )
+
+    secrets_vault: Dict[str, Any] = {}
+    try:
+        from backend.secret_vault import vault_status
+
+        secrets_vault = vault_status()
+        if secrets_vault.get("recommend_explicit_master_key") and env_name in (
+            "production",
+            "prod",
+            "staging",
+        ):
+            ha_hints.append(
+                "SECRETS_MASTER_KEY is not set — vault derives from JWT_SECRET. "
+                "Set an explicit master key so rotating JWT does not re-key secrets."
+            )
+    except Exception as e:
+        secrets_vault = {"enabled": False, "error": str(e)[:200]}
+
+    parallel: Dict[str, Any] = {}
+    try:
+        from backend.pipeline_parallel import parallel_snapshot
+
+        settings_doc = {}
+        try:
+            settings_doc = await svc.get_settings()
+        except Exception:
+            settings_doc = {}
+        parallel = parallel_snapshot(settings_doc)
+    except Exception as e:
+        parallel = {"mode": "unknown", "error": str(e)[:200]}
+
+    realtime_ops = {
+        "enabled": _env("FEATURE_REALTIME_OPS", "1").lower()
+        not in ("0", "false", "no", "off"),
+        "sse": "GET /api/sse/ops",
+        "websocket": "WS /api/ws/ops",
+        "scope": "in-process (no multi-replica pub/sub)",
+    }
+
     worm = {}
     try:
         from backend.audit_export import worm_status
@@ -222,12 +277,16 @@ async def ops_status() -> Dict[str, Any]:
             ],
             "persisted_on": "log_jobs.stage_timings + pipeline_total_ms",
         },
+        "pipeline_parallel": parallel,
+        "realtime_ops": realtime_ops,
+        "secrets_vault": secrets_vault,
         "otel": _otel_block(),
         "queue": queue_counts,
         "llm_usage": llm_usage,
         "recent_job_timings": recent_timings,
         "anomaly": anomaly,
         "broker": broker,
+        "broker_honesty": broker_honesty,
         "audit_worm": worm,
         "logging": logging_info,
         "ha_hints": ha_hints,
@@ -235,7 +294,9 @@ async def ops_status() -> Dict[str, Any]:
             "ha_validation": "docs/operations/HA_VALIDATION.md",
             "load_test_10_100": "benchmarks/reports/LOAD_TEST_10_100.md",
             "multi_worker": "docs/MULTI_WORKER.md",
+            "observability": "docs/operations/OBSERVABILITY_PACK.md",
             "helm_prod": "deployments/helm/actira/values-prod.yaml",
+            "hardening_program": "docs/product/ACTIRA_12_SPRINT_HARDENING_PROGRAM.md",
         },
         "load_test_cli": (
             "python benchmarks/run_benchmarks.py --profile light --write-md"

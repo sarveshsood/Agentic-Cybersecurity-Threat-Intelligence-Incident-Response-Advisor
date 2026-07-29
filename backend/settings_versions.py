@@ -37,6 +37,7 @@ _SAFE_SNAPSHOT_KEYS = frozenset({
     "llm_fallback_enabled",
     "llm_fallback_provider",
     "llm_fallback_model",
+    "llm_manual_route",
     "grounding_threshold",
     "hitl_severity_min",
     "auto_approve_grounding_min",

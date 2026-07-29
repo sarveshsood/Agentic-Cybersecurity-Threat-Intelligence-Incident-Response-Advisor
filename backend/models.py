@@ -339,6 +339,10 @@ class Settings(BaseModel):
     # Cross-provider fallback when primary fails (requires fallback provider key)
     llm_fallback_enabled: bool = True
     llm_fallback_provider: Optional[Literal["openai", "anthropic", "gemini", "groq", "none"]] = "anthropic"
+    # Preferred model when falling back to llm_fallback_provider (empty = provider default)
+    llm_fallback_model: Optional[str] = None
+    # Manual routing: primary (default) or backup (force preferred fallback stack)
+    llm_manual_route: Literal["primary", "backup"] = "primary"
     # Provider keys (UI → MongoDB; blank on update keeps previous value)
     # Send the sentinel __CLEAR__ (or use POST /settings/clear-secrets) to wipe a key.
     anthropic_api_key: Optional[str] = None
