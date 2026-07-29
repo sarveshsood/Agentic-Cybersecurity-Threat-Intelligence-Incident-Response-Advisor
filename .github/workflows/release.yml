@@ -72,7 +72,7 @@ jobs:
           pip install -r backend/requirements.txt
           mkdir -p reports/security
           pip freeze > reports/security/pip-freeze.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sbom-pip-freeze
           path: reports/security/pip-freeze.txt
