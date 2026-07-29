@@ -1722,6 +1722,34 @@
         "title": "TokenResponse",
         "type": "object"
       },
+      "UseCaseRunBody": {
+        "description": "Run use cases from QA UI.",
+        "properties": {
+          "case_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when scope=case",
+            "title": "Case Ids"
+          },
+          "scope": {
+            "default": "golden",
+            "description": "golden | all_runnable | case \u2014 golden runs offline IR suite",
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "title": "UseCaseRunBody",
+        "type": "object"
+      },
       "User": {
         "properties": {
           "created_at": {
@@ -5956,7 +5984,7 @@
     },
     "/api/meta/features": {
       "get": {
-        "description": "Public snapshot of env-gated product flags.\n\nSPA loads once at login / Layout mount. When a flag is false, gated routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.\nIncludes ``qa_health_center`` (Testing Health Center).",
+        "description": "Env-gated product flags (read-only snapshot).\n\n- **Flat booleans** (``qa_health_center``, collab keys, \u2026) \u2014 used by SPA\n  ``loadFeatures()`` / ``isFeatureEnabled``.\n- **``catalog``** \u2014 titles, env var names, UI surfaces, enabled state.\n- **``related``** \u2014 adjacent knobs (MFA, multi-tenant, embeddings, \u2026).\n- **``summary``** \u2014 counts + honesty note (not runtime toggles).\n\nWhen a product flag is false, gated routes return **404** via\n``require_feature`` \u2014 UI hide alone is not enough.",
         "operationId": "features_api_api_meta_features_get",
         "responses": {
           "200": {
@@ -5965,7 +5993,7 @@
                 "schema": {}
               }
             },
-            "description": "Booleans for product feature flags (collab, productivity, QA; default all false)"
+            "description": "Flat booleans for SPA gates plus catalog/related metadata for Settings UI"
           }
         },
         "summary": "Product feature flags snapshot",
@@ -6359,6 +6387,212 @@
         ]
       }
     },
+    "/api/qa/cases": {
+      "get": {
+        "operationId": "qa_list_cases_api_qa_cases_get",
+        "parameters": [
+          {
+            "description": "Search id/title/steps",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search id/title/steps",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "module",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Module"
+            }
+          },
+          {
+            "description": "golden|manual|e2e_manual|\u2026",
+            "in": "query",
+            "name": "runner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "golden|manual|e2e_manual|\u2026",
+              "title": "Runner"
+            }
+          },
+          {
+            "description": "auto|semi|manual",
+            "in": "query",
+            "name": "automation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "auto|semi|manual",
+              "title": "Automation"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "skip",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Skip",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List all use cases (capstone catalog)",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/cases/{case_id}": {
+      "get": {
+        "operationId": "qa_get_case_api_qa_cases__case_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Use case detail",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
     "/api/qa/coverage": {
       "get": {
         "operationId": "qa_coverage_api_qa_coverage_get",
@@ -6734,6 +6968,52 @@
         ]
       }
     },
+    "/api/qa/seed/catalog": {
+      "post": {
+        "operationId": "qa_seed_catalog_api_qa_seed_catalog_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Seed use-case catalog from JSON fixture",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
     "/api/qa/summary": {
       "get": {
         "operationId": "qa_summary_api_qa_summary_get",
@@ -6753,6 +7033,50 @@
           }
         ],
         "summary": "Overview KPIs from rollups + latest readiness",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/qa/usecases/run": {
+      "post": {
+        "operationId": "qa_run_usecases_api_qa_usecases_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseCaseRunBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run use cases from UI (golden offline suite)",
         "tags": [
           "qa"
         ]
@@ -12535,7 +12859,7 @@
     },
     "/api/v1/meta/features": {
       "get": {
-        "description": "Public snapshot of env-gated product flags.\n\nSPA loads once at login / Layout mount. When a flag is false, gated routes\nmust return 404 via ``require_feature`` \u2014 UI hide alone is not enough.\nIncludes ``qa_health_center`` (Testing Health Center).",
+        "description": "Env-gated product flags (read-only snapshot).\n\n- **Flat booleans** (``qa_health_center``, collab keys, \u2026) \u2014 used by SPA\n  ``loadFeatures()`` / ``isFeatureEnabled``.\n- **``catalog``** \u2014 titles, env var names, UI surfaces, enabled state.\n- **``related``** \u2014 adjacent knobs (MFA, multi-tenant, embeddings, \u2026).\n- **``summary``** \u2014 counts + honesty note (not runtime toggles).\n\nWhen a product flag is false, gated routes return **404** via\n``require_feature`` \u2014 UI hide alone is not enough.",
         "operationId": "features_api_api_v1_meta_features_get",
         "responses": {
           "200": {
@@ -12544,7 +12868,7 @@
                 "schema": {}
               }
             },
-            "description": "Booleans for product feature flags (collab, productivity, QA; default all false)"
+            "description": "Flat booleans for SPA gates plus catalog/related metadata for Settings UI"
           }
         },
         "summary": "Product feature flags snapshot",
@@ -12938,6 +13262,212 @@
         ]
       }
     },
+    "/api/v1/qa/cases": {
+      "get": {
+        "operationId": "qa_list_cases_api_v1_qa_cases_get",
+        "parameters": [
+          {
+            "description": "Search id/title/steps",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search id/title/steps",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "module",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Module"
+            }
+          },
+          {
+            "description": "golden|manual|e2e_manual|\u2026",
+            "in": "query",
+            "name": "runner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "golden|manual|e2e_manual|\u2026",
+              "title": "Runner"
+            }
+          },
+          {
+            "description": "auto|semi|manual",
+            "in": "query",
+            "name": "automation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "auto|semi|manual",
+              "title": "Automation"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "skip",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Skip",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List all use cases (capstone catalog)",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/cases/{case_id}": {
+      "get": {
+        "operationId": "qa_get_case_api_v1_qa_cases__case_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Use case detail",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
     "/api/v1/qa/coverage": {
       "get": {
         "operationId": "qa_coverage_api_v1_qa_coverage_get",
@@ -13313,6 +13843,52 @@
         ]
       }
     },
+    "/api/v1/qa/seed/catalog": {
+      "post": {
+        "operationId": "qa_seed_catalog_api_v1_qa_seed_catalog_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Seed use-case catalog from JSON fixture",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
     "/api/v1/qa/summary": {
       "get": {
         "operationId": "qa_summary_api_v1_qa_summary_get",
@@ -13332,6 +13908,50 @@
           }
         ],
         "summary": "Overview KPIs from rollups + latest readiness",
+        "tags": [
+          "qa"
+        ]
+      }
+    },
+    "/api/v1/qa/usecases/run": {
+      "post": {
+        "operationId": "qa_run_usecases_api_v1_qa_usecases_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseCaseRunBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run use cases from UI (golden offline suite)",
         "tags": [
           "qa"
         ]

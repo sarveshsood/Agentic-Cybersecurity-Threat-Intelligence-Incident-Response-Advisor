@@ -22,8 +22,10 @@ import {
     Trash,
     Warning,
     WarningCircle,
+    Flag,
     GearSix,
 } from "@phosphor-icons/react";
+import FeatureFlagsPanel from "../components/FeatureFlagsPanel";
 import {
     loadUiPrefs,
     saveUiPrefs,
@@ -117,7 +119,15 @@ const SETTINGS_TABS = [
     {id: "threat_intel", label: "Threat intel", icon: Key, iconColor: "text-warning", sectionKey: "threat_intel", tip: "Live CTI API keys (empty = mock enrichment)."},
     {id: "notifications", label: "Alerts", icon: Bell, iconColor: "text-primary", sectionKey: "notifications", tip: "Slack webhook and alert email for critical/HiTL events."},
     {id: "access", label: "Access & data", icon: Shield, iconColor: "text-success", sectionKey: "security", tip: "Session timeout, login lockout, retention, enrichment cache TTL."},
-    {id: "platform", label: "Platform", icon: GearSix, iconColor: "text-indigo-500", sectionKey: "platform", tip: "Enrichment pool, TI HTTP, logging, artifacts/replay, audit WORM, AMQP broker."},
+    {id: "platform", label: "Platform", icon: GearSix, iconColor: "text-primary", sectionKey: "platform", tip: "Enrichment pool, TI HTTP, logging, artifacts/replay, audit WORM, AMQP broker."},
+    {
+        id: "features",
+        label: "Feature flags",
+        icon: Flag,
+        iconColor: "text-primary",
+        sectionKey: "features",
+        tip: "Read-only env feature flags (FEATURE_*) — QA Health, collab, related knobs. Not runtime toggles.",
+    },
     {id: "ui", label: "UI prefs", icon: Desktop, iconColor: "text-primary", sectionKey: "ui", tip: "Browser-local presentation prefs (tables, refresh, help tips) — not stored in Mongo."},
 ];
 
@@ -877,6 +887,12 @@ export default function Settings() {
     const save = async () => {
         if (activeTab === "ui") {
             persistUiPrefs();
+            return;
+        }
+        if (activeTab === "features") {
+            toast.message("Feature flags are env-only", {
+                description: "Edit backend/.env (FEATURE_*) and restart the API. This tab is read-only.",
+            });
             return;
         }
         if (hasBlockingErrors) {
@@ -2776,6 +2792,13 @@ export default function Settings() {
                     </div>
                 )}
 
+                {/* ——— Feature flags (env, read-only) ——— */}
+                {activeTab === "features" && (
+                    <div data-testid="settings-feature-flags">
+                        <FeatureFlagsPanel/>
+                    </div>
+                )}
+
                 {/* ——— UI preferences ——— */}
                 {activeTab === "ui" && (
                     <div className="space-y-6" data-testid="settings-ui-prefs">
@@ -3234,7 +3257,28 @@ export default function Settings() {
 
             <div
                 className="mt-6 w-full flex flex-wrap items-center justify-between gap-3 sticky bottom-4 z-10 bg-card/95 backdrop-blur-md border border-border rounded-card px-4 py-3 shadow-md">
-                {activeTab === "ui" ? (
+                {activeTab === "features" ? (
+                    <>
+                        <span className="text-[12px] text-muted-foreground mr-auto">
+                            Feature flags are env-only — not saved from Settings
+                        </span>
+                        <button
+                            type="button"
+                            data-testid="feature-flags-footer-refresh"
+                            className="soc-btn-secondary"
+                            onClick={() => {
+                                window.dispatchEvent(new Event("actira-refresh-feature-flags"));
+                                toast.message("Set FEATURE_*=1 in backend/.env, restart API, then Refresh", {
+                                    description: "Example: FEATURE_QA_HEALTH_CENTER=1",
+                                    duration: 10000,
+                                });
+                            }}
+                        >
+                            <ArrowCounterClockwise size={14}/>
+                            Refresh flags
+                        </button>
+                    </>
+                ) : activeTab === "ui" ? (
                     <>
                         {uiPrefsDirty ? (
                             <span className="text-[12px] text-warning flex items-center gap-1 mr-auto">

@@ -13,7 +13,7 @@ See ``docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md`` KD-9 / PR-1 and
 from __future__ import annotations
 
 import os
-from typing import Callable, Dict
+from typing import Any, Callable, Dict, List
 
 from fastapi import HTTPException
 
@@ -30,6 +30,64 @@ FEATURE_ENV_MAP: Dict[str, str] = {
 
 # Stable order for API responses / tests
 FEATURE_KEYS = tuple(FEATURE_ENV_MAP.keys())
+
+# UI catalog — titles/descriptions for Settings → Feature flags (read-only)
+FEATURE_CATALOG: List[Dict[str, Any]] = [
+    {
+        "key": "qa_health_center",
+        "env": "FEATURE_QA_HEALTH_CENTER",
+        "title": "QA Health Center",
+        "description": "Testing Health Center — coverage, suites, release readiness, use cases.",
+        "ui": ["Admin → QA Health", "/qa"],
+        "default": False,
+        "restart": True,
+    },
+    {
+        "key": "collab_assign",
+        "env": "FEATURE_COLLAB_ASSIGN",
+        "title": "Incident assignment",
+        "description": "Primary assignee, my-queue filters, assignment API.",
+        "ui": ["Incidents list", "Incident case tab"],
+        "default": False,
+        "restart": True,
+    },
+    {
+        "key": "collab_comments",
+        "env": "FEATURE_COLLAB_COMMENTS",
+        "title": "Incident comments",
+        "description": "Threaded comments on incidents (separate from workspace notes).",
+        "ui": ["Incident detail → comments"],
+        "default": False,
+        "restart": True,
+    },
+    {
+        "key": "notification_center",
+        "env": "FEATURE_NOTIFICATION_CENTER",
+        "title": "Notification center",
+        "description": "In-app notification bell and inbox.",
+        "ui": ["Top bar bell"],
+        "default": False,
+        "restart": True,
+    },
+    {
+        "key": "saved_filters",
+        "env": "FEATURE_SAVED_FILTERS",
+        "title": "Saved filters",
+        "description": "Named, reusable incident list filter sets.",
+        "ui": ["Incidents → saved filters"],
+        "default": False,
+        "restart": True,
+    },
+    {
+        "key": "pins",
+        "env": "FEATURE_PINS",
+        "title": "Pins / favorites",
+        "description": "User favorites for incidents and related targets.",
+        "ui": ["Incidents", "Incident detail"],
+        "default": False,
+        "restart": True,
+    },
+]
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -81,3 +139,103 @@ def require_feature(key: str) -> Callable:
     # Helpful for OpenAPI / debugging
     _dep.__name__ = f"require_feature_{key}"
     return _dep
+
+
+def features_public() -> Dict[str, Any]:
+    """Full features payload for SPA: flat booleans + catalog + related env status.
+
+    Flat boolean keys remain stable for ``loadFeatures()`` / ``isFeatureEnabled``.
+    """
+    flags = collab_features()
+    catalog = []
+    for row in FEATURE_CATALOG:
+        key = row["key"]
+        catalog.append(
+            {
+                **row,
+                "enabled": bool(flags.get(key, False)),
+            }
+        )
+
+    related: List[Dict[str, Any]] = []
+    # Related env knobs (not always in FEATURE_ENV_MAP / not SPA-gated the same way)
+    related.append(
+        {
+            "key": "realtime_ops",
+            "env": "FEATURE_REALTIME_OPS",
+            "title": "Realtime ops channels",
+            "description": "SSE/WebSocket ops bus (default on unless set to 0).",
+            "enabled": env_bool("FEATURE_REALTIME_OPS", True),
+            "default": True,
+            "ui": ["Dashboard realtime strip"],
+        }
+    )
+    related.append(
+        {
+            "key": "mfa",
+            "env": "FEATURE_MFA",
+            "title": "Local TOTP MFA",
+            "description": "Password login second factor (requires pyotp). Prefer IdP MFA for enterprise.",
+            "enabled": env_bool("FEATURE_MFA", False),
+            "default": False,
+            "ui": ["Login MFA step"],
+        }
+    )
+    related.append(
+        {
+            "key": "multi_tenant",
+            "env": "FEATURE_MULTI_TENANT",
+            "title": "Multi-tenant scaffold",
+            "description": "org_id stamp/filter on primary incident/user paths — not full SaaS.",
+            "enabled": env_bool("FEATURE_MULTI_TENANT", False),
+            "default": False,
+            "ui": ["(API/data only — no org admin UI)"],
+        }
+    )
+    judge_raw = (os.environ.get("ACTIRA_PLAYBOOK_JUDGE_LLM") or "0").strip().lower()
+    related.append(
+        {
+            "key": "playbook_judge_llm",
+            "env": "ACTIRA_PLAYBOOK_JUDGE_LLM",
+            "title": "Playbook LLM judge",
+            "description": "Optional LLM second pass; rules always run. Values: 0|1|auto.",
+            "enabled": judge_raw in ("1", "true", "yes", "on")
+            or (
+                judge_raw == "auto"
+                and (os.environ.get("ENV") or "").strip().lower()
+                in ("production", "prod", "staging")
+            ),
+            "value": judge_raw or "0",
+            "default": False,
+            "ui": ["Pipeline playbook quality"],
+        }
+    )
+    emb_profile = (os.environ.get("ACTIRA_EMBEDDING_PROFILE") or "auto").strip() or "auto"
+    emb_backend = (os.environ.get("ACTIRA_EMBEDDING_BACKEND") or "").strip()
+    related.append(
+        {
+            "key": "embedding_profile",
+            "env": "ACTIRA_EMBEDDING_PROFILE / ACTIRA_EMBEDDING_BACKEND",
+            "title": "Embedding profile",
+            "description": "auto → sbert in production/staging; hash in lab/CI. Install sentence-transformers for sbert.",
+            "enabled": True,
+            "value": emb_backend or emb_profile,
+            "default": True,
+            "ui": ["RAG / KB retrieval"],
+        }
+    )
+
+    enabled_n = sum(1 for v in flags.values() if v)
+    return {
+        **flags,
+        "catalog": catalog,
+        "related": related,
+        "summary": {
+            "product_flags_on": enabled_n,
+            "product_flags_total": len(flags),
+            "note": (
+                "Flags are env-only (backend/.env). Restart API after change. "
+                "This panel is read-only — not a runtime toggle."
+            ),
+        },
+    }
