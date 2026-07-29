@@ -50,11 +50,6 @@ function formatPct(v) {
     return `${Number(v).toFixed(1)}%`;
 }
 
-function formatRate(v) {
-    if (v == null || Number.isNaN(Number(v))) return "—";
-    return `${(Number(v) * 100).toFixed(1)}%`;
-}
-
 function StatusPill({status}) {
     const ok = status === "passed" || status === "READY";
     const bad = status === "failed" || status === "error" || status === "NOT_READY";
@@ -201,7 +196,7 @@ export default function QaHealthCenter() {
     if (!flagReady || loading) {
         return (
             <div className="p-6" data-testid="qa-health-loading">
-                <ListState loading message="Loading QA Health Center…"/>
+                <ListState variant="loading" message="Loading QA Health Center…"/>
             </div>
         );
     }
