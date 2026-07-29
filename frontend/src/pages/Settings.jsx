@@ -574,7 +574,7 @@ const EMPTY_SECRETS = {
 function formFromSettings(d) {
     return {
         llm_provider: normalizeProvider(d?.llm_provider),
-        llm_model: d?.llm_model || "claude-sonnet-4-6",
+        llm_model: d?.llm_model || FACTORY_OPS.llm_model,
         llm_temperature: d?.llm_temperature ?? 0.2,
         llm_token_budget_monthly: d?.llm_token_budget_monthly ?? 0,
         llm_fallback_enabled: d?.llm_fallback_enabled !== false,
@@ -650,8 +650,10 @@ export default function Settings() {
     const [busy, setBusy] = useState(false);
     const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
     const [customModelMode, setCustomModelMode] = useState(false);
-    // Catalog lives in React state so provider/model UI always re-renders correctly
+    // Catalog lives in React state so provider/model UI always re-renders correctly.
+    // Prefer live GET /settings/llm-catalog (backend MODEL_CATALOG); static clone is bootstrap only.
     const [llmCatalog, setLlmCatalog] = useState(() => cloneModelCatalog());
+    const [catalogSource, setCatalogSource] = useState("static"); // static | live
     const [llmEffective, setLlmEffective] = useState(null);
     const [routeHealth, setRouteHealth] = useState({primary: null, backup: null});
     const [tiEditField, setTiEditField] = useState(null);
@@ -779,7 +781,7 @@ export default function Settings() {
         let resolved = false;
         const fallback = {
             llm_provider: "anthropic",
-            llm_model: "claude-sonnet-4-6",
+            llm_model: FACTORY_OPS.llm_model,
             llm_temperature: 0.2,
             llm_token_budget_monthly: 0,
             llm_fallback_enabled: true,
@@ -802,6 +804,7 @@ export default function Settings() {
         const safetyTimer = setTimeout(() => {
             if (isSubscribed && !resolved) {
                 hydrate(fallback, cloneModelCatalog());
+                setCatalogSource("static");
                 setSettingsLoadMode("fallback");
             }
         }, 2500);
@@ -814,8 +817,15 @@ export default function Settings() {
             if (!isSubscribed) return;
             resolved = true;
             clearTimeout(safetyTimer);
-            const cat = catalogFromApi(catRes?.data || null);
+            const livePayload = catRes?.data || null;
+            const cat = catalogFromApi(livePayload);
             setLlmCatalog(cat);
+            // Backend returns { catalog, models, defaults, ... } from llm_provider.llm_catalog()
+            const hasLiveCatalog = Boolean(
+                livePayload &&
+                (livePayload.catalog || livePayload.models || livePayload.providers),
+            );
+            setCatalogSource(hasLiveCatalog ? "live" : "static");
             if (settingsRes?.data) {
                 hydrate(settingsRes.data, cat);
                 setSettingsLoadMode("live");
@@ -884,6 +894,23 @@ export default function Settings() {
         toast.success("UI preferences saved for this browser");
     }, [uiPrefs]);
 
+    /** Tell Layout shell to refresh LLM chip immediately after save/profile. */
+    const notifySettingsChanged = useCallback((data) => {
+        try {
+            const d = data?.settings || data || {};
+            window.dispatchEvent(
+                new CustomEvent("actira-settings-changed", {
+                    detail: {
+                        llm_provider: d.llm_provider,
+                        llm_model: d.llm_model,
+                    },
+                }),
+            );
+        } catch {
+            /* ignore */
+        }
+    }, []);
+
     const save = async () => {
         if (activeTab === "ui") {
             persistUiPrefs();
@@ -932,6 +959,7 @@ export default function Settings() {
             const r = await api.get("/settings");
             hydrate(r.data, llmCatalog);
             setTiEditField(null);
+            notifySettingsChanged(r.data || payload);
         } catch (e) {
             toast.error(apiErrorDetail(e) || "Save failed");
         } finally {
@@ -959,13 +987,15 @@ export default function Settings() {
             await api.post("/settings/apply-profile", {profile: "factory", keep_secrets: true});
             toast.success("Factory defaults applied (secrets kept)");
             const r = await api.get("/settings");
-            hydrate(r.data);
+            hydrate(r.data, llmCatalog);
+            notifySettingsChanged(r.data);
         } catch (e) {
             try {
                 await api.post("/settings/reset", {keep_secrets: true});
                 toast.success("Settings reset to factory defaults (secrets kept)");
                 const r = await api.get("/settings");
-                hydrate(r.data);
+                hydrate(r.data, llmCatalog);
+                notifySettingsChanged(r.data);
             } catch (e2) {
                 toast.error(apiErrorDetail(e2) || apiErrorDetail(e) || "Reset failed");
             }
@@ -982,7 +1012,7 @@ export default function Settings() {
         }
         const ok = window.confirm(
             "Apply ACTIRA recommended settings?\n\n" +
-            "• Anthropic + claude-sonnet-4-6\n" +
+            `• Anthropic + ${RECOMMENDED_OPS.llm_model}\n` +
             "• Temperature 0.15 · grounding ≥ 0.75 · HiTL from high\n" +
             "• Session 8h · retention 180d\n" +
             "• API keys / Slack kept · email unchanged",
@@ -993,7 +1023,8 @@ export default function Settings() {
             await api.post("/settings/apply-profile", {profile: "recommended", keep_secrets: true});
             toast.success("Recommended profile applied");
             const r = await api.get("/settings");
-            hydrate(r.data);
+            hydrate(r.data, llmCatalog);
+            notifySettingsChanged(r.data);
         } catch (e) {
             const next = {
                 ...form,
@@ -1015,7 +1046,8 @@ export default function Settings() {
                 }
                 toast.success("Recommended values saved");
                 const r = await api.get("/settings");
-                hydrate(r.data);
+                hydrate(r.data, llmCatalog);
+                notifySettingsChanged(r.data);
             } catch (e2) {
                 toast.error("Could not apply recommended settings", {
                     description: `${apiErrorDetail(e2)} (profile: ${apiErrorDetail(e)})`,
@@ -1182,11 +1214,15 @@ export default function Settings() {
         const p = normalizeProvider(provider);
         setCustomModelMode(false);
         const nextModel = defaultModelForProvider(p, llmCatalog);
-        setForm((f) => ({
-            ...f,
-            llm_provider: p,
-            llm_model: nextModel || f.llm_model,
-        }));
+        setForm((f) => {
+            // Always switch model to the new provider's default when provider changes,
+            // so the Model select never keeps a stale ID from the previous vendor.
+            return {
+                ...f,
+                llm_provider: p,
+                llm_model: nextModel || defaultModelForProvider(p) || FACTORY_OPS.llm_model,
+            };
+        });
     };
 
     const pk = PROVIDER_KEY[activeProvider] || PROVIDER_KEY.anthropic;
@@ -1466,7 +1502,7 @@ export default function Settings() {
                                     tipKey={`llm_model-${activeProvider}`}
                                     matchesRecommended={isRec(form, "llm_model") && isRec(form, "llm_provider")}
                                     warning={issueByField.llm_model}
-                                    hint={`${curatedModelIds.length} curated models · free + paid · experimental tagged · custom ID allowed`}
+                                    hint={`${curatedModelIds.length} curated models · free + paid · experimental tagged · custom ID allowed · catalog ${catalogSource === "live" ? "from API (llm_provider)" : "static fallback"}`}
                                 >
                                     {!customModelMode ? (
                                         <select

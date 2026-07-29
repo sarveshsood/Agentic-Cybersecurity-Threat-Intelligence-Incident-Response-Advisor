@@ -231,7 +231,7 @@ export default function Layout({children}) {
                 setTiLive(countLiveIntel(data));
                 setTiNames(liveIntelLabels(data));
                 const provider = data.llm_provider || "anthropic";
-                const model = data.llm_model || "claude-sonnet-4-6";
+                const model = data.llm_model || "claude-sonnet-5";
                 const flag = PROVIDER_KEY_FLAG[provider];
                 const effectiveProvider = data.llm_effective_provider || null;
                 const effectiveModel = data.llm_effective_model || null;
@@ -286,6 +286,25 @@ export default function Layout({children}) {
         };
         loadAll();
 
+        // Settings page dispatches this after save/profile so the LLM chip updates immediately
+        // (interval refresh can be 30s+ or off entirely via UI prefs).
+        const onSettingsChanged = (ev) => {
+            if (cancelled) return;
+            const detail = ev?.detail || {};
+            // Optimistic paint from event payload, then confirm with GET /settings
+            if (detail.llm_provider || detail.llm_model) {
+                setLlm((prev) => ({
+                    ...prev,
+                    provider: detail.llm_provider || prev.provider,
+                    model: detail.llm_model || prev.model,
+                    // Clear stale "effective after fallback" until next successful call
+                    effective: null,
+                }));
+            }
+            loadSettings().then(() => loadRoutes());
+        };
+        window.addEventListener("actira-settings-changed", onSettingsChanged);
+
         const refreshMs = Number(loadUiPrefs().status_refresh_ms);
         let id = null;
         if (refreshMs > 0) {
@@ -294,6 +313,7 @@ export default function Layout({children}) {
         return () => {
             cancelled = true;
             if (id) clearInterval(id);
+            window.removeEventListener("actira-settings-changed", onSettingsChanged);
         };
     }, [isAdmin]);
 

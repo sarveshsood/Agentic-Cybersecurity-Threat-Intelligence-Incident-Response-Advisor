@@ -27,22 +27,28 @@ from backend.secrets_util import resolve_llm_keys
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
-DEFAULT_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
+DEFAULT_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-5")
 
 # Product catalog with tier labels (FE can load via GET /settings/llm-catalog).
 # tier: "paid" | "free" — free = usable on free/developer API tier (rate-limited).
 MODEL_CATALOG: Dict[str, list] = {
     "anthropic": [
-        {"id": "claude-sonnet-4-6", "tier": "paid", "role": "default", "label": "Claude Sonnet 4.6 (recommended)"},
-        {"id": "claude-opus-4-6", "tier": "paid", "role": "flagship", "label": "Claude Opus 4.6"},
-        {"id": "claude-opus-4-8", "tier": "paid", "role": "flagship", "label": "Claude Opus 4.8"},
-        {"id": "claude-opus-4-5", "tier": "paid", "role": "flagship", "label": "Claude Opus 4.5"},
-        {"id": "claude-opus-4-1", "tier": "paid", "role": "flagship", "label": "Claude Opus 4.1"},
-        {"id": "claude-sonnet-4-5", "tier": "paid", "role": "mid", "label": "Claude Sonnet 4.5"},
+        # Current generation (mid/late 2026)
+        {"id": "claude-sonnet-5", "tier": "paid", "role": "default", "label": "Claude Sonnet 5 (recommended)"},
+        {"id": "claude-opus-5", "tier": "paid", "role": "flagship", "label": "Claude Opus 5"},
+        {"id": "claude-fable-5", "tier": "paid", "role": "flagship", "label": "Claude Fable 5 (highest widely available)"},
+        {"id": "claude-mythos-5", "tier": "paid", "role": "flagship", "label": "Claude Mythos 5 (limited / Glasswing)"},
+        {"id": "claude-haiku-4-5", "tier": "paid", "role": "fast", "label": "Claude Haiku 4.5 (cheap/fast)"},
+        {"id": "claude-haiku-4-5-20251001", "tier": "paid", "role": "fast", "label": "Claude Haiku 4.5 (pinned)"},
+        # Recent priors
+        {"id": "claude-opus-4-8", "tier": "paid", "role": "prior", "label": "Claude Opus 4.8"},
+        {"id": "claude-sonnet-4-6", "tier": "paid", "role": "prior", "label": "Claude Sonnet 4.6"},
+        {"id": "claude-opus-4-6", "tier": "paid", "role": "prior", "label": "Claude Opus 4.6"},
+        {"id": "claude-opus-4-5", "tier": "paid", "role": "prior", "label": "Claude Opus 4.5"},
+        {"id": "claude-sonnet-4-5", "tier": "paid", "role": "prior", "label": "Claude Sonnet 4.5"},
         {"id": "claude-sonnet-4-0", "tier": "paid", "role": "prior", "label": "Claude Sonnet 4"},
         {"id": "claude-sonnet-4", "tier": "paid", "role": "prior", "label": "Claude Sonnet 4 (alias)"},
         {"id": "claude-opus-4", "tier": "paid", "role": "prior", "label": "Claude Opus 4"},
-        {"id": "claude-haiku-4-5", "tier": "paid", "role": "fast", "label": "Claude Haiku 4.5 (cheap/fast)"},
         {"id": "claude-3-7-sonnet-latest", "tier": "paid", "role": "prior", "label": "Claude 3.7 Sonnet (latest alias)"},
         {"id": "claude-3-7-sonnet-20250219", "tier": "paid", "role": "prior", "label": "Claude 3.7 Sonnet (dated)"},
         {"id": "claude-3-5-sonnet-latest", "tier": "paid", "role": "prior", "label": "Claude 3.5 Sonnet (latest alias)"},
@@ -53,12 +59,13 @@ MODEL_CATALOG: Dict[str, list] = {
         {"id": "claude-3-haiku-20240307", "tier": "paid", "role": "legacy", "label": "Claude 3 Haiku (legacy)"},
     ],
     "openai": [
-        # GPT-5.6 family (current frontier, mid-2026) — Terra first as balanced default
+        # GPT-5.6 family (GA July 2026) — Terra first as balanced default
         {"id": "gpt-5.6-terra", "tier": "paid", "role": "default", "label": "GPT-5.6 Terra (balanced)"},
         {"id": "gpt-5.6-sol", "tier": "paid", "role": "flagship", "label": "GPT-5.6 Sol (frontier)"},
         {"id": "gpt-5.6-luna", "tier": "paid", "role": "fast", "label": "GPT-5.6 Luna (cost)"},
-        {"id": "gpt-5.6", "tier": "paid", "role": "flagship", "label": "GPT-5.6 (alias)"},
-        {"id": "gpt-5.5", "tier": "paid", "role": "flagship", "label": "GPT-5.5"},
+        {"id": "gpt-5.6", "tier": "paid", "role": "flagship", "label": "GPT-5.6 (alias → Sol)"},
+        # Prior generation
+        {"id": "gpt-5.5", "tier": "paid", "role": "prior", "label": "GPT-5.5"},
         {"id": "gpt-5.5-pro", "tier": "paid", "role": "flagship", "label": "GPT-5.5 Pro"},
         {"id": "gpt-5.5-instant", "tier": "paid", "role": "fast", "label": "GPT-5.5 Instant"},
         {"id": "gpt-5.4", "tier": "paid", "role": "mid", "label": "GPT-5.4"},
@@ -86,18 +93,31 @@ MODEL_CATALOG: Dict[str, list] = {
         {"id": "o1-pro", "tier": "paid", "role": "reasoning", "label": "o1-pro"},
     ],
     "gemini": [
-        {"id": "gemini-3.1-pro-preview", "tier": "paid", "role": "default", "label": "Gemini 3.1 Pro (preview)"},
-        {"id": "gemini-3-pro-preview", "tier": "paid", "role": "flagship", "label": "Gemini 3 Pro (preview)"},
-        {"id": "gemini-3.6-flash", "tier": "free", "role": "fast", "label": "Gemini 3.6 Flash (free tier)"},
-        {"id": "gemini-3.5-flash", "tier": "free", "role": "fast", "label": "Gemini 3.5 Flash (free tier)"},
-        {"id": "gemini-3.5-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 3.5 Flash-Lite (free tier)"},
-        {"id": "gemini-3.1-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 3.1 Flash-Lite (free tier)"},
-        {"id": "gemini-3-flash-preview", "tier": "free", "role": "fast", "label": "Gemini 3 Flash (preview / free)"},
-        {"id": "gemini-2.5-pro", "tier": "free", "role": "prior", "label": "Gemini 2.5 Pro (limited free)"},
-        {"id": "gemini-2.5-flash", "tier": "free", "role": "fast", "label": "Gemini 2.5 Flash (free tier)"},
-        {"id": "gemini-2.5-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 2.5 Flash-Lite (free tier)"},
-        {"id": "gemini-2.0-flash", "tier": "free", "role": "fast", "label": "Gemini 2.0 Flash (free tier)"},
-        {"id": "gemini-2.0-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 2.0 Flash-Lite (free tier)"},
+        {"id": "gemini-3.6-flash", "tier": "free", "role": "default", "label": "Gemini 3.6 Flash (recommended)"},
+        {"id": "gemini-3.5-flash", "tier": "free", "role": "mid", "label": "Gemini 3.5 Flash"},
+        {"id": "gemini-3.5-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 3.5 Flash-Lite"},
+        # Preview / Pro models – frequently subject to free-tier quotas of 0
+        {
+            "id": "gemini-3.1-pro-preview",
+            "tier": "paid",
+            "role": "flagship",
+            "label": "Gemini 3.1 Pro (preview · free-tier often exhausted)",
+            "experimental": True,
+        },
+        {
+            "id": "gemini-3-pro-preview",
+            "tier": "paid",
+            "role": "flagship",
+            "label": "Gemini 3 Pro (preview · free-tier often exhausted)",
+            "experimental": True,
+        },
+        {"id": "gemini-3.1-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 3.1 Flash-Lite"},
+        {"id": "gemini-3-flash-preview", "tier": "free", "role": "fast", "label": "Gemini 3 Flash (preview)"},
+        {"id": "gemini-2.5-pro", "tier": "free", "role": "prior", "label": "Gemini 2.5 Pro"},
+        {"id": "gemini-2.5-flash", "tier": "free", "role": "fast", "label": "Gemini 2.5 Flash"},
+        {"id": "gemini-2.5-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 2.5 Flash-Lite"},
+        {"id": "gemini-2.0-flash", "tier": "free", "role": "fast", "label": "Gemini 2.0 Flash"},
+        {"id": "gemini-2.0-flash-lite", "tier": "free", "role": "fast", "label": "Gemini 2.0 Flash-Lite"},
         {"id": "gemini-1.5-pro", "tier": "paid", "role": "legacy", "label": "Gemini 1.5 Pro (legacy)"},
         {"id": "gemini-1.5-flash", "tier": "free", "role": "legacy", "label": "Gemini 1.5 Flash (legacy)"},
     ],
@@ -126,7 +146,6 @@ PROVIDER_MODELS: Dict[str, list] = {
 }
 
 # Preferred fallback order when primary fails (only used if key present)
-# Prefer free-tier providers first for resilience when paid keys fail/exhaust.
 FALLBACK_PROVIDER_ORDER = ("anthropic", "openai", "gemini", "groq")
 
 
@@ -145,8 +164,12 @@ class LLMCallError(RuntimeError):
 
 
 def default_model_for_provider(provider: str) -> str:
-    models = PROVIDER_MODELS.get(provider) or []
-    return models[0] if models else DEFAULT_MODEL
+    """Prefer the catalog entry marked role='default', else first model."""
+    models = MODEL_CATALOG.get(provider) or []
+    for m in models:
+        if m.get("role") == "default":
+            return m["id"]
+    return models[0]["id"] if models else DEFAULT_MODEL
 
 
 def is_known_model(provider: str, model: str) -> bool:
@@ -154,10 +177,12 @@ def is_known_model(provider: str, model: str) -> bool:
 
 
 def _is_experimental_model(model_id: str, role: str = "") -> bool:
-    """Heuristic honesty tag for preview / codename / unconfirmed model IDs."""
+    """Heuristic honesty tag for preview / limited / unconfirmed model IDs."""
     mid = (model_id or "").lower()
     markers = (
         "preview",
+        "mythos",
+        "fable",
         "terra",
         "sol",
         "luna",
@@ -165,11 +190,15 @@ def _is_experimental_model(model_id: str, role: str = "") -> bool:
         "gemini-3.",
         "compound",
         "experimental",
+        "glasswing",
     )
     if any(m in mid for m in markers):
-        return True
-    if role in ("agent",) and "compound" in mid:
-        return True
+        if "preview" in mid or "mythos" in mid or "glasswing" in mid:
+            return True
+        if role in ("agent",) and "compound" in mid:
+            return True
+        # Sol/Terra/Luna, Claude 5, Gemini 3.6 Flash are GA → not experimental
+        return False
     return False
 
 
@@ -186,7 +215,7 @@ def _catalog_with_honesty() -> Dict[str, list]:
             row["experimental"] = exp
             if exp and "experimental" not in (row.get("label") or "").lower():
                 label = row.get("label") or row.get("id") or ""
-                if "preview" not in label.lower() and "experimental" not in label.lower():
+                if "preview" not in label.lower() and "experimental" not in label.lower() and "limited" not in label.lower():
                     row["label"] = f"{label} · experimental"
             rows.append(row)
         out[provider] = rows
@@ -257,7 +286,7 @@ def llm_catalog() -> Dict[str, Any]:
         "free_models": free_by_provider,
         "paid_models": paid_by_provider,
         "experimental_models": experimental_by_provider,
-        "defaults": {p: (ms[0] if ms else "") for p, ms in PROVIDER_MODELS.items()},
+        "defaults": {p: default_model_for_provider(p) for p in PROVIDER_MODELS},
         "fallback_order": list(FALLBACK_PROVIDER_ORDER),
         "last_effective": last_effective_llm(),
         "notes": {
@@ -271,10 +300,12 @@ def llm_catalog() -> Dict[str, Any]:
             ),
             "fallback": (
                 "On primary failure, ACTIRA retries retriable errors then walks "
-                "other providers that have API keys configured."
+                "other providers that have API keys configured. Preferred fallback "
+                "(settings) is tried first; free-tier models are preferred when "
+                "the primary failure looks rate/budget related."
             ),
             "experimental": (
-                "Models tagged experimental are preview, codename, or not fully "
+                "Models tagged experimental are preview, limited-access, or not fully "
                 "validated against production IR workloads — use with caution."
             ),
         },
@@ -282,10 +313,22 @@ def llm_catalog() -> Dict[str, Any]:
 
 
 def _is_retriable_error(exc: BaseException) -> bool:
-    """Retry only on transient network / rate-limit / 5xx-class failures."""
+    """Retry only on transient network / rate-limit / 5xx-class / quota failures."""
     if isinstance(exc, (LLMConfigError, ValueError)):
         return False
     msg = f"{type(exc).__name__}: {exc}".lower()
+
+    # Explicit Google free-tier / quota exhaustion patterns
+    quota_markers = (
+        "resource_exhausted",
+        "free_tier",
+        "quota exceeded",
+        "generate_content_free_tier",
+        "exceeded your current quota",
+    )
+    if any(m in msg for m in quota_markers):
+        return True
+
     permanent_markers = (
         "api_key",
         "apikey",
@@ -304,16 +347,15 @@ def _is_retriable_error(exc: BaseException) -> bool:
         "budget",
     )
     if any(m in msg for m in permanent_markers):
-        # 429 rate limit is retriable despite "permanent" digits check above —
-        # handle after permanent auth markers
         if "429" in msg or "rate" in msg or "overloaded" in msg or "timeout" in msg:
             return True
-        if "api_key" in msg or "not configured" in msg or "unauthorized" in msg or "authentication" in msg:
+        if any(x in msg for x in ("api_key", "not configured", "unauthorized", "authentication")):
             return False
         if "404" in msg or "model_not_found" in msg or "does not exist" in msg:
             return False
         if "400" in msg and "rate" not in msg:
             return False
+
     retriable_markers = (
         "timeout",
         "timed out",
@@ -330,6 +372,7 @@ def _is_retriable_error(exc: BaseException) -> bool:
         "reset",
         "unavailable",
         "capacity",
+        "resource_exhausted",
     )
     return any(m in msg for m in retriable_markers)
 
@@ -404,10 +447,30 @@ async def _dispatch_provider(
     raise LLMConfigError(f"Unknown provider: {provider}")
 
 
+def _pick_fallback_model(provider: str, preferred_model: str = "", prefer_free: bool = False) -> str:
+    """Choose a sensible model for a fallback provider."""
+    preferred_model = (preferred_model or "").strip()
+    if preferred_model and is_known_model(provider, preferred_model):
+        return preferred_model
+
+    models = MODEL_CATALOG.get(provider) or []
+    if prefer_free:
+        free = [m for m in models if m.get("tier") == "free"]
+        if free:
+            for m in free:
+                if m.get("role") == "default":
+                    return m["id"]
+            return free[0]["id"]
+
+    return default_model_for_provider(provider)
+
+
 def _fallback_chain(
         primary: str,
         keys: Dict[str, str],
         settings: Optional[dict],
+        *,
+        prefer_free: bool = False,
 ) -> list[tuple[str, str]]:
     """Ordered (provider, model) pairs to try after / instead of primary."""
     settings = settings or {}
@@ -428,11 +491,10 @@ def _fallback_chain(
         if not (keys.get(p) or "").strip():
             return
         seen.add(p)
-        mid = (model_override or "").strip() or default_model_for_provider(p)
+        mid = _pick_fallback_model(p, model_override or preferred_model, prefer_free=prefer_free)
         chain.append((p, mid))
 
     if preferred and preferred != "none":
-        # Preferred provider first — use explicit fallback model when set
         _add(preferred, preferred_model if preferred else "")
     for p in FALLBACK_PROVIDER_ORDER:
         _add(p, preferred_model if p == preferred else "")
@@ -480,7 +542,7 @@ async def call_llm(
         system: str,
         user: str,
         provider: str = "anthropic",
-        model: str = "claude-sonnet-4-6",
+        model: str = "claude-sonnet-5",
         groq_api_key: Optional[str] = None,
         anthropic_api_key: Optional[str] = None,
         openai_api_key: Optional[str] = None,
@@ -565,7 +627,6 @@ async def call_llm(
     if route_l == "backup":
         chain = _fallback_chain(provider, keys, settings)
         if not chain:
-            # Prefer configured fallback provider even if primary has no chain
             pref = (settings.get("llm_fallback_provider") or "groq").strip().lower()
             if pref and pref != "none" and pref in PROVIDER_MODELS and (keys.get(pref) or "").strip():
                 fm = (settings.get("llm_fallback_model") or "").strip() or default_model_for_provider(pref)
@@ -595,6 +656,7 @@ async def call_llm(
         ) from last_err
 
     # Primary
+    prefer_free_on_fallback = False
     try:
         text, p, m = await _call_with_retries(
             provider, model, system, user, keys, json_mode,
@@ -605,6 +667,20 @@ async def call_llm(
         errors.append(f"{provider}/{model}: {type(e).__name__}: {e}")
         logger.warning("LLM primary %s/%s failed: %s", provider, model, e)
 
+        msg = str(e).lower()
+        is_quota = any(x in msg for x in (
+            "429", "resource_exhausted", "quota", "rate", "overloaded",
+            "capacity", "budget", "free_tier", "exceeded your current quota",
+        ))
+        if is_quota:
+            prefer_free_on_fallback = True
+            logger.warning(
+                "LLM primary %s/%s hit quota / free-tier limit. "
+                "Prefer free-tier models on fallback. "
+                "Consider switching to gemini-3.6-flash or enabling automatic fallback.",
+                provider, model,
+            )
+
     if route_l == "primary":
         raise LLMCallError(
             f"Primary-only route failed for {provider}/{model}: {errors[0] if errors else 'unknown'}",
@@ -613,7 +689,9 @@ async def call_llm(
         )
 
     # Cross-provider automatic fallbacks
-    for fb_provider, fb_model in _fallback_chain(provider, keys, settings):
+    for fb_provider, fb_model in _fallback_chain(
+        provider, keys, settings, prefer_free=prefer_free_on_fallback
+    ):
         try:
             logger.info(
                 "LLM falling back: %s/%s → %s/%s",
@@ -654,8 +732,6 @@ async def _call_anthropic(
         raise LLMConfigError("ANTHROPIC_API_KEY not configured (set in Settings UI or backend/.env)")
     from anthropic import AsyncAnthropic
     client = AsyncAnthropic(api_key=api_key)
-    # Anthropic prompt caching: mark stable system prefix so multi-step pipelines
-    # (playbook + investigate loops) do not re-bill the full system tokens each call.
     if use_prompt_cache and system:
         system_param: object = [
             {
@@ -736,7 +812,7 @@ async def stream_llm(
         system: str,
         user: str,
         provider: str = "anthropic",
-        model: str = "claude-sonnet-4-6",
+        model: str = "claude-sonnet-5",
         settings: Optional[dict] = None,
         groq_api_key: Optional[str] = None,
         anthropic_api_key: Optional[str] = None,
@@ -957,7 +1033,6 @@ async def _stream_gemini(system, user, model, api_key, json_mode: bool):
         config_kwargs["response_mime_type"] = "application/json"
 
     parts: list[str] = []
-    # google-genai async streaming
     stream = await client.aio.models.generate_content_stream(
         model=model,
         contents=user,
@@ -977,12 +1052,10 @@ def _strip_code_fences(text: str) -> str:
     t = (text or "").strip()
     if not t.startswith("```"):
         return t
-    # Drop opening fence line
     rest = t[3:]
     if rest.lower().startswith("json"):
         rest = rest[4:]
     rest = rest.lstrip("\r\n")
-    # Close at last fence if present
     if "```" in rest:
         rest = rest.rsplit("```", 1)[0]
     return rest.strip("` \n\r\t")
@@ -1040,7 +1113,6 @@ def _strip_trailing_commas(text: str) -> str:
     import re
     prev = None
     out = text
-    # Iterate until stable (nested trailing commas)
     while prev != out:
         prev = out
         out = re.sub(r",(\s*[}\]])", r"\1", out)
@@ -1054,7 +1126,7 @@ def parse_llm_json(text: str) -> dict:
       - ``` / ```json fenced blocks
       - Prose before/after a JSON object
       - Trailing commas
-      - Bare JSON arrays (normalized to {\"steps\": [...]})
+      - Bare JSON arrays (normalized to {"steps": [...]})
     Raises ValueError when nothing parseable as a dict is found.
     """
     raw = (text or "").strip()
@@ -1081,7 +1153,6 @@ def parse_llm_json(text: str) -> dict:
             if isinstance(data, dict):
                 return data
             if isinstance(data, list):
-                # Playbook models occasionally emit a bare steps array
                 return {"steps": data}
             last_err = ValueError(
                 f"JSON root must be object or array, got {type(data).__name__}"

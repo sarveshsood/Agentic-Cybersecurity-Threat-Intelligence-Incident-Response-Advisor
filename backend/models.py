@@ -155,7 +155,7 @@ class Playbook(BaseModel):
     citation_quality: float = 0.0
     generated_at: datetime = Field(default_factory=utc_now)
     llm_provider: str = "anthropic"
-    llm_model: str = "claude-sonnet-4-6"
+    llm_model: str = "claude-sonnet-5"
 
 
 # ---------- Investigation Workspace (v1.4) ----------
@@ -349,7 +349,7 @@ class Settings(BaseModel):
 
     # LLM
     llm_provider: Literal["openai", "anthropic", "gemini", "groq"] = "anthropic"
-    llm_model: str = "claude-sonnet-4-6"
+    llm_model: str = "claude-sonnet-5"
     llm_temperature: float = 0.2
     llm_token_budget_monthly: int = 0  # 0 = unlimited
     # Cross-provider fallback when primary fails (requires fallback provider key)

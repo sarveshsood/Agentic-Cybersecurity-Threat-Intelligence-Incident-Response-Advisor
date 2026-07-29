@@ -325,7 +325,7 @@ def bootstrap_settings_kwargs() -> Dict[str, Any]:
 
     return {
         "llm_provider": provider,
-        "llm_model": (os.environ.get("LLM_MODEL") or "claude-sonnet-4-6").strip() or "claude-sonnet-4-6",
+        "llm_model": (os.environ.get("LLM_MODEL") or "claude-sonnet-5").strip() or "claude-sonnet-5",
         "llm_temperature": _env_float("LLM_TEMPERATURE", 0.2),
         "llm_token_budget_monthly": _env_int("LLM_TOKEN_BUDGET_MONTHLY", 0),
         "anthropic_api_key": _secret_or_none("ANTHROPIC_API_KEY"),
