@@ -42,12 +42,6 @@ const TABS = [
     {id: "admin", label: "Admin", adminOnly: true},
 ];
 
-function verdictTone(v) {
-    if (v === "READY") return "ok";
-    if (v === "NOT_READY") return "error";
-    return "default";
-}
-
 function formatPct(v) {
     if (v == null || Number.isNaN(Number(v))) return "—";
     return `${Number(v).toFixed(1)}%`;
@@ -126,27 +120,51 @@ export default function QaHealthCenter() {
                 setError(null);
             }
             try {
-                const [s, r, c, rel, uc] = await Promise.all([
+                // Settled so one 404 (e.g. cases on old API) does not blank the whole page
+                const settled = await Promise.allSettled([
                     api.get("/qa/summary"),
                     api.get("/qa/runs", {params: {limit: 50}}),
                     api.get("/qa/coverage"),
                     api.get("/qa/release/latest"),
                     api.get("/qa/cases", {params: {limit: 500}}),
                 ]);
-                setSummary(s.data);
-                setRuns(r.data?.items || []);
-                setCoverage(c.data);
-                setRelease(rel.data);
-                setCases(uc.data?.items || []);
-                setCaseTotal(uc.data?.catalog_total || uc.data?.total || 0);
-                setCaseStats(uc.data?.stats || null);
-                setError(null);
+                const val = (i) => (settled[i].status === "fulfilled" ? settled[i].value?.data : null);
+                const err = (i) => (settled[i].status === "rejected" ? settled[i].reason : null);
+
+                const s = val(0);
+                const r = val(1);
+                const c = val(2);
+                const rel = val(3);
+                const uc = val(4);
+
+                // Core endpoints — if all core fail, surface error
+                if (!s && !r && !c && !rel) {
+                    const first = err(0) || err(1) || err(2) || err(3);
+                    const msg = apiErrorMessage(first) || "Failed to load QA Health";
+                    if (first?.response?.status === 404) {
+                        setError(
+                            "QA Health API routes not found. Restart the backend with FEATURE_QA_HEALTH_CENTER=1 so /qa/* is loaded.",
+                        );
+                    } else if (!silent) {
+                        setError(msg);
+                    }
+                } else {
+                    setError(null);
+                }
+
+                if (s) setSummary(s);
+                if (r) setRuns(r.items || []);
+                if (c) setCoverage(c);
+                if (rel) setRelease(rel);
+                if (uc) {
+                    setCases(uc.items || []);
+                    setCaseTotal(uc.catalog_total || uc.total || 0);
+                    setCaseStats(uc.stats || null);
+                }
+                // cases optional — older API without catalog still shows Overview
             } catch (e) {
                 const msg = apiErrorMessage(e) || "Failed to load QA Health";
                 if (!silent) setError(msg);
-                if (e?.response?.status === 404) {
-                    setError("QA Health Center is not enabled (FEATURE_QA_HEALTH_CENTER).");
-                }
             } finally {
                 setLoading(false);
                 setRefreshing(false);
@@ -320,7 +338,8 @@ export default function QaHealthCenter() {
         );
     }
 
-    if (error && !summary) {
+    // Only hard-block the page when we have no data at all
+    if (error && !summary && !runs.length && !coverage && !release) {
         return (
             <div className="space-y-4 pb-8" data-testid="qa-health-error">
                 <PageHeader
@@ -387,6 +406,11 @@ export default function QaHealthCenter() {
                     {error}
                 </AlertBanner>
             )}
+            {flagOn && caseTotal === 0 && cases.length === 0 && tab === "usecases" && (
+                <AlertBanner variant="info" title="Use-case API" testid="qa-cases-api-hint">
+                    Catalog empty or API not upgraded. Restart backend to load GET /qa/cases, then click Reseed catalog (admin).
+                </AlertBanner>
+            )}
 
             <div className="flex flex-wrap gap-1 border-b border-border pb-px" role="tablist" aria-label="QA tabs">
                 {activeTabs.map((t) => (
@@ -423,7 +447,7 @@ export default function QaHealthCenter() {
                             value={verdict || "—"}
                             tipTitle="Release readiness"
                             tipBody="Deterministic READY / NOT_READY from unit, golden, coverage policy, and defects (qa-readiness-v1)."
-                            tone={verdictTone(verdict)}
+                            tone={verdict === "READY" ? "success" : verdict === "NOT_READY" ? "error" : "default"}
                             testid="qa-kpi-verdict"
                         />
                         <KpiCard
