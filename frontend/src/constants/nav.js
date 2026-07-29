@@ -148,7 +148,7 @@ export const NAV = [
         roles: ["senior_reviewer", "admin"],
         tip: "Testing Health Center — coverage, suites, release readiness (not Ops runtime)",
         section: "Admin",
-        colorClass: "text-violet-600 bg-violet-50 dark:bg-violet-950/30",
+        colorClass: "text-primary bg-primary/10",
         keywords: "qa quality testing coverage readiness junit release",
         feature: "qa_health_center",
     },
