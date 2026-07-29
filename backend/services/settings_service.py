@@ -34,6 +34,8 @@ RECOMMENDED_SETTINGS_OPS = {
     "llm_token_budget_monthly": 500_000,
     "llm_fallback_enabled": True,
     "llm_fallback_provider": "anthropic",
+    "llm_fallback_model": "",
+    "llm_manual_route": "primary",
     "grounding_threshold": 0.75,
     "hitl_severity_min": "high",
     "auto_approve_grounding_min": 0.92,
@@ -42,6 +44,27 @@ RECOMMENDED_SETTINGS_OPS = {
     "failed_login_lockout": 5,
     "incident_retention_days": 180,
     "enrichment_cache_ttl_hours": 12,
+    # Platform / enterprise
+    "max_enrich_iocs": 50,
+    "enrich_concurrency": 8,
+    "parse_concurrency": 4,
+    "ti_http_timeout": 10.0,
+    "ti_http_retries": 3,
+    "ti_http_backoff_base": 0.4,
+    "ti_circuit_failures": 5,
+    "ti_circuit_cooldown_seconds": 60,
+    "log_format": "json",
+    "log_file_format": "json",
+    "log_level": "INFO",
+    "log_to_file": True,
+    "log_archive_enabled": True,
+    "log_archive_retain_days": 30,
+    "job_artifacts_enabled": True,
+    "job_payload_retain": False,
+    "job_artifacts_retain_hours": 168,
+    "audit_worm_enabled": True,
+    "job_broker_enabled": False,
+    "job_broker_queue": "actira.jobs",
 }
 
 
@@ -84,6 +107,10 @@ async def public_settings_payload() -> Dict[str, Any]:
         "llm_token_budget_monthly": s.get("llm_token_budget_monthly", 0),
         "llm_fallback_enabled": bool(s.get("llm_fallback_enabled", True)),
         "llm_fallback_provider": s.get("llm_fallback_provider") or "anthropic",
+        "llm_fallback_model": (s.get("llm_fallback_model") or "").strip() or None,
+        "llm_manual_route": (s.get("llm_manual_route") or "primary").strip().lower()
+        if str(s.get("llm_manual_route") or "").strip().lower() in ("primary", "backup")
+        else "primary",
         "grounding_threshold": s.get("grounding_threshold"),
         "hitl_severity_min": s.get("hitl_severity_min"),
         "auto_approve_grounding_min": s.get("auto_approve_grounding_min", 0.9),
@@ -93,6 +120,8 @@ async def public_settings_payload() -> Dict[str, Any]:
         "incident_retention_days": s.get("incident_retention_days", 90),
         "enrichment_cache_ttl_hours": s.get("enrichment_cache_ttl_hours", 24),
         "cohere_rerank_enabled": bool(s.get("cohere_rerank_enabled", True)),
+        "llm_technique_refine": bool(s.get("llm_technique_refine", False)),
+        "llm_redact_iocs": bool(s.get("llm_redact_iocs", False)),
         "has_anthropic": has_secret(s, "anthropic_api_key", "ANTHROPIC_API_KEY"),
         "has_openai": has_secret(s, "openai_api_key", "OPENAI_API_KEY"),
         "has_gemini": has_secret(s, "gemini_api_key", "GEMINI_API_KEY"),
@@ -109,6 +138,12 @@ async def public_settings_payload() -> Dict[str, Any]:
         "email_alerts_to": email_val,
         "has_email": bool(email_val),
     }
+    try:
+        from backend.platform_settings import public_platform_payload
+
+        payload.update(public_platform_payload(s))
+    except Exception:
+        pass
     try:
         from backend.llm_usage import usage_snapshot
 
@@ -378,65 +413,42 @@ def llm_catalog_payload() -> Dict[str, Any]:
     return llm_catalog()
 
 
-async def test_llm(user: dict) -> Dict[str, Any]:
-    """Short connectivity probe for the configured primary LLM (admin)."""
-    import time
-
-    from backend.llm_provider import call_llm, LLMCallError, LLMConfigError
+async def test_llm(user: dict, *, route: str = "primary") -> Dict[str, Any]:
+    """Short connectivity probe for primary or backup LLM route (admin)."""
+    from backend.services.model_management_service import probe_route
 
     s = await svc.get_settings()
-    provider = str(s.get("llm_provider") or "anthropic")
-    model = str(s.get("llm_model") or "claude-sonnet-4-6")
-    t0 = time.perf_counter()
+    route_l = (route or "primary").strip().lower()
+    if route_l not in ("primary", "backup", "auto"):
+        route_l = "primary"
+    result = await probe_route(s, route=route_l)
     try:
-        text, eff_p, eff_m = await call_llm(
-            system="You are a health-check probe. Reply with exactly: ok",
-            user="ping",
-            provider=provider,
-            model=model,
-            settings=s,
-            json_mode=False,
-            use_prompt_cache=False,
-        )
-        ms = int((time.perf_counter() - t0) * 1000)
         await svc.audit(
             user,
             "settings.test_llm",
             "settings",
             "global",
-            {"ok": True, "provider": eff_p, "model": eff_m, "latency_ms": ms},
-        )
-        return {
-            "ok": True,
-            "provider": eff_p,
-            "model": eff_m,
-            "latency_ms": ms,
-            "preview": (text or "")[:120],
-        }
-    except (LLMConfigError, LLMCallError, Exception) as e:
-        ms = int((time.perf_counter() - t0) * 1000)
-        logger.warning("test_llm failed: %s", e)
-        try:
-            await svc.audit(
-                user,
-                "settings.test_llm",
-                "settings",
-                "global",
-                {"ok": False, "error": type(e).__name__, "latency_ms": ms},
-            )
-        except Exception:
-            pass
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "ok": False,
-                "error": type(e).__name__,
-                "message": str(e) or type(e).__name__,
-                "provider": provider,
-                "model": model,
-                "latency_ms": ms,
+            {
+                "ok": bool(result.get("ok")),
+                "route": route_l,
+                "provider": result.get("provider"),
+                "model": result.get("model"),
+                "latency_ms": result.get("latency_ms"),
+                "error": result.get("error"),
             },
-        ) from e
+        )
+    except Exception:
+        pass
+    if not result.get("ok"):
+        raise HTTPException(status_code=502, detail=result)
+    return result
+
+
+async def llm_routes_payload() -> Dict[str, Any]:
+    from backend.services.model_management_service import resolve_routes
+
+    s = await svc.get_settings()
+    return resolve_routes(s)
 
 
 async def email_status() -> Dict[str, Any]:

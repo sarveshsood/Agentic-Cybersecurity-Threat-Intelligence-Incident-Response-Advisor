@@ -44,6 +44,13 @@ async def apply_review(
             target_id=incident_id,
             detail={"notes": action.notes, "new_status": update.get("status")},
         )
+        # Keep dashboard analyst-queue graph live after HiTL decisions
+        try:
+            from backend.services import analytics_cache as cache
+
+            cache.invalidate("kpis:")
+        except Exception:
+            pass
         return {"ok": True, "status": update.get("status")}
 
     existing = await incidents_repo.get_status(incident_id)

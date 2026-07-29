@@ -58,6 +58,29 @@ async def resume_job(job_id: str, user=Depends(get_current_user)):
     return await logs_service.resume_job(job_id, user)
 
 
+@router.post("/logs/jobs/{job_id}/replay")
+async def replay_job(job_id: str, user=Depends(get_current_user)):
+    """Full pipeline replay when upload payload retained; else artifact-only guidance."""
+    from backend.database import db
+    from backend.pipeline_replay import replay_job as _replay
+
+    return await _replay(db, job_id, user)
+
+
+@router.get("/logs/jobs/{job_id}/artifacts")
+async def job_artifacts(job_id: str, user=Depends(get_current_user)):
+    from backend.pipeline_replay import list_job_artifacts
+
+    return await list_job_artifacts(job_id)
+
+
+@router.get("/logs/jobs/{job_id}/artifacts/{name}")
+async def job_artifact_detail(job_id: str, name: str, user=Depends(get_current_user)):
+    from backend.pipeline_replay import get_job_artifact
+
+    return await get_job_artifact(job_id, name)
+
+
 @router.post("/logs/ingest")
 async def ingest_stream_json(
     body: StreamIngestBody,

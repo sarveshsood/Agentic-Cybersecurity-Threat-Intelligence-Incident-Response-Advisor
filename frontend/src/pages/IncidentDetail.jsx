@@ -29,6 +29,10 @@ import {PageHeader} from "../design-system";
 import {HelpTip, PaneLabel, Tip} from "../components/HelpTip";
 import {pushRecentIncident} from "../lib/recentActivity";
 import {formatDateTime} from "../lib/uiPrefs";
+import {isFeatureEnabled} from "../lib/features";
+import AssignPanel from "../components/collab/AssignPanel";
+import CommentsPanel from "../components/collab/CommentsPanel";
+import PinButton from "../components/collab/PinButton";
 
 const PHASE_META = {
     containment: {color: "text-warning border-[var(--warning-border)] bg-warning-soft", label: "Containment"},
@@ -342,6 +346,9 @@ export default function IncidentDetail() {
                 }
                 actions={
                     <div className="flex items-center gap-3">
+                        {isFeatureEnabled("pins") && (
+                            <PinButton targetType="incident" targetId={inc.id} label={inc.title}/>
+                        )}
                         <Tip content="Reload this incident from the server">
                             <button
                                 type="button"
@@ -425,6 +432,16 @@ export default function IncidentDetail() {
             <WorkspaceTabs active={activeTab} onChange={setActiveTab}/>
 
             <div className="pt-4 space-y-6" data-testid={`workspace-panel-${activeTab}`}>
+                {activeTab === "case" && (isFeatureEnabled("collab_assign") || isFeatureEnabled("collab_comments")) && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-testid="collab-case-row">
+                        {isFeatureEnabled("collab_assign") && (
+                            <AssignPanel incident={inc} onUpdated={(d) => setInc((prev) => ({...prev, ...d}))}/>
+                        )}
+                        {isFeatureEnabled("collab_comments") && (
+                            <CommentsPanel incidentId={inc.id}/>
+                        )}
+                    </div>
+                )}
                 {/* HiTL always available on Case / Playbooks when pending */}
                 {canReview && (activeTab === "case" || activeTab === "playbooks") && (
                     <div className="soc-card p-4 border border-[var(--warning-border)]" data-testid="hitl-panel">
@@ -723,7 +740,7 @@ export default function IncidentDetail() {
 
                 {activeTab === "ti" && (
                     <div className="soc-card p-0 overflow-hidden">
-                        <div className="px-4 py-3 border-b border-border">
+                        <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
                             <PaneLabel
                                 title="Threat intelligence"
                                 body="Extracted IoCs with enrichment scores. Live TI APIs apply when keys are configured in Settings; otherwise mock/heuristic scores."
@@ -731,6 +748,36 @@ export default function IncidentDetail() {
                             >
                                 Indicators of Compromise ({inc.iocs?.length || 0})
                             </PaneLabel>
+                            {(inc.iocs?.length || 0) > 0 && (
+                                <Tip content="Re-run threat-intel enrichment on stored IoCs (partial pipeline replay)">
+                                    <button
+                                        type="button"
+                                        data-testid="replay-enrich-btn"
+                                        className="text-[11px] px-2.5 py-1 rounded border border-primary/30 bg-primary/10 text-primary font-medium hover:bg-primary/20"
+                                        onClick={async () => {
+                                            try {
+                                                const r = await api.post(
+                                                    `/incidents/${inc.id}/replay-enrich`,
+                                                );
+                                                toast.success(
+                                                    `Re-enriched ${r.data?.ioc_count ?? "?"} IoCs · score ${r.data?.threat_score ?? "—"}`,
+                                                );
+                                                // reload incident
+                                                const again = await api.get(`/incidents/${inc.id}`);
+                                                setInc(again.data);
+                                            } catch (e) {
+                                                toast.error(
+                                                    e?.userMessage ||
+                                                        e?.response?.data?.detail ||
+                                                        "Replay enrich failed",
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        Replay enrich
+                                    </button>
+                                </Tip>
+                            )}
                         </div>
                         <div className="max-h-[520px] overflow-y-auto divide-y divide-border">
                             {inc.iocs?.map((i) => (

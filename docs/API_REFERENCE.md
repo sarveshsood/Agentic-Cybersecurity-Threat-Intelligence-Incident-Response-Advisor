@@ -2,13 +2,22 @@
 
 ## Canonical contract
 
-- **Committed snapshot:** [openapi.json](openapi.json)
+- **Committed snapshot:** [openapi.json](openapi.json) (**source of truth** for HTTP paths)
 - **Live Swagger:** `http://127.0.0.1:8001/docs`
 - **ReDoc:** `http://127.0.0.1:8001/redoc`
 - **Drift check:** `python backend/scripts/export_openapi.py --check`
 
-All application routes are under the `/api` prefix (unversioned today).  
-**Roadmap:** dual-mount `/api/v1` without breaking existing clients.
+Application HTTP routes are dual-mounted under **`/api`** and **`/api/v1`** (same handlers). Prefer OpenAPI over this summary.
+
+### Realtime channels (not fully in OpenAPI)
+
+| Channel | Path | Notes |
+|---------|------|-------|
+| SSE | `GET /api/sse/ops` (also `/api/v1/sse/ops`) | In OpenAPI when exported |
+| **WebSocket** | `WS /api/ws/ops` | Implemented (`backend/routers/realtime.py`); **typically absent from OpenAPI** JSON — use README / ops status, not Swagger alone |
+| Flag | `FEATURE_REALTIME_OPS` (default on) | SPA: `REACT_APP_REALTIME_OPS=0` to disable client |
+
+Auth for WS/SSE: httpOnly cookie `actira_access_token` and/or query/header token as implemented.
 
 ## Authentication
 
@@ -25,13 +34,15 @@ Current user: `GET /api/auth/me`
 
 | Group     | Examples                                                                   |
 |-----------|----------------------------------------------------------------------------|
-| Auth      | `/api/auth/register`, `/login`, `/me`                                      |
+| Auth      | `/api/auth/register`, `/login`, `/me`, OIDC `/api/auth/oidc/*`             |
 | Logs      | `/api/logs/upload`, `/upload-batch`, `/jobs`, `/ingest`, `/ingest/raw`     |
-| Incidents | `/api/incidents`, `/{id}`, `/{id}/citations`, `/{id}/similar`, investigate |
+| Incidents | `/api/incidents`, collab assignment/comments when `FEATURE_*` on           |
 | Review    | `/api/review/queue`, `/api/review/{id}`                                    |
 | KB        | `/api/kb/search`, `/vector-status`, `/reindex`, `/custom`, `/ingest`       |
+| Notifications | `/api/notifications`, `/{id}/read`, `/read-all` (feature-flagged)     |
 | Settings  | `/api/settings` GET/PUT (secrets as `has_*` only on GET)                   |
 | Analytics | `/api/kpis`, `/api/analytics`                                              |
+| Ops       | `/api/ops/status`, SSE `/api/sse/ops`, **WS** `/api/ws/ops`                |
 | Eval      | `/api/eval/golden-benchmark`                                               |
 | Health    | `/api/health`, `/health`, `/metrics`                                       |
 

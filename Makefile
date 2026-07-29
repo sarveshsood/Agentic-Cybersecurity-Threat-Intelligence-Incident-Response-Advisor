@@ -5,7 +5,7 @@
 .PHONY: help install install-test unit integration api security e2e e2e-install \
 	coverage lint format typecheck test test-serial golden openapi docker docker-test \
 	clean reports ci ci-fast security-scan deps-audit frontend-lint frontend-build \
-	demo bench-smoke
+	demo bench-smoke smoke functional quality-gate
 
 PY ?= python
 PIP ?= pip
@@ -19,10 +19,13 @@ N ?= 0
 help:
 	@echo "ACTIRA quality gates"
 	@echo "  make install       - backend + test deps"
+	@echo "  make smoke         - fast offline smoke (model mgmt, parallel, routes)"
+	@echo "  make functional    - broader unit/api functional suite"
+	@echo "  make security      - security tests"
+	@echo "  make quality-gate  - smoke → functional → security (Sprint 7 ladder)"
 	@echo "  make unit          - offline unit tests (marker unit or default backend suite)"
 	@echo "  make integration   - integration tests (needs ACTIRA_INTEGRATION=1 + Mongo)"
 	@echo "  make api           - API tests"
-	@echo "  make security      - security tests"
 	@echo "  make e2e           - Playwright e2e (needs stack + browsers)"
 	@echo "  make coverage      - unit+api with coverage gate (fail_under=$(COV_FAIL))"
 	@echo "  make lint format typecheck"
@@ -52,6 +55,23 @@ install:
 
 install-test: install
 
+# Sprint 7 ladder: smoke → functional → security
+smoke: reports
+	cd $(BACKEND) && $(PY) -m pytest \
+		tests/test_model_management_queue.py \
+		tests/test_ops_status.py \
+		tests/test_secret_vault_auth_residuals.py \
+		-n 0 -q --tb=line \
+		--junitxml=../$(REPORTS)/junit-smoke.xml
+
+functional: reports
+	cd $(BACKEND) && $(PY) -m pytest tests -n $(N) \
+		-m "not integration and not e2e and not performance and not requires_llm and not security" \
+		--junitxml=../$(REPORTS)/junit-functional.xml \
+		-v --tb=short
+	$(PYTEST_ROOT) tests/api -n $(N) -m "api or unit" \
+		--junitxml=$(REPORTS)/junit-api-functional.xml -v --tb=short || true
+
 unit: reports
 	cd $(BACKEND) && $(PY) -m pytest tests -n $(N) -m "not integration and not e2e and not performance and not requires_llm" \
 		--junitxml=../$(REPORTS)/junit-unit.xml \
@@ -70,6 +90,17 @@ api: reports
 security: reports
 	$(PYTEST_ROOT) tests/security -n $(N) -m "security or unit" \
 		--junitxml=$(REPORTS)/junit-security.xml -v
+	cd $(BACKEND) && $(PY) -m pytest tests -n $(N) -m "security" \
+		--junitxml=../$(REPORTS)/junit-security-backend.xml -v --tb=short || true
+
+quality-gate: reports
+	@echo "==> Quality gate 1/3: smoke"
+	$(MAKE) smoke
+	@echo "==> Quality gate 2/3: functional"
+	$(MAKE) functional
+	@echo "==> Quality gate 3/3: security"
+	$(MAKE) security
+	@echo "==> Quality gate complete"
 
 performance: reports
 	$(PYTEST_ROOT) tests/performance -n 0 -m performance \
@@ -151,6 +182,8 @@ security-scan: reports
 	$(PIP) install -q pip-audit 2>/dev/null; pip-audit -r $(BACKEND)/requirements.txt -f json -o $(REPORTS)/security/pip-audit.json || true
 
 deps-audit: security-scan
+	@echo "==> npm audit (frontend, high+)"
+	cd frontend && npm audit --audit-level=high || true
 
 clean:
 	rm -rf $(REPORTS) .coverage .coverage.* htmlcov .pytest_cache .mypy_cache .ruff_cache

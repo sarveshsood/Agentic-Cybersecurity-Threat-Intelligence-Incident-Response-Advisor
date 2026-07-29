@@ -86,6 +86,8 @@ async def upload_single(file: UploadFile, user: dict) -> Dict[str, Any]:
         user["sub"],
         settings,
         kind="single",
+        user_email=user.get("email") or "",
+        user_role=user.get("role") or "",
     )
     await svc.audit(
         user,
@@ -132,7 +134,16 @@ async def upload_batch(files: List[UploadFile], user: dict) -> Dict[str, Any]:
     await db.log_jobs.insert_one(to_mongo_doc(job))
     settings = await svc.get_settings()
     kind = "single" if mode == "single" else "batch"
-    await enqueue(db, job.id, payloads, user["sub"], settings, kind=kind)
+    await enqueue(
+        db,
+        job.id,
+        payloads,
+        user["sub"],
+        settings,
+        kind=kind,
+        user_email=user.get("email") or "",
+        user_role=user.get("role") or "",
+    )
     await svc.audit(
         user,
         "log.upload_batch",
@@ -222,6 +233,8 @@ async def enqueue_text_ingest(
         actor.get("sub", "ingest-webhook"),
         settings,
         kind="single",
+        user_email=actor.get("email") or "",
+        user_role=actor.get("role") or "",
     )
     await svc.audit(
         actor,

@@ -18,6 +18,8 @@ export const FACTORY_OPS = {
     llm_token_budget_monthly: 0,
     llm_fallback_enabled: true,
     llm_fallback_provider: "anthropic",
+    llm_fallback_model: "",
+    llm_manual_route: "primary",
     grounding_threshold: 0.7,
     hitl_severity_min: "critical",
     auto_approve_grounding_min: 0.9,
@@ -27,7 +29,30 @@ export const FACTORY_OPS = {
     incident_retention_days: 90,
     enrichment_cache_ttl_hours: 24,
     cohere_rerank_enabled: true,
+    llm_technique_refine: false,
+    llm_redact_iocs: false,
     email_alerts_to: "",
+    // Platform / enterprise
+    max_enrich_iocs: 50,
+    enrich_concurrency: 8,
+    parse_concurrency: 4,
+    ti_http_timeout: 8,
+    ti_http_retries: 2,
+    ti_http_backoff_base: 0.4,
+    ti_circuit_failures: 5,
+    ti_circuit_cooldown_seconds: 60,
+    log_format: "text",
+    log_file_format: "",
+    log_level: "INFO",
+    log_to_file: true,
+    log_archive_enabled: true,
+    log_archive_retain_days: 30,
+    job_artifacts_enabled: false,
+    job_payload_retain: false,
+    job_artifacts_retain_hours: 168,
+    audit_worm_enabled: true,
+    job_broker_enabled: false,
+    job_broker_queue: "actira.jobs",
 };
 
 /** Production / demo-quality recommended ops (secrets never auto-filled). */
@@ -38,6 +63,8 @@ export const RECOMMENDED_OPS = {
     llm_token_budget_monthly: 500000,
     llm_fallback_enabled: true,
     llm_fallback_provider: "anthropic",
+    llm_fallback_model: "",
+    llm_manual_route: "primary",
     grounding_threshold: 0.75,
     hitl_severity_min: "high",
     auto_approve_grounding_min: 0.92,
@@ -47,7 +74,29 @@ export const RECOMMENDED_OPS = {
     incident_retention_days: 180,
     enrichment_cache_ttl_hours: 12,
     cohere_rerank_enabled: true,
+    llm_technique_refine: false,
+    llm_redact_iocs: true,
     email_alerts_to: "",
+    max_enrich_iocs: 50,
+    enrich_concurrency: 8,
+    parse_concurrency: 4,
+    ti_http_timeout: 10,
+    ti_http_retries: 3,
+    ti_http_backoff_base: 0.4,
+    ti_circuit_failures: 5,
+    ti_circuit_cooldown_seconds: 60,
+    log_format: "json",
+    log_file_format: "json",
+    log_level: "INFO",
+    log_to_file: true,
+    log_archive_enabled: true,
+    log_archive_retain_days: 30,
+    job_artifacts_enabled: true,
+    job_payload_retain: false,
+    job_artifacts_retain_hours: 168,
+    audit_worm_enabled: true,
+    job_broker_enabled: false,
+    job_broker_queue: "actira.jobs",
 };
 
 /** Short bullets for the Recommended profile panel in Settings. */
@@ -56,6 +105,8 @@ export const RECOMMENDED_PROFILE_BULLETS = [
     "Temperature 0.15 · monthly soft budget 500k tokens",
     "Grounding ≥ 0.75 · HiTL from high · auto-approve ≥ 0.92 · correlation 45m",
     "Session 8h · lockout 5 · incident retention 180d · enrichment cache 12h",
+    "JSON logs · TI retries 3 · enrich concurrency 8 · artifacts on · audit WORM on",
+    "IoC redaction in LLM prompts on · ATT&CK LLM refine off (cost control)",
     "API keys / Slack webhook kept — email left unchanged",
 ];
 
@@ -406,6 +457,23 @@ export const SECTION_META = {
         whyRecommended:
             "A shared SOC channel plus a real on-call mailbox means critical and HiTL events reach people who can act — not only the person who configured the demo.",
     },
+    platform: {
+        title: "Platform & enterprise",
+        purpose:
+            "Control enrichment concurrency, TI HTTP resilience, structured logging, job artifacts/replay, audit WORM export, and optional AMQP broker.",
+        when:
+            "Tune when moving from lab to pilot: turn on JSON logs and audit WORM for SIEM, raise TI retries behind proxies, enable job artifacts for replay demos. Leave broker off unless you run multi-worker AMQP.",
+        bestPractices:
+            "Recommended: JSON logs, TI timeout 10s / 3 retries, enrich concurrency 8, artifacts on, payload retain off (disk), audit WORM on. Enable payload retain only when you need full re-queue of finished jobs. Set SIEM webhook only in controlled environments.",
+        implications:
+            "Higher concurrency and retries increase TI vendor rate-limit risk. Artifacts + payload retain grow disk. JSON logs are larger but SIEM-friendly. Broker requires pika + RabbitMQ and still uses Mongo for claims.",
+        notes:
+            "Values sync into process env on save (and on API start) so logging/TI/job modules pick them up without restart for most knobs. Logging reconfigures immediately; full multi-process workers should restart after broker URL changes.",
+        default: "text logs · TI 8s/2 retries · concurrency 8 · artifacts off · WORM on · broker off",
+        recommended: "json logs · TI 10s/3 retries · concurrency 8 · artifacts on · WORM on · broker off",
+        whyRecommended:
+            "JSON + WORM give auditability for pilots; TI retries/timeouts survive flaky networks; artifacts enable partial replay without unbounded payload disk use.",
+    },
     security: {
         title: "Security",
         purpose:
@@ -661,6 +729,51 @@ export const FIELD_META = {
         notes:
             "Estimated tokens (chars/4) per call are summed in Mongo llm_usage for the calendar month. 0 = unlimited. Raise the budget or wait for next month after exhaustion.",
     },
+    llm_fallback_enabled: {
+        title: "Automatic LLM fallback",
+        default: "on",
+        recommended: "on",
+        whyRecommended:
+            "Keeps playbook generation alive when the primary provider is rate-limited or down — still never bypasses HiTL.",
+        valid: "boolean",
+        impact: "When primary fails, try preferred fallback then FALLBACK_PROVIDER_ORDER (keys required).",
+        notes:
+            "Automatic mode only. Manual routing (backup) forces the preferred fallback stack even without an error. Test primary / Test backup probe each path.",
+    },
+    llm_fallback_provider: {
+        title: "Preferred fallback provider",
+        default: "anthropic",
+        recommended: "anthropic (or groq for free-tier latency demos)",
+        whyRecommended:
+            "Pin a known-good backup provider so operators control which stack runs after primary failure.",
+        valid: "openai | anthropic | gemini | groq | none",
+        impact: "First hop on automatic fallback and the target for manual backup routing.",
+        notes:
+            "Requires that provider’s API key. none disables preferred pin (chain still uses FALLBACK_PROVIDER_ORDER when enabled).",
+    },
+    llm_fallback_model: {
+        title: "Preferred fallback model",
+        default: "(provider default)",
+        recommended: "empty (provider default) or openai/gpt-oss-120b when fallback=groq",
+        whyRecommended:
+            "Explicit model pin avoids silent provider defaults after an outage and matches free-tier Groq demos.",
+        valid: "model id for the fallback provider, or empty",
+        impact: "Used on automatic fallback and manual backup route for the preferred provider.",
+        notes:
+            "Empty → backend default_model_for_provider. Changing fallback provider can auto-fill a catalog default in the UI.",
+    },
+    llm_manual_route: {
+        title: "Manual routing",
+        default: "primary",
+        recommended: "primary",
+        whyRecommended:
+            "primary keeps automatic failover; switch to backup only for controlled drills or primary outages.",
+        valid: "primary | backup",
+        impact:
+            "primary = normal path + auto chain on error. backup = force preferred fallback stack for all LLM calls until switched back.",
+        notes:
+            "Does not bypass HiTL or grounding. Use Test primary / Test backup before flipping routing in production.",
+    },
     anthropic_api_key: {
         title: "Anthropic API key",
         default: "from backend/.env or empty",
@@ -724,6 +837,28 @@ export const FIELD_META = {
         impact: "Lower floors send more incidents to the review queue.",
         notes:
             "Incidents at or above this severity always enter the review queue. Factory = critical only. Recommended also queues high-severity so seniors see more real IR load.",
+    },
+    llm_technique_refine: {
+        title: "LLM ATT&CK technique refine",
+        default: "off",
+        recommended: "off",
+        whyRecommended:
+            "Heuristic + CES mapping is enough for demos; turning refine on adds latency and token cost for modest quality gains.",
+        valid: "on | off",
+        impact: "When on, pipeline may call the LLM to refine technique lists (still allow-list validated).",
+        notes:
+            "Default off for CI and cost control. Enable only when you want an extra LLM pass after keyword/CES mapping.",
+    },
+    llm_redact_iocs: {
+        title: "Redact IoCs in LLM prompts",
+        default: "off",
+        recommended: "on",
+        whyRecommended:
+            "Reduces accidental leakage of IPs/emails into third-party model providers — called out by product compliance scoring.",
+        valid: "on | off",
+        impact: "AI Investigator and related prompts partially mask IoC values before send.",
+        notes:
+            "Does not remove IoCs from incidents or Mongo — only outbound LLM prompt content. Recommended for production / shared demos.",
     },
     auto_approve_grounding_min: {
         title: "Auto-approve grounding ≥",
@@ -883,6 +1018,150 @@ export const FIELD_META = {
         impact: "Startup purge deletes incidents with created_at older than this window.",
         notes:
             "Enforced on backend startup (retention.purge_from_settings). Set 0 only if you intentionally keep all history forever.",
+    },
+    max_enrich_iocs: {
+        title: "Max IoCs to enrich",
+        purpose: "Cap how many indicators are sent to TI per pipeline job.",
+        default: "50",
+        recommended: "50",
+        notes: "Clamped 1–200. Prefer high-value types first when capped.",
+    },
+    enrich_concurrency: {
+        title: "Enrich concurrency",
+        purpose: "Parallel IoC enrichment worker pool size.",
+        default: "8",
+        recommended: "8",
+        notes: "Clamped 1–32. Higher values can stampede TI APIs.",
+    },
+    parse_concurrency: {
+        title: "Parse concurrency",
+        purpose: "Parallel multi-file log parse worker pool (detect_and_parse).",
+        default: "4",
+        recommended: "4",
+        notes: "Clamped 1–16. Raise for large ZIP multi-file batches; lower on small CPUs.",
+    },
+    ti_http_timeout: {
+        title: "TI HTTP timeout (seconds)",
+        purpose: "Per-request timeout for live CTI HTTP calls.",
+        default: "8",
+        recommended: "10",
+        notes: "Increase behind slow proxies; decrease for snappier demos.",
+    },
+    ti_http_retries: {
+        title: "TI HTTP retries",
+        purpose: "Retries after first attempt with exponential backoff.",
+        default: "2",
+        recommended: "3",
+        notes: "Does not retry most 4xx except 429.",
+    },
+    ti_http_backoff_base: {
+        title: "TI backoff base (seconds)",
+        purpose: "Base delay for exponential backoff between TI retries.",
+        default: "0.4",
+        recommended: "0.4",
+    },
+    ti_circuit_failures: {
+        title: "TI circuit failures",
+        purpose: "Open per-provider circuit after N consecutive failures.",
+        default: "5",
+        recommended: "5",
+    },
+    ti_circuit_cooldown_seconds: {
+        title: "TI circuit cooldown (seconds)",
+        purpose: "How long a TI provider stays open after tripping.",
+        default: "60",
+        recommended: "60",
+    },
+    log_format: {
+        title: "Log format",
+        purpose: "Console (and default file) log encoding: text or JSON.",
+        default: "text",
+        recommended: "json",
+        notes: "JSON is one object per line for ELK/Datadog.",
+    },
+    log_file_format: {
+        title: "Log file format",
+        purpose: "Optional override for file handler only (empty = same as log format).",
+        default: "(same as log format)",
+        recommended: "json",
+    },
+    log_level: {
+        title: "Log level",
+        purpose: "Minimum log level for API process.",
+        default: "INFO",
+        recommended: "INFO",
+    },
+    log_to_file: {
+        title: "Write logs to file",
+        purpose: "Rotating file under backend/logs (or LOG_DIR).",
+        default: "on",
+        recommended: "on",
+    },
+    log_archive_enabled: {
+        title: "Log archival",
+        purpose: "Copy logs into dated archive folders and purge old days.",
+        default: "on",
+        recommended: "on",
+    },
+    log_archive_retain_days: {
+        title: "Log archive retain (days)",
+        purpose: "Delete archived day folders older than this.",
+        default: "30",
+        recommended: "30",
+    },
+    job_artifacts_enabled: {
+        title: "Job artifacts",
+        purpose: "Store parse/enrich/playbook stage snapshots for replay.",
+        default: "off",
+        recommended: "on",
+        notes: "Disk under backend/data/job_artifacts.",
+    },
+    job_payload_retain: {
+        title: "Retain upload payloads",
+        purpose: "Keep raw upload bytes after job success for full re-queue replay.",
+        default: "off",
+        recommended: "off",
+        notes: "On only for demos that need full pipeline re-run without re-upload.",
+    },
+    job_artifacts_retain_hours: {
+        title: "Artifact retain (hours)",
+        purpose: "Auto-purge older artifact directories.",
+        default: "168",
+        recommended: "168",
+    },
+    audit_worm_enabled: {
+        title: "Audit WORM file export",
+        purpose: "Append every audit event to local JSONL (append-only).",
+        default: "on",
+        recommended: "on",
+        notes: "Not legal WORM unless path is on immutable storage.",
+    },
+    audit_siem_webhook_url: {
+        title: "SIEM webhook URL",
+        purpose: "POST each audit event to an external SIEM/webhook.",
+        default: "empty",
+        recommended: "set for pilot SIEM",
+        notes: "Secret — never returned after save; only has_* flag.",
+    },
+    job_broker_enabled: {
+        title: "AMQP job broker",
+        purpose: "Publish wake-up messages when jobs are queued (Mongo still claims).",
+        default: "off",
+        recommended: "off",
+        notes: "Requires JOB_BROKER_URL / pika. Soft multi-worker path.",
+    },
+    job_broker_url: {
+        title: "AMQP broker URL",
+        purpose: "e.g. amqp://guest:guest@localhost:5672/",
+        default: "empty",
+        recommended: "empty unless multi-worker AMQP",
+        notes: "Secret field.",
+    },
+    job_broker_queue: {
+        title: "AMQP queue name",
+        purpose: "Queue for job wake-up messages.",
+        default: "actira.jobs",
+        recommended: "actira.jobs",
     },
     enrichment_cache_ttl_hours: {
         title: "Enrichment cache TTL (hours)",

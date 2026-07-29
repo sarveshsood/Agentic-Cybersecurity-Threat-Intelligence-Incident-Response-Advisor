@@ -1,12 +1,380 @@
-# Performance Tuning
+# Performance Tuning Guide
 
-| Area       | Tuning                                                  |
-|------------|---------------------------------------------------------|
-| Embeddings | Keep `hash` for CI; warm sbert process for demos        |
-| TI         | Enrichment cache TTL; limit IoCs per incident           |
-| LLM        | Smaller model for bulk; prompt cache stable system      |
-| Mongo      | Indexes on incident status/created_at (created at boot) |
-| Upload     | Cap file sizes; batch wisely                            |
-| Vector     | Reindex off-peak; dim consistency                       |
+Version: 2.0
 
-Run `python benchmarks/run_benchmarks.py --profile smoke` for local baselines.
+This document provides performance tuning recommendations for the **ACTIRA Enterprise SOC Platform** across application, AI, database, storage, and infrastructure components.
+
+The goal is to maximize throughput, reduce latency, optimize resource utilization, and maintain predictable performance while preserving system correctness and reliability.
+
+---
+
+# Objectives
+
+Performance tuning should achieve the following objectives:
+
+- Reduce API response latency
+- Improve incident processing throughput
+- Minimize AI processing costs
+- Optimize database performance
+- Improve Knowledge Base search speed
+- Maintain predictable scalability
+- Support enterprise production workloads
+- Establish repeatable benchmarking practices
+
+---
+
+# Performance Principles
+
+ACTIRA follows several guiding principles:
+
+- **Correctness before speed** — performance optimizations must not compromise data integrity.
+- **Measure before optimizing** — rely on benchmark data rather than assumptions.
+- **Cache where appropriate** — avoid repeated expensive operations.
+- **Optimize the common path** — prioritize improvements that benefit frequent workflows.
+- **Scale horizontally where possible** — keep API services stateless and scalable.
+
+---
+
+# Performance Areas
+
+| Area | Primary Focus | Key Objective |
+|------|---------------|---------------|
+| Embeddings | Generation & retrieval | Faster Knowledge Base indexing and semantic search |
+| Threat Intelligence | External enrichment | Minimize latency and API usage |
+| LLM | AI inference | Reduce response time and token cost |
+| MongoDB | Queries & indexing | Faster data retrieval |
+| Upload Pipeline | File ingestion | Improve throughput |
+| Vector Database | Index maintenance | Fast and consistent semantic search |
+
+---
+
+# Embedding Optimization
+
+Embedding generation is one of the most compute-intensive operations.
+
+## Continuous Integration
+
+For automated testing and CI pipelines:
+
+- Use lightweight **hash-based embeddings** to eliminate external model dependencies.
+- Avoid downloading transformer models during CI unless explicitly testing embedding quality.
+
+This reduces:
+
+- Build time
+- Network dependency
+- Resource consumption
+
+---
+
+## Demonstration Environments
+
+For demos and interactive environments:
+
+- Warm the Sentence-BERT (SBERT) process during startup.
+- Keep the embedding model loaded in memory.
+- Avoid repeated model initialization.
+
+Benefits:
+
+- Lower first-query latency
+- Smoother demonstrations
+- Improved analyst experience
+
+---
+
+## Production
+
+Recommendations:
+
+- Reuse embedding models across requests.
+- Batch embedding generation where practical.
+- Avoid unnecessary re-embedding of unchanged content.
+- Monitor embedding queue depth.
+
+---
+
+# Threat Intelligence (TI) Optimization
+
+Threat intelligence lookups often involve external services.
+
+Recommendations:
+
+- Enable enrichment caching with an appropriate TTL.
+- Deduplicate identical indicators before enrichment.
+- Limit the number of Indicators of Compromise (IoCs) processed per incident.
+- Prioritize high-confidence indicators.
+
+Benefits:
+
+- Reduced external API calls
+- Lower latency
+- Improved rate-limit resilience
+- Reduced operational cost
+
+---
+
+# LLM Optimization
+
+Large Language Model inference is typically the highest-latency component.
+
+Recommendations:
+
+- Use smaller, faster models for bulk or routine processing.
+- Reserve larger models for complex investigations.
+- Keep system prompts stable to maximize prompt-cache efficiency.
+- Reuse conversation context where appropriate.
+- Minimize unnecessary token generation.
+- Set sensible response length limits.
+
+Monitor:
+
+- Request latency
+- Token usage
+- Retry rates
+- Cost trends
+
+---
+
+# MongoDB Optimization
+
+MongoDB performance depends heavily on indexing and query efficiency.
+
+Recommended indexes include:
+
+- Incident status
+- Incident creation timestamp (`created_at`)
+- Job status
+- Audit log timestamp
+- User email (authentication)
+
+Indexes should be created automatically during application startup or managed through migrations.
+
+General recommendations:
+
+- Avoid collection scans.
+- Review slow query logs regularly.
+- Archive historical data where appropriate.
+- Monitor index utilization.
+
+---
+
+# Upload Pipeline Optimization
+
+File ingestion should be tuned for both performance and stability.
+
+Recommendations:
+
+- Enforce maximum upload size limits.
+- Batch processing where practical.
+- Stream large uploads instead of loading entire files into memory.
+- Reject unsupported formats early.
+- Apply backpressure if worker queues become saturated.
+
+Benefits:
+
+- Lower memory usage
+- Higher throughput
+- Better resilience under load
+
+---
+
+# Vector Database Optimization
+
+For LanceDB or other vector stores:
+
+- Schedule re-indexing during off-peak hours.
+- Maintain consistent embedding dimensions across all indexed data.
+- Avoid mixing embeddings generated by incompatible models.
+- Monitor index size and query latency.
+
+When changing embedding models:
+
+- Perform a full re-index to maintain search quality.
+
+---
+
+# API Performance
+
+Optimize by:
+
+- Keeping API services stateless.
+- Enabling connection pooling.
+- Reusing HTTP clients.
+- Compressing large responses where appropriate.
+- Avoiding unnecessary serialization.
+
+Monitor:
+
+- P50 latency
+- P95 latency
+- P99 latency
+- Error rates
+- Requests per second
+
+---
+
+# Background Job Performance
+
+Recommendations:
+
+- Separate API and worker responsibilities.
+- Keep exactly one active job consumer unless multi-worker coordination is validated.
+- Monitor queue depth.
+- Retry transient failures with exponential backoff.
+- Prevent duplicate job execution through atomic queue claims.
+
+---
+
+# Caching Strategy
+
+Cache where beneficial:
+
+- Threat intelligence responses
+- Static configuration
+- Frequently accessed metadata
+- Prompt templates
+- AI provider metadata
+
+Avoid caching:
+
+- Authentication tokens
+- Sensitive user data
+- Mutable incident state
+
+Cache expiration should reflect data volatility.
+
+---
+
+# Infrastructure Tuning
+
+Monitor and tune:
+
+- CPU utilization
+- Memory usage
+- Disk I/O
+- Network throughput
+- Container restart frequency
+- Database connections
+
+Scale resources based on observed workloads rather than fixed assumptions.
+
+---
+
+# Benchmarking
+
+Establish local performance baselines using the provided benchmark suite.
+
+Smoke profile:
+
+```bash
+python benchmarks/run_benchmarks.py --profile smoke
+```
+
+Additional profiles may include:
+
+```bash
+python benchmarks/run_benchmarks.py --profile light
+
+python benchmarks/run_benchmarks.py --profile medium
+
+python benchmarks/run_benchmarks.py --profile heavy
+```
+
+Benchmark results should be archived under:
+
+```
+benchmarks/reports/
+```
+
+Compare results across releases to identify regressions.
+
+---
+
+# Performance Monitoring
+
+Track key metrics such as:
+
+- API response latency
+- Job processing time
+- Queue depth
+- Embedding generation time
+- Vector search latency
+- MongoDB query latency
+- LLM response time
+- Token consumption
+- Cache hit ratio
+- Upload throughput
+
+Review trends regularly and investigate sustained deviations.
+
+---
+
+# Capacity Planning
+
+Performance tuning should align with capacity planning.
+
+Review periodically:
+
+- Concurrent analyst load
+- Incident volume
+- Storage growth
+- AI usage
+- Database growth
+- Queue throughput
+
+Adjust infrastructure before bottlenecks impact users.
+
+---
+
+# Operational Best Practices
+
+Always:
+
+- Benchmark before and after performance changes.
+- Warm long-lived AI models in demonstration environments.
+- Cache external enrichment results appropriately.
+- Keep MongoDB indexes current.
+- Schedule vector re-indexing during low-traffic periods.
+- Monitor latency, throughput, and resource utilization.
+
+Never:
+
+- Optimize without measuring.
+- Sacrifice correctness for speed.
+- Expose the system to unbounded uploads.
+- Mix incompatible embedding dimensions.
+- Perform full vector re-indexing during peak production hours unless necessary.
+
+---
+
+# Related Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [CAPACITY_PLANNING.md](CAPACITY_PLANNING.md) | Sizing and growth planning |
+| [MONITORING.md](MONITORING.md) | Monitoring strategy |
+| [OBSERVABILITY_PACK.md](OBSERVABILITY_PACK.md) | Metrics and health detail |
+| [HA_VALIDATION.md](HA_VALIDATION.md) | Multi-replica performance validation |
+| [SCALING.md](SCALING.md) | Scale-out after tuning limits |
+| [../MULTI_WORKER.md](../MULTI_WORKER.md) | Worker isolation and queue ownership |
+| [../../benchmarks/reports/LOAD_TEST_10_100.md](../../benchmarks/reports/LOAD_TEST_10_100.md) | Load-test baselines (when present) |
+| [SECURITY_HARDENING.md](SECURITY_HARDENING.md) | Production constraints while tuning |
+| [README.md](README.md) | Operations pack index |
+
+---
+
+# Definition of Done
+
+Performance tuning is considered complete when:
+
+- [ ] Baseline benchmarks have been established.
+- [ ] Embedding strategy is appropriate for each environment.
+- [ ] Threat intelligence caching is configured.
+- [ ] LLM model selection and prompt caching are optimized.
+- [ ] MongoDB indexes are validated.
+- [ ] Upload limits and batching are configured.
+- [ ] Vector index maintenance procedures are documented.
+- [ ] Performance metrics are monitored.
+- [ ] Benchmark reports are archived and reviewed.
+- [ ] No significant regressions are introduced in new releases.

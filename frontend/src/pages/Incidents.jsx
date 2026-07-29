@@ -23,6 +23,9 @@ import {
     Warning,
 } from "@phosphor-icons/react";
 import {toast} from "sonner";
+import {isFeatureEnabled} from "../lib/features";
+import SavedFiltersBar from "../components/collab/SavedFiltersBar";
+import PinButton from "../components/collab/PinButton";
 
 const ACCESSORS = {
     title: (r) => r.title || "",
@@ -119,6 +122,8 @@ export default function Incidents() {
     const [techniqueFilter, setTechniqueFilter] = useState(searchParams.get("technique") || "");
     const [minThreat, setMinThreat] = useState(searchParams.get("min_threat") || "");
     const [hitlOnly, setHitlOnly] = useState(searchParams.get("hitl") === "1");
+    const [assigneeFilter, setAssigneeFilter] = useState(searchParams.get("assignee") || "");
+    const [unassignedOnly, setUnassignedOnly] = useState(searchParams.get("unassigned") === "1");
     const [page, setPage] = useState(1);
 
     const pageSize = 25;
@@ -140,6 +145,8 @@ export default function Incidents() {
         if (statusFilter) params.status = statusFilter;
         if (severityFilter) params.severity = severityFilter;
         if (techniqueFilter.trim()) params.technique = techniqueFilter.trim();
+        if (assigneeFilter) params.assignee = assigneeFilter;
+        if (unassignedOnly) params.unassigned = true;
         api
             .get("/incidents", {params})
             .then((r) => {
@@ -154,7 +161,7 @@ export default function Incidents() {
                 setLoadError(e?.userMessage || e?.response?.data?.detail || "Could not load incidents list.");
             })
             .finally(() => setLoading(false));
-    }, [statusFilter, severityFilter, techniqueFilter, page, serverPaged]);
+    }, [statusFilter, severityFilter, techniqueFilter, assigneeFilter, unassignedOnly, page, serverPaged]);
 
     useEffect(() => {
         loadList();
@@ -163,7 +170,7 @@ export default function Incidents() {
     // Reset to page 1 when filters change
     useEffect(() => {
         setPage(1);
-    }, [statusFilter, severityFilter, techniqueFilter, q, minThreat, hitlOnly]);
+    }, [statusFilter, severityFilter, techniqueFilter, assigneeFilter, unassignedOnly, q, minThreat, hitlOnly]);
 
     // Keep filters in the URL so dashboard/heatmap deep links work
     useEffect(() => {
@@ -176,12 +183,15 @@ export default function Incidents() {
         sync("status", statusFilter);
         sync("severity", severityFilter);
         sync("technique", techniqueFilter);
+        sync("assignee", assigneeFilter);
+        if (unassignedOnly) next.set("unassigned", "1");
+        else next.delete("unassigned");
         sync("min_threat", minThreat);
         if (hitlOnly) next.set("hitl", "1");
         else next.delete("hitl");
         setSearchParams(next, {replace: true});
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only push when filter values change
-    }, [q, statusFilter, severityFilter, techniqueFilter, minThreat, hitlOnly]);
+    }, [q, statusFilter, severityFilter, techniqueFilter, assigneeFilter, unassignedOnly, minThreat, hitlOnly]);
 
     const filtered = useMemo(() => {
         let list = [...sorted];
@@ -483,6 +493,35 @@ export default function Incidents() {
                     </div>
                 </Tip>
 
+                {isFeatureEnabled("saved_filters") && (
+                    <SavedFiltersBar
+                        page="incidents"
+                        currentFilter={{
+                            status: statusFilter || undefined,
+                            severity: severityFilter || undefined,
+                            technique: techniqueFilter || undefined,
+                            assignee: assigneeFilter || undefined,
+                            unassigned: unassignedOnly || undefined,
+                            client_only: {
+                                ...(q.trim() ? {q: q.trim()} : {}),
+                                ...(minThreat ? {min_threat: minThreat} : {}),
+                                ...(hitlOnly ? {hitl: true} : {}),
+                            },
+                        }}
+                        onApply={(f) => {
+                            setStatusFilter(f.status || "");
+                            setSeverityFilter(f.severity || "");
+                            setTechniqueFilter(f.technique || "");
+                            setAssigneeFilter(f.assignee || "");
+                            setUnassignedOnly(Boolean(f.unassigned));
+                            const co = f.client_only || {};
+                            if (co.q != null) setQ(String(co.q));
+                            if (co.min_threat != null) setMinThreat(String(co.min_threat));
+                            if (co.hitl != null) setHitlOnly(Boolean(co.hitl));
+                        }}
+                    />
+                )}
+
                 <Tip content="Filter by IR lifecycle status (server-side when not free-text searching)">
                     <select
                         data-testid="incidents-filter-status"
@@ -497,6 +536,41 @@ export default function Incidents() {
                         ))}
                     </select>
                 </Tip>
+
+                {isFeatureEnabled("collab_assign") && (
+                    <>
+                        <Tip content="My queue = primary or secondary assignee is you">
+                            <select
+                                data-testid="incidents-filter-assignee"
+                                value={assigneeFilter}
+                                onChange={(e) => {
+                                    setAssigneeFilter(e.target.value);
+                                    if (e.target.value) setUnassignedOnly(false);
+                                }}
+                                className={`bg-background border px-2.5 h-8 rounded-md text-[12px] leading-none ${
+                                    assigneeFilter ? "border-primary/50 text-foreground" : "border-border text-foreground"
+                                }`}
+                            >
+                                <option value="">All assignees</option>
+                                <option value="me">Assigned to me</option>
+                            </select>
+                        </Tip>
+                        <Tip content="Both primary and secondary empty">
+                            <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    data-testid="incidents-filter-unassigned"
+                                    checked={unassignedOnly}
+                                    onChange={(e) => {
+                                        setUnassignedOnly(e.target.checked);
+                                        if (e.target.checked) setAssigneeFilter("");
+                                    }}
+                                />
+                                Unassigned
+                            </label>
+                        </Tip>
+                    </>
+                )}
 
                 <Tip content="Filter by pipeline severity (server-side when not free-text searching)">
                     <select
@@ -663,6 +737,11 @@ export default function Incidents() {
                                     body: "IR lifecycle: new, in_progress, pending_review, approved, rejected, closed.",
                                 }}
                             />
+                            {isFeatureEnabled("collab_assign") && (
+                                <th className="px-3 py-2 text-left text-[11px] font-semibold text-muted-foreground">
+                                    Owner
+                                </th>
+                            )}
                             <SortableTh
                                 label="Threat"
                                 sortKey="threat_score"
@@ -741,13 +820,23 @@ export default function Incidents() {
                                 (inc.status || "").toLowerCase() === "pending_review";
 
                             const titleLink = (
-                                <Link
-                                    to={`/incidents/${inc.id}`}
-                                    className="font-semibold text-foreground hover:text-primary transition-colors block text-sm leading-snug"
-                                    data-testid={`incident-link-${inc.id}`}
-                                >
-                                    {inc.title || inc.id}
-                                </Link>
+                                <div className="flex items-start gap-1">
+                                    {isFeatureEnabled("pins") && (
+                                        <PinButton
+                                            targetType="incident"
+                                            targetId={inc.id}
+                                            label={inc.title}
+                                            className="mt-0.5"
+                                        />
+                                    )}
+                                    <Link
+                                        to={`/incidents/${inc.id}`}
+                                        className="font-semibold text-foreground hover:text-primary transition-colors block text-sm leading-snug min-w-0"
+                                        data-testid={`incident-link-${inc.id}`}
+                                    >
+                                        {inc.title || inc.id}
+                                    </Link>
+                                </div>
                             );
 
                             const sev = (inc.severity || "").toLowerCase();
@@ -767,7 +856,7 @@ export default function Incidents() {
                                     <td className={`px-3 ${compact ? "py-1.5" : "py-3"}`}>
                                         <SeverityBadge severity={inc.severity}/>
                                     </td>
-                                    <td className={`px-3 ${compact ? "py-1.5" : "py-3"}`}>
+                                    <td className={`px-3 ${compact ? "py-1.5" : "py-3"} min-w-0`}>
                                         {showPreviews ? (
                                             <HoverCard openDelay={180}>
                                                 <HoverCardTrigger asChild>{titleLink}</HoverCardTrigger>
@@ -812,6 +901,11 @@ export default function Incidents() {
                                     <td className={`px-3 ${compact ? "py-1.5" : "py-3"}`}>
                                         <StatusPill status={inc.status}/>
                                     </td>
+                                    {isFeatureEnabled("collab_assign") && (
+                                        <td className={`px-3 ${compact ? "py-1.5" : "py-3"} text-[11px] font-mono text-muted-foreground`}>
+                                            {inc.assignee_email || inc.assignee_id || "—"}
+                                        </td>
+                                    )}
                                     <td className={`px-3 ${compact ? "py-1.5" : "py-3"}`}>
                                         <Tip content={`Composite threat score 0–100${score >= highThreatDefault ? ` · high (≥${highThreatDefault})` : ""}`}>
                                             <span

@@ -9,16 +9,17 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import time
 from typing import Any, Dict, Optional
-
-import requests
 
 from backend.models import IoC
 from backend.secrets_util import clean_secret, is_real_secret
+from backend import ti_http
 
 logger = logging.getLogger(__name__)
 
 # Short timeouts so the pipeline stays responsive if a provider is slow.
+# Overridable via TI_HTTP_TIMEOUT env (see ti_http.http_timeout).
 _HTTP_TIMEOUT = 8
 
 
@@ -116,11 +117,12 @@ def live_abuseipdb(ioc: IoC, api_key: str) -> Dict[str, Any]:
     """AbuseIPDB check — IPs only. https://docs.abuseipdb.com/"""
     if ioc.type != "ip":
         return {"source": "AbuseIPDB", "score": 0, "skipped": True, "reason": "ip_only", "mock": False}
-    r = requests.get(
+    r = ti_http.get(
         "https://api.abuseipdb.com/api/v2/check",
+        provider="abuseipdb",
         headers={"Key": api_key, "Accept": "application/json"},
         params={"ipAddress": ioc.value, "maxAgeInDays": 90, "verbose": ""},
-        timeout=_HTTP_TIMEOUT,
+        timeout=ti_http.http_timeout(),
     )
     r.raise_for_status()
     data = r.json().get("data") or {}
@@ -157,7 +159,12 @@ def live_virustotal(ioc: IoC, api_key: str) -> Dict[str, Any]:
     path = _vt_path(ioc)
     if not path:
         return {"source": "VirusTotal", "score": 0, "skipped": True, "reason": "unsupported_type", "mock": False}
-    r = requests.get(path, headers={"x-apikey": api_key}, timeout=_HTTP_TIMEOUT)
+    r = ti_http.get(
+        path,
+        provider="virustotal",
+        headers={"x-apikey": api_key},
+        timeout=ti_http.http_timeout(),
+    )
     if r.status_code == 404:
         return {
             "source": "VirusTotal",
@@ -194,10 +201,11 @@ def live_greynoise(ioc: IoC, api_key: str) -> Dict[str, Any]:
         return {"source": "GreyNoise", "score": 0, "classification": "unknown", "skipped": True, "reason": "ip_only",
                 "mock": False}
     # Prefer authenticated community endpoint when key present
-    r = requests.get(
+    r = ti_http.get(
         f"https://api.greynoise.io/v3/community/{ioc.value}",
+        provider="greynoise",
         headers={"key": api_key, "Accept": "application/json"},
-        timeout=_HTTP_TIMEOUT,
+        timeout=ti_http.http_timeout(),
     )
     if r.status_code == 404:
         return {
@@ -235,11 +243,12 @@ def live_threatfox(ioc: IoC, api_key: str) -> Dict[str, Any]:
     if api_key:
         headers["Auth-Key"] = api_key
     # search_ioc expects the raw IOC string
-    r = requests.post(
+    r = ti_http.post(
         "https://threatfox-api.abuse.ch/api/v1/",
+        provider="threatfox",
         headers=headers,
         json={"query": "search_ioc", "search_term": ioc.value},
-        timeout=_HTTP_TIMEOUT,
+        timeout=ti_http.http_timeout(),
     )
     r.raise_for_status()
     body = r.json()
@@ -293,10 +302,11 @@ def live_otx(ioc: IoC, api_key: str) -> Dict[str, Any]:
     section = type_map.get(ioc.type)
     if not section:
         return {"source": "AlienVault OTX", "score": 0, "skipped": True, "reason": "unsupported_type", "mock": False}
-    r = requests.get(
+    r = ti_http.get(
         f"https://otx.alienvault.com/api/v1/indicators/{section}/{ioc.value}/general",
+        provider="otx",
         headers={"X-OTX-API-KEY": api_key},
-        timeout=_HTTP_TIMEOUT,
+        timeout=ti_http.http_timeout(),
     )
     if r.status_code == 404:
         return {"source": "AlienVault OTX", "score": 0, "pulse_count": 0, "not_found": True, "mock": False}
@@ -314,10 +324,11 @@ def live_otx(ioc: IoC, api_key: str) -> Dict[str, Any]:
 def live_shodan(ioc: IoC, api_key: str) -> Dict[str, Any]:
     if ioc.type != "ip":
         return {"source": "Shodan", "score": 0, "skipped": True, "reason": "ip_only", "mock": False}
-    r = requests.get(
+    r = ti_http.get(
         f"https://api.shodan.io/shodan/host/{ioc.value}",
+        provider="shodan",
         params={"key": api_key},
-        timeout=_HTTP_TIMEOUT,
+        timeout=ti_http.http_timeout(),
     )
     if r.status_code == 404:
         return {"source": "Shodan", "score": 0, "open_ports": 0, "not_found": True, "mock": False}
@@ -369,16 +380,45 @@ def _run_source(
         if allow_mock:
             return mock_fn(ioc)
         return _unscored_source(name)
+    t0 = time.perf_counter()
     try:
         result = live_fn(ioc, api_key)
         result.setdefault("mock", False)
+        try:
+            from backend.metrics_registry import record_ti
+
+            record_ti(name.lower().replace(" ", "_"), "live", time.perf_counter() - t0)
+        except Exception:
+            pass
         return result
+    except ti_http.CircuitOpenError as e:
+        logger.warning(
+            "%s circuit open for %s=%s (%.0fs left) — using mock",
+            name, ioc.type, ioc.value[:40], e.remaining,
+        )
+        out = mock_fn(ioc)
+        out["live_error"] = "CircuitOpen"
+        out["fallback_mock"] = True
+        out["circuit_open"] = True
+        try:
+            from backend.metrics_registry import record_ti
+
+            record_ti(name.lower().replace(" ", "_"), "circuit", time.perf_counter() - t0)
+        except Exception:
+            pass
+        return out
     except Exception as e:
         logger.warning("%s live enrichment failed for %s=%s: %s — using mock",
                        name, ioc.type, ioc.value[:40], type(e).__name__)
         out = mock_fn(ioc)
         out["live_error"] = type(e).__name__
         out["fallback_mock"] = True
+        try:
+            from backend.metrics_registry import record_ti
+
+            record_ti(name.lower().replace(" ", "_"), "error", time.perf_counter() - t0)
+        except Exception:
+            pass
         return out
 
 

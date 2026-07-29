@@ -67,13 +67,16 @@ export default function Hunt() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional deep-link once per q change
     }, [searchParams.get("q")]);
 
-    const syncUrl = (query, sev, st) => {
-        const next = new URLSearchParams();
-        if (query?.trim()) next.set("q", query.trim());
-        if (sev) next.set("severity", sev);
-        if (st) next.set("status", st);
-        setSearchParams(next, {replace: true});
-    };
+    const syncUrl = useCallback(
+        (query, sev, st) => {
+            const next = new URLSearchParams();
+            if (query?.trim()) next.set("q", query.trim());
+            if (sev) next.set("severity", sev);
+            if (st) next.set("status", st);
+            setSearchParams(next, {replace: true});
+        },
+        [setSearchParams],
+    );
 
     const run = useCallback(
         async (query, overrides = {}) => {
@@ -103,7 +106,7 @@ export default function Hunt() {
                 setLoading(false);
             }
         },
-        [q, severity, status, setSearchParams],
+        [q, severity, status, syncUrl],
     );
 
     return (

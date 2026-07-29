@@ -217,6 +217,33 @@ async def persist_settings(doc: dict, user: dict, action: str, detail: dict | No
     except OSError as e:
         logger.warning("Could not sync settings to .env: %s", e)
     await audit(user, action, "settings", "global", detail or {})
+    # Apply platform knobs to process env (logging, TI, jobs, audit, broker)
+    try:
+        from backend.platform_settings import apply_platform_to_environ
+
+        apply_platform_to_environ(doc)
+    except Exception as pe:
+        logger.warning("platform settings apply skipped: %s", pe)
+    # Append-only config version (ops snapshot; secrets never stored)
+    try:
+        from backend.settings_versions import append_version
+
+        changed = list((detail or {}).get("keys_updated") or []) + list(
+            (detail or {}).get("keys_cleared") or []
+        )
+        if detail and detail.get("llm_model"):
+            changed.append("llm_model")
+        if detail and detail.get("llm_provider"):
+            changed.append("llm_provider")
+        await append_version(
+            db,
+            doc=doc,
+            user=user,
+            action=action,
+            changed_fields=sorted(set(changed)),
+        )
+    except Exception as ve:
+        logger.warning("settings version append skipped: %s", ve)
     return {"ok": True}
 
 

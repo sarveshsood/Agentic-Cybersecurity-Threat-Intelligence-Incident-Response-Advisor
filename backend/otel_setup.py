@@ -83,9 +83,35 @@ def setup_otel(service_name: str = "actira") -> bool:
         _status["configured"] = True
         _status["exporter"] = "otlp-http"
         _status["error"] = None
+        # Optional auto-instrument (install opentelemetry-instrumentation-*)
+        auto = []
+        try:
+            from opentelemetry.instrumentation.requests import RequestsInstrumentor  # type: ignore
+
+            RequestsInstrumentor().instrument()
+            auto.append("requests")
+        except Exception:
+            pass
+        try:
+            from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
+
+            HTTPXClientInstrumentor().instrument()
+            auto.append("httpx")
+        except Exception:
+            pass
+        try:
+            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
+
+            # Caller may pass app later; mark available for instrument_app()
+            _status["fastapi_instrumentor"] = True
+            auto.append("fastapi_ready")
+        except Exception:
+            _status["fastapi_instrumentor"] = False
+        _status["auto_instrument"] = auto
         logger.info(
-            "OpenTelemetry OTLP exporter configured (endpoint_set=%s)",
+            "OpenTelemetry OTLP exporter configured (endpoint_set=%s auto=%s)",
             bool(endpoint),
+            auto,
         )
     except Exception as e:
         _status["sdk_available"] = "opentelemetry" in str(type(e).__module__) or _status[
@@ -97,6 +123,22 @@ def setup_otel(service_name: str = "actira") -> bool:
 
     _configured = True
     return bool(_status.get("configured"))
+
+
+def instrument_fastapi_app(app: Any) -> bool:
+    """Best-effort FastAPI auto-instrument after app creation."""
+    if not _status.get("configured"):
+        return False
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
+
+        FastAPIInstrumentor.instrument_app(app)
+        _status["fastapi_instrumented"] = True
+        return True
+    except Exception as e:
+        _status["fastapi_instrumented"] = False
+        logger.debug("FastAPI OTEL instrument skipped: %s", e)
+        return False
 
 
 def get_tracer(name: str = "actira"):

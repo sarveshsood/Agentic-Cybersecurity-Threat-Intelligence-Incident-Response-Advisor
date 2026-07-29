@@ -43,9 +43,10 @@ async def investigate(incident_id: str, body: InvestigateRequest, user: dict) ->
         model=settings.get("llm_model", "claude-sonnet-4-6"),
         settings=settings,
     )
+    inv_id = new_id()
     await db.investigations.insert_one(
         {
-            "id": new_id(),
+            "id": inv_id,
             "incident_id": incident_id,
             "user_id": user["sub"],
             "question": body.question,
@@ -53,6 +54,20 @@ async def investigate(incident_id: str, body: InvestigateRequest, user: dict) ->
             "ts": datetime.now(timezone.utc).isoformat(),
         }
     )
+    try:
+        await svc.audit(
+            user,
+            "investigate.ask",
+            "incident",
+            incident_id,
+            {
+                "investigation_id": inv_id,
+                "question": (body.question or "")[:200],
+                "streamed": False,
+            },
+        )
+    except Exception:
+        pass
     return result
 
 
@@ -104,6 +119,20 @@ async def investigate_stream_response(
                             inv_id,
                             persist_err,
                         )
+                    try:
+                        await svc.audit(
+                            user,
+                            "investigate.ask",
+                            "incident",
+                            incident_id,
+                            {
+                                "investigation_id": inv_id,
+                                "question": q[:200],
+                                "streamed": True,
+                            },
+                        )
+                    except Exception:
+                        pass
                     yield sse_pack(
                         {
                             "type": "done",

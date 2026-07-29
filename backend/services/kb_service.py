@@ -30,9 +30,14 @@ class LoraTrainRequest(BaseModel):
     reindex: bool = Field(False)
 
 
-async def search(q: str, mode: Optional[str] = None) -> Any:
+async def search(q: str, mode: Optional[str] = None, top_k: int = 8) -> Any:
     settings = await svc.get_settings()
-    return kb.search(q, top_k=8, mode=mode, settings=settings)
+    try:
+        k = int(top_k)
+    except (TypeError, ValueError):
+        k = 8
+    k = max(1, min(30, k))
+    return kb.search(q, top_k=k, mode=mode, settings=settings)
 
 
 async def retrieval_eval(top_k: int = 5) -> Any:

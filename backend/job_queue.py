@@ -120,6 +120,8 @@ def save_payload(
         settings: dict,
         *,
         kind: str = "batch",
+        user_email: str = "",
+        user_role: str = "",
 ) -> str:
     """Write job files + meta to disk. Returns payload path string.
 
@@ -130,6 +132,8 @@ def save_payload(
     meta = {
         "job_id": job_id,
         "user_id": user_id,
+        "user_email": (user_email or "").strip(),
+        "user_role": (user_role or "").strip(),
         "kind": kind,
         "files": [],
         "settings": scrub_settings_for_disk(settings),
@@ -186,6 +190,8 @@ async def save_payload_mongo(
         settings: dict,
         *,
         kind: str = "batch",
+        user_email: str = "",
+        user_role: str = "",
 ) -> str:
     """Store payload meta + GridFS file bytes in Mongo (multi-node safe)."""
     # Clear previous blob(s) for this job_id if re-enqueue
@@ -225,6 +231,8 @@ async def save_payload_mongo(
     meta = {
         "job_id": job_id,
         "user_id": user_id,
+        "user_email": (user_email or "").strip(),
+        "user_role": (user_role or "").strip(),
         "kind": kind,
         "files": file_rows,
         "settings": scrub_settings_for_disk(settings),
@@ -312,21 +320,48 @@ async def save_payload_async(
         settings: dict,
         *,
         kind: str = "batch",
+        user_email: str = "",
+        user_role: str = "",
 ) -> str:
     """Persist payload using configured backend(s). Returns primary location URI."""
     backend = payload_backend()
     path = ""
     if backend in ("mongo", "dual"):
-        path = await save_payload_mongo(db, job_id, files, user_id, settings, kind=kind)
+        path = await save_payload_mongo(
+            db,
+            job_id,
+            files,
+            user_id,
+            settings,
+            kind=kind,
+            user_email=user_email,
+            user_role=user_role,
+        )
     if backend in ("disk", "dual"):
         disk_path = await asyncio.to_thread(
-            save_payload, job_id, files, user_id, settings, kind=kind
+            save_payload,
+            job_id,
+            files,
+            user_id,
+            settings,
+            kind=kind,
+            user_email=user_email,
+            user_role=user_role,
         )
         if not path:
             path = disk_path
     if not path:
         # Safety: always write disk if backend misconfigured
-        path = await asyncio.to_thread(save_payload, job_id, files, user_id, settings, kind=kind)
+        path = await asyncio.to_thread(
+            save_payload,
+            job_id,
+            files,
+            user_id,
+            settings,
+            kind=kind,
+            user_email=user_email,
+            user_role=user_role,
+        )
     return path
 
 
@@ -361,8 +396,19 @@ async def enqueue(
         settings: dict,
         *,
         kind: str = "batch",
+        user_email: str = "",
+        user_role: str = "",
 ) -> None:
-    path = await save_payload_async(db, job_id, files, user_id, settings, kind=kind)
+    path = await save_payload_async(
+        db,
+        job_id,
+        files,
+        user_id,
+        settings,
+        kind=kind,
+        user_email=user_email,
+        user_role=user_role,
+    )
     await db.log_jobs.update_one(
         {"id": job_id},
         {
@@ -373,9 +419,25 @@ async def enqueue(
                 "queued_at": _utc_now(),
                 "status": "queued",
                 "progress": 0,
+                "created_by_email": (user_email or "").strip() or None,
+                "created_by_role": (user_role or "").strip() or None,
             }
         },
     )
+    try:
+        from backend.broker_queue import publish_job_available
+
+        publish_job_available(
+            job_id,
+            meta={
+                "kind": kind,
+                "user_id": user_id,
+                "user_email": (user_email or "").strip(),
+                "user_role": (user_role or "").strip(),
+            },
+        )
+    except Exception:
+        pass
 
 
 async def claim_next(db) -> Optional[dict]:
@@ -487,11 +549,13 @@ async def requeue_on_startup(db) -> int:
         return 0
 
 
-async def force_requeue(db, job_id: str) -> Dict[str, Any]:
+async def force_requeue(db, job_id: str, *, allow_done: bool = False) -> Dict[str, Any]:
     """Manually re-queue a failed/stuck job when durable payload still exists.
 
     Returns a small status dict for the API. Raises ValueError with a user-facing
     message when the job cannot be resumed.
+
+    ``allow_done=True`` permits re-run when ``JOB_PAYLOAD_RETAIN`` kept the upload.
     """
     if not job_id:
         raise ValueError("job_id required")
@@ -499,9 +563,12 @@ async def force_requeue(db, job_id: str) -> Dict[str, Any]:
     if not doc:
         raise ValueError("Job not found")
     status = (doc.get("status") or "").lower()
-    if status == "done":
-        raise ValueError("Job already completed — nothing to resume")
-    # Allow resume for failed, queued, mid-pipeline, or running (user force)
+    if status == "done" and not allow_done:
+        raise ValueError(
+            "Job already completed — use POST .../replay with JOB_PAYLOAD_RETAIN "
+            "or re-upload logs"
+        )
+    # Allow resume for failed, queued, mid-pipeline, running, or retained done
     meta = await load_payload_async(db, job_id)
     if not meta or not meta.get("_files"):
         raise ValueError(
@@ -542,6 +609,36 @@ async def mark_queue_done(db, job_id: str, *, failed: bool = False) -> None:
             }
         },
     )
+    # H-07: in-app inbox for job owner (best-effort; flag-gated inside emit)
+    try:
+        job = await db.log_jobs.find_one(
+            {"id": job_id},
+            {"_id": 0, "created_by": 1, "filename": 1, "status": 1},
+        )
+        owner = (job or {}).get("created_by")
+        if owner:
+            from backend.services.notification_inbox_service import emit
+
+            await emit(
+                user_id=str(owner),
+                kind="job_failed" if failed else "job_done",
+                title="Pipeline job failed" if failed else "Pipeline job completed",
+                body=(job or {}).get("filename") or job_id,
+                actor_id=None,
+                meta={"job_id": job_id},
+            )
+    except Exception:
+        pass
+    # Retain upload bytes when operators want full re-queue replay
+    retain = (os.environ.get("JOB_PAYLOAD_RETAIN") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if retain:
+        logger.info("job %s payload retained (JOB_PAYLOAD_RETAIN=1)", job_id)
+        return
     # Best-effort cleanup of payload bytes (mongo + disk)
     try:
         await clear_payload_async(db, job_id)
@@ -581,6 +678,22 @@ async def run_claimed_job(db, job_doc: dict) -> None:
         )
         return
     user_id = meta.get("user_id") or job_doc.get("created_by") or "system"
+    # Resolve operator email/role so pipeline file logs are greppable by person
+    user_email = (meta.get("user_email") or job_doc.get("created_by_email") or "").strip()
+    user_role = (meta.get("user_role") or job_doc.get("created_by_role") or "").strip()
+    if (not user_email or not user_role) and user_id and user_id != "system":
+        try:
+            udoc = await db.users.find_one(
+                {"id": str(user_id)},
+                {"_id": 0, "email": 1, "role": 1},
+            )
+            if udoc:
+                user_email = user_email or (udoc.get("email") or "").strip()
+                user_role = user_role or (udoc.get("role") or "").strip()
+        except Exception:
+            pass
+    if not user_role:
+        user_role = "job"
     live = await _load_live_settings(db)
     # Decrypt vault-encrypted secrets if live settings still have wire values
     try:
@@ -591,24 +704,42 @@ async def run_claimed_job(db, job_doc: dict) -> None:
     settings = merge_settings_with_live(meta.get("settings") or {}, live)
     files = meta["_files"]
     kind = meta.get("kind") or "batch"
-    try:
-        if kind == "single" and len(files) == 1:
-            name, data = files[0]
-            text = data.decode("utf-8", errors="ignore")
-            await run_pipeline(db, job_id, text, user_id, settings, filename=name)
-        else:
-            await run_batch_pipeline(db, job_id, files, user_id, settings)
-        # pipeline sets status done/failed; sync queue_state
-        cur = await db.log_jobs.find_one({"id": job_id}, {"status": 1})
-        failed = (cur or {}).get("status") == "failed"
-        await mark_queue_done(db, job_id, failed=failed)
-    except Exception as e:
-        logger.exception("durable job %s crashed: %s", job_id, e)
-        await db.log_jobs.update_one(
-            {"id": job_id},
-            {"$set": {"status": "failed", "error": str(e)[:2000], "progress": 0}},
+    # Tag pipeline logs with job + owning user for file/audit grepping
+    from backend.request_context import bind_log_context
+
+    with bind_log_context(
+        request_id=f"job:{job_id}",
+        email=user_email or None,
+        user_id=str(user_id),
+        role=user_role,
+    ):
+        logger.info(
+            "job_start job_id=%s kind=%s files=%s user=%s uid=%s role=%s",
+            job_id,
+            kind,
+            len(files),
+            user_email or user_id,
+            user_id,
+            user_role,
         )
-        await mark_queue_done(db, job_id, failed=True)
+        try:
+            if kind == "single" and len(files) == 1:
+                name, data = files[0]
+                text = data.decode("utf-8", errors="ignore")
+                await run_pipeline(db, job_id, text, user_id, settings, filename=name)
+            else:
+                await run_batch_pipeline(db, job_id, files, user_id, settings)
+            # pipeline sets status done/failed; sync queue_state
+            cur = await db.log_jobs.find_one({"id": job_id}, {"status": 1})
+            failed = (cur or {}).get("status") == "failed"
+            await mark_queue_done(db, job_id, failed=failed)
+        except Exception as e:
+            logger.exception("durable job %s crashed: %s", job_id, e)
+            await db.log_jobs.update_one(
+                {"id": job_id},
+                {"$set": {"status": "failed", "error": str(e)[:2000], "progress": 0}},
+            )
+            await mark_queue_done(db, job_id, failed=True)
 
 
 async def worker_loop(db) -> None:

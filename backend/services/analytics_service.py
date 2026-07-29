@@ -58,6 +58,111 @@ async def kpis(*, force_refresh: bool = False) -> Dict[str, Any]:
     return await _attach_llm_usage(payload)
 
 
+async def queue_kpis(*, force_refresh: bool = False) -> Dict[str, Any]:
+    """Rich analyst-queue metrics for Dashboard (Sprint 5 redesign)."""
+    from datetime import datetime, timedelta, timezone
+
+    base = await kpis(force_refresh=force_refresh)
+    now = datetime.now(timezone.utc)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_iso = day_start.isoformat()
+
+    assigned = 0
+    open_n = int(base.get("new") or 0) + int(base.get("in_progress") or 0)
+    waiting = int(base.get("pending_review") or 0)
+    escalated = 0
+    completed_today = 0
+    sla_risk = 0
+    try:
+        assigned = await db.incidents.count_documents(
+            {
+                "$or": [
+                    {"assignee_id": {"$exists": True, "$nin": [None, ""]}},
+                    {"secondary_assignee_id": {"$exists": True, "$nin": [None, ""]}},
+                ]
+            }
+        )
+        escalated = await db.incidents.count_documents(
+            {
+                "$or": [
+                    {"hitl_required": True},
+                    {"severity": {"$in": ["high", "critical"]}},
+                    {"status": "pending_review"},
+                ]
+            }
+        )
+        # completed today: approved/closed with reviewed_at or created_at in window
+        completed_today = await db.incidents.count_documents(
+            {
+                "status": {"$in": ["approved", "closed"]},
+                "$or": [
+                    {"reviewed_at": {"$gte": day_iso}},
+                    {"created_at": {"$gte": day_iso}},
+                ],
+            }
+        )
+        # SLA risk: due_at set and in the past or within 24h, not terminal
+        soon = (now + timedelta(hours=24)).isoformat()
+        sla_risk = await db.incidents.count_documents(
+            {
+                "due_at": {"$exists": True, "$ne": None, "$lte": soon},
+                "status": {"$nin": ["approved", "rejected", "closed"]},
+            }
+        )
+    except Exception:
+        pass
+
+    trend_7d = []
+    try:
+        for i in range(6, -1, -1):
+            d0 = (day_start - timedelta(days=i)).isoformat()
+            d1 = (day_start - timedelta(days=i - 1)).isoformat() if i > 0 else (
+                day_start + timedelta(days=1)
+            ).isoformat()
+            if i == 0:
+                d1 = (day_start + timedelta(days=1)).isoformat()
+            opened = await db.incidents.count_documents(
+                {"created_at": {"$gte": d0, "$lt": d1}}
+            )
+            completed = await db.incidents.count_documents(
+                {
+                    "status": {"$in": ["approved", "closed"]},
+                    "created_at": {"$gte": d0, "$lt": d1},
+                }
+            )
+            trend_7d.append(
+                {
+                    "date": d0[:10],
+                    "opened": opened,
+                    "completed": completed,
+                }
+            )
+    except Exception:
+        trend_7d = []
+
+    return {
+        "assigned": assigned,
+        "open": open_n,
+        "waiting_review": waiting,
+        "escalated": escalated,
+        "completed_today": completed_today,
+        "sla_risk": sla_risk,
+        "avg_resolution_hours": base.get("mean_mttr_hours"),
+        "median_resolution_hours": base.get("median_mttr_hours"),
+        "mttr_sample_size": base.get("mttr_sample_size") or 0,
+        "status_distribution": base.get("status_distribution") or [],
+        "new": base.get("new") or 0,
+        "in_progress": base.get("in_progress") or 0,
+        "pending_review": waiting,
+        "approved": base.get("approved") or 0,
+        "rejected": base.get("rejected") or 0,
+        "closed": base.get("closed") or 0,
+        "trend_7d": trend_7d,
+        "cache": base.get("cache"),
+        "engine": "queue_kpis_v1",
+    }
+
+
 async def _kpis_compute() -> Dict[str, Any]:
     facet = {
         "by_status": [{"$group": {"_id": "$status", "count": {"$sum": 1}}}],

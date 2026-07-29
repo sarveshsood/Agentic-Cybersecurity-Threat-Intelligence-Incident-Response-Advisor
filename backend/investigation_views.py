@@ -138,6 +138,28 @@ def build_investigation_timeline(
     source = "pipeline"
     corr = incident.get("correlation") if isinstance(incident, dict) else None
 
+    def _append_pipeline_events() -> None:
+        pipe = (incident or {}).get("timeline") or []
+        if not isinstance(pipe, list):
+            return
+        for i, step in enumerate(pipe):
+            if not isinstance(step, dict):
+                continue
+            events.append(
+                {
+                    "id": f"pipe:{i}",
+                    "kind": "pipeline",
+                    "ts": step.get("ts") or step.get("timestamp") or step.get("at"),
+                    "label": step.get("label") or step.get("phase") or step.get("event"),
+                    "detail": step.get("detail") or step.get("message") or "",
+                    "severity": step.get("severity") or "info",
+                    "actor": step.get("actor"),
+                    "target": step.get("target"),
+                    "source_file": step.get("source_file"),
+                    "entities": [],
+                }
+            )
+
     if isinstance(corr, dict) and corr:
         source = "correlation"
         chain = corr.get("attack_chain") or []
@@ -203,27 +225,14 @@ def build_investigation_timeline(
                     "entities": [x for x in (actor, target) if x],
                 }
             )
+
+        # Empty correlation shell (common when parse yields few CES links) —
+        # still show pipeline stage timeline so the Investigation tab is not blank.
+        if not events:
+            source = "pipeline"
+            _append_pipeline_events()
     else:
-        pipe = (incident or {}).get("timeline") or []
-        if not isinstance(pipe, list):
-            pipe = []
-        for i, step in enumerate(pipe):
-            if not isinstance(step, dict):
-                continue
-            events.append(
-                {
-                    "id": f"pipe:{i}",
-                    "kind": "pipeline",
-                    "ts": step.get("ts") or step.get("timestamp") or step.get("at"),
-                    "label": step.get("label") or step.get("phase") or step.get("event"),
-                    "detail": step.get("detail") or step.get("message") or "",
-                    "severity": step.get("severity") or "info",
-                    "actor": step.get("actor"),
-                    "target": step.get("target"),
-                    "source_file": step.get("source_file"),
-                    "entities": [],
-                }
-            )
+        _append_pipeline_events()
 
     # Stable sort: parseable ts asc; unparseable last, preserve append order
     for idx, ev in enumerate(events):

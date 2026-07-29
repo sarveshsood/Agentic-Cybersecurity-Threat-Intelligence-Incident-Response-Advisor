@@ -20,6 +20,12 @@ from . import roadmap
 from . import settings
 from . import workspace
 from . import hunt
+from . import collab
+from . import productivity
+from . import realtime
+
+# system router is mounted at app root only (see server.py) — meta already
+# exposes /api/health|/ready|/version|/metrics under dual /api + /api/v1 trees.
 
 # Public registry for include_all_routers / tests
 ALL_DOMAIN_ROUTERS = (
@@ -37,6 +43,9 @@ ALL_DOMAIN_ROUTERS = (
     kb,
     eval_routes,
     meta,
+    collab,
+    productivity,
+    realtime,
 )
 
 

@@ -78,7 +78,7 @@ class PipelineTrace:
 
     @contextmanager
     def stage(self, name: str, **attrs: Any) -> Iterator[None]:
-        """Time a named stage; records ms and optional error."""
+        """Time a named stage; records ms, metrics, and optional error."""
         name = (name or "stage").strip() or "stage"
         self._active = name
         t0 = time.perf_counter()
@@ -116,6 +116,12 @@ class PipelineTrace:
                     otel.__exit__(None, None, None)
                 except Exception:
                     pass
+            try:
+                from backend.metrics_registry import record_pipeline_stage
+
+                record_pipeline_stage(name, ms / 1000.0, ok=err is None)
+            except Exception:
+                pass
             logger.debug("[job %s] stage %s %.2fms", self.job_id, name, ms)
 
     def total_ms(self) -> float:

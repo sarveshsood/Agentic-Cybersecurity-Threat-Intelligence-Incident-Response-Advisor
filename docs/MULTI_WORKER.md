@@ -30,7 +30,9 @@ Do not disable Mongo for multi-worker deploys.
 
 1. **Local / small deploy (recommended)**
    ```bash
-   uvicorn server:app --host 0.0.0.0 --port 8001 --workers 1
+   # From repository root
+   export PYTHONPATH=.
+   python -m uvicorn backend.server:app --host 0.0.0.0 --port 8001 --workers 1
    ```
 
 2. **Multiple API workers**
@@ -74,6 +76,17 @@ meta (scrub + re-hydrate from settings).
 | `ACTIRA_JOB_PAYLOAD_BACKEND` | `mongo` | `mongo` \| `disk` \| `dual`                                          |
 | `JOB_STALE_MINUTES`          | `30`    | Re-queue stuck `running` jobs still claimed after this many minutes  |
 | `JOB_WORKER_POLL_SECONDS`    | `1.5`   | Queue poll interval                                                  |
+| `SECRETS_MASTER_KEY`         | (none)  | **Prod required** — explicit vault key; avoid JWT-derived only       |
+| `FEATURE_REALTIME_OPS`       | `1`     | SSE/WS queue push (in-process; not multi-replica pub/sub)            |
+
+## Optional job broker (honesty)
+
+Settings may enable `job_broker_enabled` + `job_broker_url` (AMQP). That path is a **wake-up / optional signal** only:
+
+- Durable job state and claim ownership remain in **Mongo** (`job_queue`).
+- This is **not** Celery, RQ, or a free-form worker rewrite.
+- Multi-replica still needs exactly the `ACTIRA_JOB_WORKER` leader pattern (or atomic multi-claim).
+- Ops UI exposes `broker_honesty` on `GET /api/ops/status`.
 
 ## Hung job resume
 

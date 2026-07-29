@@ -19,6 +19,14 @@ async def list_incidents(
         None,
         description="Filter by ATT&CK technique or parent (e.g. T1110 or T1110.003)",
     ),
+    assignee: Optional[str] = Query(
+        None,
+        description="H-07: me | user_id — matches primary or secondary assignee",
+    ),
+    unassigned: bool = Query(
+        False,
+        description="H-07: both primary and secondary empty",
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     include_meta: bool = Query(
@@ -31,6 +39,9 @@ async def list_incidents(
         status=status,
         severity=severity,
         technique=technique,
+        assignee=assignee,
+        unassigned=unassigned,
+        current_user_sub=user.get("sub") or user.get("id"),
         skip=skip,
         limit=limit,
         include_meta=include_meta,
@@ -72,3 +83,18 @@ async def similar_incidents(
 ):
     """LanceDB ANN over incident embeddings — similar past cases (excludes self)."""
     return await incident_service.similar_incidents(incident_id, top_k=top_k)
+
+
+@router.post("/incidents/{incident_id}/replay-enrich")
+async def replay_enrich(
+    incident_id: str,
+    force_mock: bool = Query(False, description="Force mock TI (offline/deterministic)"),
+    user=Depends(get_current_user),
+):
+    """Partial pipeline replay: re-enrich stored IoCs and update threat scores."""
+    from backend.database import db
+    from backend.pipeline_replay import replay_enrich_incident
+
+    return await replay_enrich_incident(
+        db, incident_id, user, force_mock=force_mock
+    )

@@ -92,4 +92,4 @@ async def test_kpis_attach_llm_usage_not_cached():
         # Fresh attach even on cache hit
         assert second["llm_usage"]["tokens_used"] == 42
         # Cached payload must not bake llm_usage into the store permanently as sole source
-        assert "llm_usage" not in (cache.get("kpis:v2") or {})
+        assert "llm_usage" not in (cache.get("kpis:v3") or {})

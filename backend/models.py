@@ -262,6 +262,16 @@ class Incident(BaseModel):
     correlation: Optional[Dict[str, Any]] = None
     files_meta: List[Dict[str, Any]] = []
     workspace: Optional[Workspace] = None
+    # H-07 assignment (optional; old docs valid with extra="ignore")
+    assignee_id: Optional[str] = None
+    assignee_email: Optional[str] = None
+    secondary_assignee_id: Optional[str] = None
+    secondary_assignee_email: Optional[str] = None
+    due_at: Optional[datetime] = None
+    sla_hint_hours: Optional[int] = Field(None, ge=1, le=720)
+    assigned_at: Optional[datetime] = None
+    assigned_by_id: Optional[str] = None
+    org_id: Optional[str] = None
 
 
 # ---------- Log Jobs ----------
@@ -312,6 +322,8 @@ SECRET_SETTINGS_FIELDS = (
     "shodan_api_key",
     "cohere_api_key",
     "slack_webhook_url",
+    "audit_siem_webhook_url",
+    "job_broker_url",
 )
 
 
@@ -327,6 +339,10 @@ class Settings(BaseModel):
     # Cross-provider fallback when primary fails (requires fallback provider key)
     llm_fallback_enabled: bool = True
     llm_fallback_provider: Optional[Literal["openai", "anthropic", "gemini", "groq", "none"]] = "anthropic"
+    # Preferred model when falling back to llm_fallback_provider (empty = provider default)
+    llm_fallback_model: Optional[str] = None
+    # Manual routing: primary (default) or backup (force preferred fallback stack)
+    llm_manual_route: Literal["primary", "backup"] = "primary"
     # Provider keys (UI → MongoDB; blank on update keeps previous value)
     # Send the sentinel __CLEAR__ (or use POST /settings/clear-secrets) to wipe a key.
     anthropic_api_key: Optional[str] = None
@@ -361,10 +377,83 @@ class Settings(BaseModel):
     # Data retention
     incident_retention_days: int = 90
     enrichment_cache_ttl_hours: int = 24
+    # —— Platform / enterprise (Admin → Settings → Platform) ——
+    # Enrichment pool + multi-file parse + TI HTTP resilience
+    max_enrich_iocs: int = 50
+    enrich_concurrency: int = 8
+    parse_concurrency: int = 4  # parallel multi-file detect_and_parse workers (1–16)
+    ti_http_timeout: float = 8.0
+    ti_http_retries: int = 2
+    ti_http_backoff_base: float = 0.4
+    ti_circuit_failures: int = 5
+    ti_circuit_cooldown_seconds: int = 60
+    # Logging
+    log_format: Literal["text", "json"] = "text"
+    log_file_format: Literal["text", "json", ""] = ""  # empty = same as log_format
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_to_file: bool = True
+    log_archive_enabled: bool = True
+    log_archive_retain_days: int = 30
+    # Jobs / replay
+    job_artifacts_enabled: bool = False
+    job_payload_retain: bool = False
+    job_artifacts_retain_hours: int = 168
+    # Audit export
+    audit_worm_enabled: bool = True
+    audit_siem_webhook_url: Optional[str] = None  # secret
+    # Optional AMQP broker
+    job_broker_enabled: bool = False
+    job_broker_url: Optional[str] = None  # secret
+    job_broker_queue: str = "actira.jobs"
 
 
 # Explicit clear sentinel for secret fields on PUT /settings (blank keeps previous).
 SETTINGS_CLEAR_SENTINEL = "__CLEAR__"
+
+
+# ---------- H-07 / H-08 Collaboration & Productivity ----------
+class AssignmentUpdate(BaseModel):
+    """Partial assignment PATCH. Service uses model_dump(exclude_unset=True)."""
+    model_config = ConfigDict(extra="ignore")
+    assignee_id: Optional[str] = None
+    secondary_assignee_id: Optional[str] = None
+    due_at: Optional[datetime] = None
+    sla_hint_hours: Optional[int] = Field(None, ge=1, le=720)
+    clear_due: bool = False
+    clear_sla_hint: bool = False
+
+
+class IncidentCommentCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(..., min_length=1, max_length=8000)
+    parent_id: Optional[str] = None  # root only (depth ≤ 1)
+
+
+class IncidentCommentUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(..., min_length=1, max_length=8000)
+
+
+class SavedFilterCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str = Field(..., min_length=1, max_length=80)
+    page: Literal["incidents", "review", "hunt"] = "incidents"
+    filter: Dict[str, Any] = Field(default_factory=dict)
+    is_default: bool = False
+
+
+class SavedFilterUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: Optional[str] = Field(None, min_length=1, max_length=80)
+    filter: Optional[Dict[str, Any]] = None
+    is_default: Optional[bool] = None
+
+
+class UserPinCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    target_type: Literal["incident", "saved_filter", "workspace_tab"]
+    target_id: str = Field(..., min_length=1, max_length=120)
+    label: Optional[str] = Field(None, max_length=200)
 
 
 # ---------- Review Actions ----------

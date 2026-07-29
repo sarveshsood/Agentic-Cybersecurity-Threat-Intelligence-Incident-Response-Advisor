@@ -21,7 +21,7 @@ async def hunt(
 ):
     """NL threat hunt over recent incidents (rule-based, no live LLM required)."""
     return await hunt_service.run_hunt(
-        q, limit=limit, severity=severity, status=status
+        q, limit=limit, severity=severity, status=status, user=user
     )
 
 

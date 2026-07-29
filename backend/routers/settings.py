@@ -1,7 +1,7 @@
 """Settings API routes — thin HTTP adapters over settings_service."""
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, Depends, Query
 
@@ -30,9 +30,24 @@ async def get_llm_catalog(user=Depends(get_current_user)):
 
 
 @router.post("/settings/test-llm")
-async def test_llm_connection(user=Depends(require_roles("admin"))):
-    """Probe configured LLM with a minimal completion (uses real API quota)."""
-    return await settings_service.test_llm(user)
+async def test_llm_connection(
+    body: Optional[Dict[str, Any]] = Body(None),
+    user=Depends(require_roles("admin")),
+):
+    """Probe primary or backup LLM route (uses real API quota).
+
+    Body optional: ``{"route": "primary"|"backup"|"auto"}`` (default primary).
+    """
+    route = "primary"
+    if isinstance(body, dict):
+        route = str(body.get("route") or "primary")
+    return await settings_service.test_llm(user, route=route)
+
+
+@router.get("/settings/llm-routes")
+async def get_llm_routes(user=Depends(require_roles("admin"))):
+    """Primary + backup stack, auto chain, key readiness (model management)."""
+    return await settings_service.llm_routes_payload()
 
 
 @router.put("/settings")
@@ -115,3 +130,30 @@ async def test_slack_alert(
     user=Depends(require_roles("admin")),
 ):
     return await settings_service.test_slack(body, user)
+
+
+@router.get("/settings/versions")
+async def settings_versions(
+    limit: int = Query(50, ge=1, le=200),
+    user=Depends(require_roles("admin")),
+):
+    """Append-only settings version history (ops snapshot; secrets redacted)."""
+    from backend.database import db
+    from backend.settings_versions import list_versions
+
+    return {"items": await list_versions(db, limit=limit)}
+
+
+@router.get("/settings/versions/{version}")
+async def settings_version_detail(
+    version: int,
+    user=Depends(require_roles("admin")),
+):
+    from backend.database import db
+    from backend.settings_versions import get_version
+    from fastapi import HTTPException
+
+    row = await get_version(db, version)
+    if not row:
+        raise HTTPException(404, "Version not found")
+    return row

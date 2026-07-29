@@ -13,14 +13,16 @@
 2. Backend:
 
 ```bash
-cd backend
+# From repository root (package-style import)
 # Dual-gate seed: lab ENV AND SEED_DEMO_USERS (empty DB only)
-set ENV=dev
-set SEED_DEMO_USERS=true
-set MONGO_URL=mongodb://localhost:27017
-set JWT_SECRET=dev-long-secret-at-least-32-characters
-set FORCE_MOCK_TI=true
-python -m uvicorn server:app --host 127.0.0.1 --port 8001
+export ENV=dev
+export SEED_DEMO_USERS=true
+export MONGO_URL=mongodb://localhost:27017
+export JWT_SECRET=dev-long-secret-at-least-32-characters
+export FORCE_MOCK_TI=true
+export PYTHONPATH=.
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8001
+# Or: ./scripts/start-demo.sh --skip-docker --api-only
 ```
 
 3. Frontend:

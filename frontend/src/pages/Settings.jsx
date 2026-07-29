@@ -14,6 +14,7 @@ import {
     HardDrives,
     Info,
     Key,
+    Lightning,
     PaperPlaneTilt,
     Shield,
     Sliders,
@@ -21,6 +22,7 @@ import {
     Trash,
     Warning,
     WarningCircle,
+    GearSix,
 } from "@phosphor-icons/react";
 import {
     loadUiPrefs,
@@ -61,6 +63,8 @@ const OPS_KEYS = [
     "llm_token_budget_monthly",
     "llm_fallback_enabled",
     "llm_fallback_provider",
+    "llm_fallback_model",
+    "llm_manual_route",
     "grounding_threshold",
     "hitl_severity_min",
     "auto_approve_grounding_min",
@@ -70,7 +74,30 @@ const OPS_KEYS = [
     "incident_retention_days",
     "enrichment_cache_ttl_hours",
     "cohere_rerank_enabled",
+    "llm_technique_refine",
+    "llm_redact_iocs",
     "email_alerts_to",
+    // Platform / enterprise
+    "max_enrich_iocs",
+    "enrich_concurrency",
+    "parse_concurrency",
+    "ti_http_timeout",
+    "ti_http_retries",
+    "ti_http_backoff_base",
+    "ti_circuit_failures",
+    "ti_circuit_cooldown_seconds",
+    "log_format",
+    "log_file_format",
+    "log_level",
+    "log_to_file",
+    "log_archive_enabled",
+    "log_archive_retain_days",
+    "job_artifacts_enabled",
+    "job_payload_retain",
+    "job_artifacts_retain_hours",
+    "audit_worm_enabled",
+    "job_broker_enabled",
+    "job_broker_queue",
 ];
 
 const SECRET_FORM_KEYS = [
@@ -80,14 +107,17 @@ const SECRET_FORM_KEYS = [
     "groq_api_key",
     ...TI_FIELD_NAMES,
     "slack_webhook_url",
+    "audit_siem_webhook_url",
+    "job_broker_url",
 ];
 
 const SETTINGS_TABS = [
     {id: "llm", label: "LLM", icon: Cpu, iconColor: "text-primary", sectionKey: "llm", tip: "Provider, model, API keys, temperature, budget, and LLM fallback."},
-    {id: "pipeline", label: "Detection", icon: Sliders, iconColor: "text-primary", sectionKey: "pipeline", tip: "Grounding threshold, HiTL severity floor, auto-approve, correlation window."},
+    {id: "pipeline", label: "Detection", icon: Sliders, iconColor: "text-primary", sectionKey: "pipeline", tip: "Grounding threshold, HiTL severity floor, auto-approve, correlation window, ATT&CK LLM refine, IoC redaction."},
     {id: "threat_intel", label: "Threat intel", icon: Key, iconColor: "text-warning", sectionKey: "threat_intel", tip: "Live CTI API keys (empty = mock enrichment)."},
     {id: "notifications", label: "Alerts", icon: Bell, iconColor: "text-primary", sectionKey: "notifications", tip: "Slack webhook and alert email for critical/HiTL events."},
     {id: "access", label: "Access & data", icon: Shield, iconColor: "text-success", sectionKey: "security", tip: "Session timeout, login lockout, retention, enrichment cache TTL."},
+    {id: "platform", label: "Platform", icon: GearSix, iconColor: "text-indigo-500", sectionKey: "platform", tip: "Enrichment pool, TI HTTP, logging, artifacts/replay, audit WORM, AMQP broker."},
     {id: "ui", label: "UI prefs", icon: Desktop, iconColor: "text-primary", sectionKey: "ui", tip: "Browser-local presentation prefs (tables, refresh, help tips) — not stored in Mongo."},
 ];
 
@@ -101,6 +131,8 @@ const FIELD_TO_TAB = {
     llm_token_budget_monthly: "llm",
     llm_fallback_enabled: "llm",
     llm_fallback_provider: "llm",
+    llm_fallback_model: "llm",
+    llm_manual_route: "llm",
     anthropic_api_key: "llm",
     openai_api_key: "llm",
     gemini_api_key: "llm",
@@ -110,6 +142,8 @@ const FIELD_TO_TAB = {
     auto_approve_grounding_min: "pipeline",
     correlation_window_minutes: "pipeline",
     cohere_rerank_enabled: "pipeline",
+    llm_technique_refine: "pipeline",
+    llm_redact_iocs: "pipeline",
     abuseipdb_key: "threat_intel",
     virustotal_key: "threat_intel",
     greynoise_key: "threat_intel",
@@ -124,6 +158,28 @@ const FIELD_TO_TAB = {
     failed_login_lockout: "access",
     incident_retention_days: "access",
     enrichment_cache_ttl_hours: "access",
+    max_enrich_iocs: "platform",
+    enrich_concurrency: "platform",
+    parse_concurrency: "platform",
+    ti_http_timeout: "platform",
+    ti_http_retries: "platform",
+    ti_http_backoff_base: "platform",
+    ti_circuit_failures: "platform",
+    ti_circuit_cooldown_seconds: "platform",
+    log_format: "platform",
+    log_file_format: "platform",
+    log_level: "platform",
+    log_to_file: "platform",
+    log_archive_enabled: "platform",
+    log_archive_retain_days: "platform",
+    job_artifacts_enabled: "platform",
+    job_payload_retain: "platform",
+    job_artifacts_retain_hours: "platform",
+    audit_worm_enabled: "platform",
+    audit_siem_webhook_url: "platform",
+    job_broker_enabled: "platform",
+    job_broker_url: "platform",
+    job_broker_queue: "platform",
 };
 
 const PROFILE_COMPARE_KEYS = Object.keys(RECOMMENDED_OPS).filter((k) => k !== "email_alerts_to");
@@ -157,6 +213,7 @@ function normalizeTabId(raw) {
     if (id === "ti" || id === "intel") return "threat_intel";
     if (id === "alerts" || id === "notify") return "notifications";
     if (id === "security" || id === "retention" || id === "data") return "access";
+    if (id === "enterprise" || id === "ops" || id === "logging") return "platform";
     if (id === "prefs" || id === "ui_prefs") return "ui";
     return VALID_TAB_IDS.has(id) ? id : DEFAULT_TAB;
 }
@@ -500,6 +557,8 @@ const EMPTY_SECRETS = {
     shodan_api_key: "",
     cohere_api_key: "",
     slack_webhook_url: "",
+    audit_siem_webhook_url: "",
+    job_broker_url: "",
 };
 
 function formFromSettings(d) {
@@ -510,6 +569,8 @@ function formFromSettings(d) {
         llm_token_budget_monthly: d?.llm_token_budget_monthly ?? 0,
         llm_fallback_enabled: d?.llm_fallback_enabled !== false,
         llm_fallback_provider: normalizeProvider(d?.llm_fallback_provider || "anthropic"),
+        llm_fallback_model: d?.llm_fallback_model || "",
+        llm_manual_route: d?.llm_manual_route === "backup" ? "backup" : "primary",
         grounding_threshold: d?.grounding_threshold ?? 0.7,
         hitl_severity_min: d?.hitl_severity_min || "high",
         auto_approve_grounding_min: d?.auto_approve_grounding_min ?? 0.85,
@@ -519,6 +580,28 @@ function formFromSettings(d) {
         incident_retention_days: d?.incident_retention_days ?? 90,
         enrichment_cache_ttl_hours: d?.enrichment_cache_ttl_hours ?? 24,
         cohere_rerank_enabled: d?.cohere_rerank_enabled !== false,
+        llm_technique_refine: Boolean(d?.llm_technique_refine),
+        llm_redact_iocs: Boolean(d?.llm_redact_iocs),
+        max_enrich_iocs: d?.max_enrich_iocs ?? FACTORY_OPS.max_enrich_iocs,
+        enrich_concurrency: d?.enrich_concurrency ?? FACTORY_OPS.enrich_concurrency,
+        parse_concurrency: d?.parse_concurrency ?? FACTORY_OPS.parse_concurrency,
+        ti_http_timeout: d?.ti_http_timeout ?? FACTORY_OPS.ti_http_timeout,
+        ti_http_retries: d?.ti_http_retries ?? FACTORY_OPS.ti_http_retries,
+        ti_http_backoff_base: d?.ti_http_backoff_base ?? FACTORY_OPS.ti_http_backoff_base,
+        ti_circuit_failures: d?.ti_circuit_failures ?? FACTORY_OPS.ti_circuit_failures,
+        ti_circuit_cooldown_seconds: d?.ti_circuit_cooldown_seconds ?? FACTORY_OPS.ti_circuit_cooldown_seconds,
+        log_format: d?.log_format || FACTORY_OPS.log_format,
+        log_file_format: d?.log_file_format ?? FACTORY_OPS.log_file_format,
+        log_level: d?.log_level || FACTORY_OPS.log_level,
+        log_to_file: d?.log_to_file !== false,
+        log_archive_enabled: d?.log_archive_enabled !== false,
+        log_archive_retain_days: d?.log_archive_retain_days ?? FACTORY_OPS.log_archive_retain_days,
+        job_artifacts_enabled: Boolean(d?.job_artifacts_enabled),
+        job_payload_retain: Boolean(d?.job_payload_retain),
+        job_artifacts_retain_hours: d?.job_artifacts_retain_hours ?? FACTORY_OPS.job_artifacts_retain_hours,
+        audit_worm_enabled: d?.audit_worm_enabled !== false,
+        job_broker_enabled: Boolean(d?.job_broker_enabled),
+        job_broker_queue: d?.job_broker_queue || FACTORY_OPS.job_broker_queue,
         ...EMPTY_SECRETS,
         email_alerts_to: d?.email_alerts_to || "",
     };
@@ -560,6 +643,7 @@ export default function Settings() {
     // Catalog lives in React state so provider/model UI always re-renders correctly
     const [llmCatalog, setLlmCatalog] = useState(() => cloneModelCatalog());
     const [llmEffective, setLlmEffective] = useState(null);
+    const [routeHealth, setRouteHealth] = useState({primary: null, backup: null});
     const [tiEditField, setTiEditField] = useState(null);
     const [showSlackHelp, setShowSlackHelp] = useState(false);
     const [uiPrefs, setUiPrefs] = useState(() => loadUiPrefs());
@@ -690,6 +774,8 @@ export default function Settings() {
             llm_token_budget_monthly: 0,
             llm_fallback_enabled: true,
             llm_fallback_provider: "anthropic",
+            llm_fallback_model: "",
+            llm_manual_route: "primary",
             grounding_threshold: 0.7,
             hitl_severity_min: "high",
             auto_approve_grounding_min: 0.85,
@@ -699,6 +785,8 @@ export default function Settings() {
             incident_retention_days: 90,
             enrichment_cache_ttl_hours: 24,
             cohere_rerank_enabled: true,
+            llm_technique_refine: false,
+            llm_redact_iocs: false,
         };
 
         const safetyTimer = setTimeout(() => {
@@ -711,7 +799,8 @@ export default function Settings() {
         Promise.all([
             api.get("/settings/llm-catalog").catch(() => ({data: null})),
             api.get("/settings").catch(() => null),
-        ]).then(([catRes, settingsRes]) => {
+            api.get("/settings/llm-routes").catch(() => null),
+        ]).then(([catRes, settingsRes, routesRes]) => {
             if (!isSubscribed) return;
             resolved = true;
             clearTimeout(safetyTimer);
@@ -731,6 +820,27 @@ export default function Settings() {
             } else {
                 hydrate(fallback, cat);
                 setSettingsLoadMode("fallback");
+            }
+            if (routesRes?.data) {
+                const d = routesRes.data;
+                setRouteHealth({
+                    primary: d.primary?.latency_ms != null || d.primary?.probe_ok != null
+                        ? {
+                            ok: d.primary.probe_ok,
+                            latency_ms: d.primary.latency_ms,
+                            provider: d.primary.provider,
+                            model: d.primary.model,
+                        }
+                        : null,
+                    backup: d.backup?.latency_ms != null || d.backup?.probe_ok != null
+                        ? {
+                            ok: d.backup.probe_ok,
+                            latency_ms: d.backup.latency_ms,
+                            provider: d.backup.provider,
+                            model: d.backup.model,
+                        }
+                        : null,
+                });
             }
         });
 
@@ -1546,19 +1656,60 @@ export default function Settings() {
                                             label="Preferred fallback provider"
                                             fieldKey="llm_fallback_provider"
                                             matchesRecommended={isRec(form, "llm_fallback_provider")}
-                                            hint="Tried first after primary; requires that provider’s key"
+                                            hint="Tried first after primary (automatic); also used for manual backup route"
                                         >
                                             <select
                                                 data-testid="llm-fallback-provider"
                                                 className={`${inputCls(false)} font-mono text-[12px]`}
                                                 value={form.llm_fallback_provider || "anthropic"}
-                                                onChange={(e) => upd("llm_fallback_provider", e.target.value)}
+                                                onChange={(e) => {
+                                                    const p = e.target.value;
+                                                    upd("llm_fallback_provider", p);
+                                                    if (p && p !== "none") {
+                                                        const def = defaultModelForProvider(p, llmCatalog);
+                                                        if (def) upd("llm_fallback_model", def);
+                                                    }
+                                                }}
                                                 disabled={form.llm_fallback_enabled === false}
                                             >
                                                 {SUPPORTED_PROVIDERS.map((p) => (
                                                     <option key={p} value={p}>{PROVIDER_LABELS[p] || p}</option>
                                                 ))}
                                                 <option value="none">none (disable preferred)</option>
+                                            </select>
+                                        </Field>
+                                        <Field
+                                            label="Preferred fallback model"
+                                            fieldKey="llm_fallback_model"
+                                            hint="Model used on automatic fallback and manual backup route"
+                                        >
+                                            <input
+                                                data-testid="llm-fallback-model"
+                                                type="text"
+                                                className={`${inputCls(false)} font-mono text-[12px]`}
+                                                value={form.llm_fallback_model || ""}
+                                                placeholder={
+                                                    form.llm_fallback_provider === "groq"
+                                                        ? "openai/gpt-oss-120b"
+                                                        : "provider default if empty"
+                                                }
+                                                onChange={(e) => upd("llm_fallback_model", e.target.value)}
+                                                disabled={form.llm_fallback_enabled === false || form.llm_fallback_provider === "none"}
+                                            />
+                                        </Field>
+                                        <Field
+                                            label="Manual routing"
+                                            fieldKey="llm_manual_route"
+                                            hint="primary = normal auto path; backup = force preferred fallback stack for all LLM calls"
+                                        >
+                                            <select
+                                                data-testid="llm-manual-route"
+                                                className={`${inputCls(false)} font-mono text-[12px]`}
+                                                value={form.llm_manual_route || "primary"}
+                                                onChange={(e) => upd("llm_manual_route", e.target.value)}
+                                            >
+                                                <option value="primary">Primary (+ automatic fallback on error)</option>
+                                                <option value="backup">Manual backup only (preferred fallback)</option>
                                             </select>
                                         </Field>
                                         <div className="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-2">
@@ -1569,28 +1720,166 @@ export default function Settings() {
                                                 onClick={async () => {
                                                     setBusy(true);
                                                     try {
-                                                        const res = await api.post("/settings/test-llm");
+                                                        const res = await api.post("/settings/test-llm", {route: "primary"});
                                                         const d = res.data || {};
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            primary: {
+                                                                ok: true,
+                                                                latency_ms: d.latency_ms,
+                                                                provider: d.provider,
+                                                                model: d.model,
+                                                            },
+                                                        }));
                                                         toast.success(
-                                                            `LLM ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
+                                                            `Primary ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
                                                         );
                                                     } catch (e) {
                                                         const detail = e?.response?.data?.detail;
                                                         const msg = typeof detail === "object"
                                                             ? (detail.message || detail.error || JSON.stringify(detail))
                                                             : (e?.userMessage || e?.message || "LLM test failed");
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            primary: {
+                                                                ok: false,
+                                                                latency_ms: typeof detail === "object" ? detail.latency_ms : null,
+                                                                error: msg,
+                                                            },
+                                                        }));
                                                         toast.error(msg);
                                                     } finally {
                                                         setBusy(false);
                                                     }
                                                 }}
                                                 className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
-                                                title="Sends a minimal completion using the saved provider/model"
+                                                title="Test primary provider/model"
                                             >
-                                                Test LLM connection
+                                                Test primary
+                                            </button>
+                                            <button
+                                                type="button"
+                                                data-testid="llm-test-backup"
+                                                disabled={busy || form.llm_fallback_enabled === false}
+                                                onClick={async () => {
+                                                    setBusy(true);
+                                                    try {
+                                                        const res = await api.post("/settings/test-llm", {route: "backup"});
+                                                        const d = res.data || {};
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            backup: {
+                                                                ok: true,
+                                                                latency_ms: d.latency_ms,
+                                                                provider: d.provider,
+                                                                model: d.model,
+                                                            },
+                                                        }));
+                                                        toast.success(
+                                                            `Backup ok: ${d.provider}/${d.model} (${d.latency_ms}ms)`,
+                                                        );
+                                                    } catch (e) {
+                                                        const detail = e?.response?.data?.detail;
+                                                        const msg = typeof detail === "object"
+                                                            ? (detail.message || detail.error || JSON.stringify(detail))
+                                                            : (e?.userMessage || e?.message || "Backup LLM test failed");
+                                                        setRouteHealth((rh) => ({
+                                                            ...rh,
+                                                            backup: {
+                                                                ok: false,
+                                                                latency_ms: typeof detail === "object" ? detail.latency_ms : null,
+                                                                error: msg,
+                                                            },
+                                                        }));
+                                                        toast.error(msg);
+                                                    } finally {
+                                                        setBusy(false);
+                                                    }
+                                                }}
+                                                className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
+                                                title="Test preferred fallback provider/model (manual backup path)"
+                                            >
+                                                Test backup
+                                            </button>
+                                            <button
+                                                type="button"
+                                                data-testid="llm-one-click-backup-settings"
+                                                disabled={busy}
+                                                onClick={async () => {
+                                                    const next = form.llm_manual_route === "backup" ? "primary" : "backup";
+                                                    upd("llm_manual_route", next);
+                                                    setBusy(true);
+                                                    try {
+                                                        await api.put("/settings", {llm_manual_route: next});
+                                                        setInitialForm((prev) => ({...prev, llm_manual_route: next}));
+                                                        toast.success(
+                                                            next === "backup"
+                                                                ? "Saved: manual routing = backup"
+                                                                : "Saved: manual routing = primary",
+                                                        );
+                                                    } catch (e) {
+                                                        toast.error(e?.userMessage || e?.message || "Could not save route");
+                                                    } finally {
+                                                        setBusy(false);
+                                                    }
+                                                }}
+                                                className="soc-btn-secondary !py-1.5 !px-3 !text-[12px]"
+                                                title="Save one-click manual backup/primary without full form save"
+                                            >
+                                                {form.llm_manual_route === "backup" ? "Save → primary" : "Save → backup"}
                                             </button>
                                             <span className="text-[10px] text-muted-foreground">
-                                                Uses the last saved settings (save first if you changed provider/model).
+                                                Save settings first for model/key changes. Automatic = chain on error; Manual routing = force backup.
+                                            </span>
+                                        </div>
+                                        {/* Route health strip (latency chips) */}
+                                        <div
+                                            className="md:col-span-2 xl:col-span-3 flex flex-wrap gap-2"
+                                            data-testid="llm-route-health"
+                                        >
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border ${
+                                                    routeHealth?.primary?.ok === true
+                                                        ? "border-success/40 text-success"
+                                                        : routeHealth?.primary?.ok === false
+                                                          ? "border-error/40 text-error"
+                                                          : "theme-border text-muted-foreground"
+                                                }`}
+                                                data-testid="llm-primary-health-chip"
+                                            >
+                                                Primary
+                                                {routeHealth?.primary?.latency_ms != null
+                                                    ? ` · ${routeHealth.primary.latency_ms}ms`
+                                                    : " · not probed"}
+                                                {routeHealth?.primary?.ok === true ? " · ok" : ""}
+                                                {routeHealth?.primary?.ok === false ? " · fail" : ""}
+                                            </span>
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border ${
+                                                    routeHealth?.backup?.ok === true
+                                                        ? "border-success/40 text-success"
+                                                        : routeHealth?.backup?.ok === false
+                                                          ? "border-error/40 text-error"
+                                                          : "theme-border text-muted-foreground"
+                                                }`}
+                                                data-testid="llm-backup-health-chip"
+                                            >
+                                                Backup
+                                                {routeHealth?.backup?.latency_ms != null
+                                                    ? ` · ${routeHealth.backup.latency_ms}ms`
+                                                    : " · not probed"}
+                                                {routeHealth?.backup?.ok === true ? " · ok" : ""}
+                                                {routeHealth?.backup?.ok === false ? " · fail" : ""}
+                                            </span>
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border ${
+                                                    form.llm_manual_route === "backup"
+                                                        ? "border-warning/40 text-warning"
+                                                        : "border-success/40 text-success"
+                                                }`}
+                                                data-testid="llm-active-route-chip"
+                                            >
+                                                Active route · {form.llm_manual_route === "backup" ? "backup" : "primary"}
                                             </span>
                                         </div>
                                         {settings?.llm_usage && (
@@ -1642,7 +1931,85 @@ export default function Settings() {
                                                 : (form.llm_token_budget_monthly ?? "—")}
                                         </dd>
                                     </div>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <dt className="text-muted-foreground">Cross-provider fallback</dt>
+                                        <dd className={form.llm_fallback_enabled !== false ? "text-success font-medium" : "text-muted-foreground"}>
+                                            {form.llm_fallback_enabled === false ? "Off" : "On"}
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <dt className="text-muted-foreground">Preferred fallback</dt>
+                                        <dd className="font-mono text-xs uppercase">
+                                            {form.llm_fallback_enabled === false
+                                                ? "—"
+                                                : (form.llm_fallback_provider || "anthropic")}
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <dt className="text-muted-foreground">Fallback model</dt>
+                                        <dd className="font-mono text-xs text-right break-all max-w-[60%]" data-testid="llm-fallback-model-display">
+                                            {form.llm_fallback_enabled === false
+                                                ? "—"
+                                                : (form.llm_fallback_model || "(provider default)")}
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <dt className="text-muted-foreground">Manual routing</dt>
+                                        <dd className="font-mono text-xs uppercase" data-testid="llm-manual-route-display">
+                                            {form.llm_manual_route === "backup" ? "backup" : "primary"}
+                                        </dd>
+                                    </div>
                                 </dl>
+                                {/* Groq backup strip — free-tier / latency path in FALLBACK_PROVIDER_ORDER */}
+                                <div
+                                    className="mt-4 rounded-lg border theme-border px-3 py-2.5 space-y-1.5"
+                                    data-testid="llm-groq-backup-panel"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Groq backup
+                                        </span>
+                                        <span
+                                            className={`text-[10px] font-mono font-bold uppercase ${
+                                                settings?.has_groq ? "text-success" : "text-warning"
+                                            }`}
+                                        >
+                                            {settings?.has_groq ? "key ready" : "no key"}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-3 text-[11px]">
+                                        <span className="text-muted-foreground">Default backup model</span>
+                                        <span className="font-mono text-right break-all max-w-[65%]" data-testid="llm-groq-backup-model">
+                                            openai/gpt-oss-120b
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground leading-relaxed m-0">
+                                        Groq sits last in the automatic fallback chain (Anthropic → OpenAI → Gemini → Groq)
+                                        when cross-provider fallback is enabled and a key is stored. Free-tier default:
+                                        <span className="font-mono"> openai/gpt-oss-120b</span>
+                                        {" "}(also 20b / compound models in the catalog). Low-latency demos; not
+                                        prompt-cache friendly for multi-step playbooks.
+                                    </p>
+                                    {activeProvider === "groq" && (
+                                        <p className="text-[11px] text-primary font-medium m-0">
+                                            Groq is the active primary provider
+                                            {form.llm_model ? (
+                                                <> · model <span className="font-mono">{form.llm_model}</span></>
+                                            ) : null}
+                                            .
+                                        </p>
+                                    )}
+                                    {form.llm_fallback_provider === "groq" && form.llm_fallback_enabled !== false && (
+                                        <p className="text-[11px] text-warning font-medium m-0">
+                                            Groq is your preferred fallback after the primary fails.
+                                        </p>
+                                    )}
+                                    {llmEffective?.provider === "groq" && llmEffective?.via && (
+                                        <p className="text-[11px] text-warning font-medium m-0" data-testid="llm-groq-via-fallback">
+                                            Last effective call used Groq via fallback.
+                                        </p>
+                                    )}
+                                </div>
                             </DsPanel>
                             <DsPanel title="Ops profile" icon={Sparkle} subtitle="Detected from current field values">
                                 <div
@@ -1763,6 +2130,38 @@ export default function Settings() {
                                             onChange={(e) => upd("correlation_window_minutes", parseInt(e.target.value) || 30)}
                                         />
                                     </Field>
+                                    <Field
+                                        label="LLM ATT&CK technique refine"
+                                        fieldKey="llm_technique_refine"
+                                        matchesRecommended={isRec(form, "llm_technique_refine")}
+                                        hint="Optional second LLM pass to refine mapped techniques (allow-list validated; costs tokens)"
+                                    >
+                                        <select
+                                            data-testid="llm-technique-refine"
+                                            className={inputCls(false)}
+                                            value={form.llm_technique_refine ? "true" : "false"}
+                                            onChange={(e) => upd("llm_technique_refine", e.target.value === "true")}
+                                        >
+                                            <option value="false">Off (heuristic mapping only)</option>
+                                            <option value="true">On (extra LLM refine)</option>
+                                        </select>
+                                    </Field>
+                                    <Field
+                                        label="Redact IoCs in LLM prompts"
+                                        fieldKey="llm_redact_iocs"
+                                        matchesRecommended={isRec(form, "llm_redact_iocs")}
+                                        hint="Partially masks IPs/emails sent to the model (AI Investigator / privacy). Recommended for production."
+                                    >
+                                        <select
+                                            data-testid="llm-redact-iocs"
+                                            className={inputCls(false)}
+                                            value={form.llm_redact_iocs ? "true" : "false"}
+                                            onChange={(e) => upd("llm_redact_iocs", e.target.value === "true")}
+                                        >
+                                            <option value="false">Off (full IoC values in prompts)</option>
+                                            <option value="true">On (partial redaction)</option>
+                                        </select>
+                                    </Field>
                                 </div>
                             </CollapsibleSection>
                         </div>
@@ -1789,6 +2188,18 @@ export default function Settings() {
                                         <dt className="text-muted-foreground">Cohere re-rank</dt>
                                         <dd className={form.cohere_rerank_enabled === false ? "text-muted-foreground" : "text-success"}>
                                             {form.cohere_rerank_enabled === false ? "Off" : settings?.has_cohere ? "On (live)" : "On (needs key)"}
+                                        </dd>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                        <dt className="text-muted-foreground">ATT&CK LLM refine</dt>
+                                        <dd className={form.llm_technique_refine ? "text-warning" : "text-muted-foreground"}>
+                                            {form.llm_technique_refine ? "On" : "Off"}
+                                        </dd>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                        <dt className="text-muted-foreground">IoC redact in LLM</dt>
+                                        <dd className={form.llm_redact_iocs ? "text-success" : "text-muted-foreground"}>
+                                            {form.llm_redact_iocs ? "On" : "Off"}
                                         </dd>
                                     </div>
                                 </dl>
@@ -2176,6 +2587,189 @@ export default function Settings() {
                                         value={form.enrichment_cache_ttl_hours}
                                         onChange={(e) => upd("enrichment_cache_ttl_hours", parseInt(e.target.value) || 24)}
                                     />
+                                </Field>
+                            </div>
+                        </CollapsibleSection>
+                    </div>
+                )}
+
+                {/* ——— Platform / enterprise ——— */}
+                {activeTab === "platform" && (
+                    <div className="space-y-6" data-testid="settings-platform">
+                        <CollapsibleSection
+                            title="Enrichment & TI HTTP"
+                            subtitle="Concurrency, timeouts, retries, circuit breakers"
+                            icon={Lightning}
+                            defaultOpen
+                        >
+                            <div className={FIELD_GRID_2}>
+                                <Field label="Max IoCs to enrich" fieldKey="max_enrich_iocs" matchesRecommended={isRec(form, "max_enrich_iocs")}>
+                                    <input data-testid="max-enrich-iocs" type="number" min={1} max={200} className={`${inputCls(false)} font-mono`}
+                                           value={form.max_enrich_iocs ?? 50}
+                                           onChange={(e) => upd("max_enrich_iocs", parseInt(e.target.value, 10) || 50)}/>
+                                </Field>
+                                <Field label="Enrich concurrency" fieldKey="enrich_concurrency" matchesRecommended={isRec(form, "enrich_concurrency")}>
+                                    <input data-testid="enrich-concurrency" type="number" min={1} max={32} className={`${inputCls(false)} font-mono`}
+                                           value={form.enrich_concurrency ?? 8}
+                                           onChange={(e) => upd("enrich_concurrency", parseInt(e.target.value, 10) || 8)}/>
+                                </Field>
+                                <Field label="Parse concurrency" fieldKey="parse_concurrency" matchesRecommended={isRec(form, "parse_concurrency")}>
+                                    <input data-testid="parse-concurrency" type="number" min={1} max={16} className={`${inputCls(false)} font-mono`}
+                                           value={form.parse_concurrency ?? 4}
+                                           onChange={(e) => upd("parse_concurrency", parseInt(e.target.value, 10) || 4)}/>
+                                </Field>
+                                <Field label="TI timeout (s)" fieldKey="ti_http_timeout" matchesRecommended={isRec(form, "ti_http_timeout")}>
+                                    <input data-testid="ti-http-timeout" type="number" min={1} step={0.5} className={`${inputCls(false)} font-mono`}
+                                           value={form.ti_http_timeout ?? 8}
+                                           onChange={(e) => upd("ti_http_timeout", parseFloat(e.target.value) || 8)}/>
+                                </Field>
+                                <Field label="TI retries" fieldKey="ti_http_retries" matchesRecommended={isRec(form, "ti_http_retries")}>
+                                    <input data-testid="ti-http-retries" type="number" min={0} max={8} className={`${inputCls(false)} font-mono`}
+                                           value={form.ti_http_retries ?? 2}
+                                           onChange={(e) => upd("ti_http_retries", parseInt(e.target.value, 10) || 0)}/>
+                                </Field>
+                                <Field label="TI backoff base (s)" fieldKey="ti_http_backoff_base" matchesRecommended={isRec(form, "ti_http_backoff_base")}>
+                                    <input data-testid="ti-http-backoff" type="number" min={0.05} step={0.05} className={`${inputCls(false)} font-mono`}
+                                           value={form.ti_http_backoff_base ?? 0.4}
+                                           onChange={(e) => upd("ti_http_backoff_base", parseFloat(e.target.value) || 0.4)}/>
+                                </Field>
+                                <Field label="TI circuit failures" fieldKey="ti_circuit_failures" matchesRecommended={isRec(form, "ti_circuit_failures")}>
+                                    <input data-testid="ti-circuit-failures" type="number" min={1} className={`${inputCls(false)} font-mono`}
+                                           value={form.ti_circuit_failures ?? 5}
+                                           onChange={(e) => upd("ti_circuit_failures", parseInt(e.target.value, 10) || 5)}/>
+                                </Field>
+                                <Field label="TI circuit cooldown (s)" fieldKey="ti_circuit_cooldown_seconds" matchesRecommended={isRec(form, "ti_circuit_cooldown_seconds")}>
+                                    <input data-testid="ti-circuit-cooldown" type="number" min={5} className={`${inputCls(false)} font-mono`}
+                                           value={form.ti_circuit_cooldown_seconds ?? 60}
+                                           onChange={(e) => upd("ti_circuit_cooldown_seconds", parseInt(e.target.value, 10) || 60)}/>
+                                </Field>
+                            </div>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Logging & archival" subtitle="Format, file, archive lifecycle" icon={HardDrives} defaultOpen>
+                            <div className={FIELD_GRID_2}>
+                                <Field label="Log format" fieldKey="log_format" matchesRecommended={isRec(form, "log_format")}>
+                                    <select data-testid="log-format" className={inputCls(false)} value={form.log_format || "text"}
+                                            onChange={(e) => upd("log_format", e.target.value)}>
+                                        <option value="text">text (human greps)</option>
+                                        <option value="json">json (SIEM / ELK)</option>
+                                    </select>
+                                </Field>
+                                <Field label="Log file format" fieldKey="log_file_format" matchesRecommended={isRec(form, "log_file_format")}>
+                                    <select data-testid="log-file-format" className={inputCls(false)} value={form.log_file_format ?? ""}
+                                            onChange={(e) => upd("log_file_format", e.target.value)}>
+                                        <option value="">same as log format</option>
+                                        <option value="text">text</option>
+                                        <option value="json">json</option>
+                                    </select>
+                                </Field>
+                                <Field label="Log level" fieldKey="log_level" matchesRecommended={isRec(form, "log_level")}>
+                                    <select data-testid="log-level" className={inputCls(false)} value={form.log_level || "INFO"}
+                                            onChange={(e) => upd("log_level", e.target.value)}>
+                                        {["DEBUG", "INFO", "WARNING", "ERROR"].map((lv) => (
+                                            <option key={lv} value={lv}>{lv}</option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                <Field label="Write logs to file" fieldKey="log_to_file" matchesRecommended={isRec(form, "log_to_file")}>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input data-testid="log-to-file" type="checkbox" checked={form.log_to_file !== false}
+                                               onChange={(e) => upd("log_to_file", e.target.checked)}/>
+                                        Enabled (backend/logs)
+                                    </label>
+                                </Field>
+                                <Field label="Log archival" fieldKey="log_archive_enabled" matchesRecommended={isRec(form, "log_archive_enabled")}>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input data-testid="log-archive-enabled" type="checkbox" checked={form.log_archive_enabled !== false}
+                                               onChange={(e) => upd("log_archive_enabled", e.target.checked)}/>
+                                        Copy into dated archive folders
+                                    </label>
+                                </Field>
+                                <Field label="Archive retain (days)" fieldKey="log_archive_retain_days" matchesRecommended={isRec(form, "log_archive_retain_days")}>
+                                    <input data-testid="log-archive-days" type="number" min={1} className={`${inputCls(false)} font-mono`}
+                                           value={form.log_archive_retain_days ?? 30}
+                                           onChange={(e) => upd("log_archive_retain_days", parseInt(e.target.value, 10) || 30)}/>
+                                </Field>
+                            </div>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Jobs, artifacts & replay" subtitle="Pipeline snapshots and payload retain" icon={Sliders}>
+                            <div className={FIELD_GRID_2}>
+                                <Field label="Job artifacts" fieldKey="job_artifacts_enabled" matchesRecommended={isRec(form, "job_artifacts_enabled")}>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input data-testid="job-artifacts-enabled" type="checkbox" checked={Boolean(form.job_artifacts_enabled)}
+                                               onChange={(e) => upd("job_artifacts_enabled", e.target.checked)}/>
+                                        Store stage snapshots (parse / enrich / playbook)
+                                    </label>
+                                </Field>
+                                <Field label="Retain upload payloads" fieldKey="job_payload_retain" matchesRecommended={isRec(form, "job_payload_retain")}>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input data-testid="job-payload-retain" type="checkbox" checked={Boolean(form.job_payload_retain)}
+                                               onChange={(e) => upd("job_payload_retain", e.target.checked)}/>
+                                        Keep raw uploads after success (full re-queue)
+                                    </label>
+                                </Field>
+                                <Field label="Artifact retain (hours)" fieldKey="job_artifacts_retain_hours" matchesRecommended={isRec(form, "job_artifacts_retain_hours")}>
+                                    <input data-testid="job-artifacts-hours" type="number" min={1} className={`${inputCls(false)} font-mono`}
+                                           value={form.job_artifacts_retain_hours ?? 168}
+                                           onChange={(e) => upd("job_artifacts_retain_hours", parseInt(e.target.value, 10) || 168)}/>
+                                </Field>
+                            </div>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="Audit WORM & SIEM" subtitle="Append-only export and webhook" icon={Shield}>
+                            <div className={FIELD_GRID_2}>
+                                <Field label="Audit WORM file" fieldKey="audit_worm_enabled" matchesRecommended={isRec(form, "audit_worm_enabled")}>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input data-testid="audit-worm-enabled" type="checkbox" checked={form.audit_worm_enabled !== false}
+                                               onChange={(e) => upd("audit_worm_enabled", e.target.checked)}/>
+                                        Append every audit event to JSONL
+                                    </label>
+                                </Field>
+                                <Field label="SIEM webhook URL" fieldKey="audit_siem_webhook_url">
+                                    <input
+                                        data-testid="audit-siem-webhook"
+                                        type="password"
+                                        autoComplete="off"
+                                        placeholder={settings?.has_audit_siem_webhook ? "•••• configured — paste to replace" : "https://siem.example/hooks/…"}
+                                        className={inputCls(false)}
+                                        value={form.audit_siem_webhook_url || ""}
+                                        onChange={(e) => upd("audit_siem_webhook_url", e.target.value)}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                        Secret · never returned after save · blank keeps existing
+                                    </p>
+                                </Field>
+                            </div>
+                        </CollapsibleSection>
+
+                        <CollapsibleSection title="AMQP job broker" subtitle="Optional wake-up path for multi-worker" icon={GearSix}>
+                            <div className={FIELD_GRID_2}>
+                                <Field label="Enable broker" fieldKey="job_broker_enabled" matchesRecommended={isRec(form, "job_broker_enabled")}>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input data-testid="job-broker-enabled" type="checkbox" checked={Boolean(form.job_broker_enabled)}
+                                               onChange={(e) => upd("job_broker_enabled", e.target.checked)}/>
+                                        Publish AMQP wake-ups (Mongo still claims jobs)
+                                    </label>
+                                </Field>
+                                <Field label="Queue name" fieldKey="job_broker_queue" matchesRecommended={isRec(form, "job_broker_queue")}>
+                                    <input data-testid="job-broker-queue" type="text" className={`${inputCls(false)} font-mono`}
+                                           value={form.job_broker_queue || "actira.jobs"}
+                                           onChange={(e) => upd("job_broker_queue", e.target.value)}/>
+                                </Field>
+                                <Field label="AMQP URL" fieldKey="job_broker_url">
+                                    <input
+                                        data-testid="job-broker-url"
+                                        type="password"
+                                        autoComplete="off"
+                                        placeholder={settings?.has_job_broker_url ? "•••• configured — paste to replace" : "amqp://guest:guest@localhost:5672/"}
+                                        className={inputCls(false)}
+                                        value={form.job_broker_url || ""}
+                                        onChange={(e) => upd("job_broker_url", e.target.value)}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                        Requires <code className="font-mono">pip install pika</code> · secret field
+                                    </p>
                                 </Field>
                             </div>
                         </CollapsibleSection>

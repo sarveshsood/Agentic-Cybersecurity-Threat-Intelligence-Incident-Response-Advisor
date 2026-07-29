@@ -14,6 +14,9 @@ async def list_incidents(
     status: Optional[str] = None,
     severity: Optional[str] = None,
     technique: Optional[str] = None,
+    assignee: Optional[str] = None,
+    unassigned: bool = False,
+    current_user_sub: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
     include_meta: bool = False,
@@ -23,6 +26,9 @@ async def list_incidents(
         status=status,
         severity=severity,
         technique=technique,
+        assignee=assignee,
+        unassigned=unassigned,
+        current_user_sub=current_user_sub,
         skip=skip,
         limit=limit,
     )
@@ -32,6 +38,9 @@ async def list_incidents(
         status=status,
         severity=severity,
         technique=technique,
+        assignee=assignee,
+        unassigned=unassigned,
+        current_user_sub=current_user_sub,
     )
     return {
         "items": items,
@@ -45,6 +54,27 @@ async def get_incident(incident_id: str) -> Dict[str, Any]:
     doc = await incidents_repo.find_by_id(incident_id)
     if not doc:
         raise HTTPException(404, "Incident not found")
+    # Analyst opens a case: promote new → in_progress so the queue graph reflects work.
+    # Does not touch pending_review / approved / rejected / closed (HiTL integrity).
+    if (doc.get("status") or "").strip().lower() == "new":
+        try:
+            from backend.database import db
+            from backend.models import utc_now
+
+            res = await db.incidents.update_one(
+                {"id": incident_id, "status": "new"},
+                {"$set": {"status": "in_progress", "opened_at": utc_now()}},
+            )
+            if res.modified_count:
+                doc = {**doc, "status": "in_progress"}
+                try:
+                    from backend.services import analytics_cache as cache
+
+                    cache.invalidate("kpis:")
+                except Exception:
+                    pass
+        except Exception:
+            pass
     return doc
 
 

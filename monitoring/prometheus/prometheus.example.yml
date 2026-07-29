@@ -1,0 +1,34 @@
+# Example Prometheus scrape config for ACTIRA (lab / single-tenant pilot).
+# Copy and adapt; set METRICS_TOKEN on the API and here.
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - actira-rules.example.yml
+
+scrape_configs:
+  - job_name: actira
+    metrics_path: /metrics
+    params:
+      format: ["prometheus"]
+    scheme: http
+    static_configs:
+      - targets: ["host.docker.internal:8001"]
+        labels:
+          service: actira
+          env: lab
+    # Prefer header token over leaving metrics open:
+    # authorization:
+    #   type: Bearer
+    #   credentials_file: /etc/prometheus/actira_metrics_token
+    # Or custom header (supported by many scrapers via relabel/proxy):
+    # honor_labels: true
+
+  - job_name: actira-health
+    metrics_path: /api/health
+    scheme: http
+    static_configs:
+      - targets: ["host.docker.internal:8001"]
+    # Health is JSON — use blackbox exporter for real HTTP probes in prod.

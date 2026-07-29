@@ -8,3 +8,23 @@ groups:
           severity: critical
         annotations:
           summary: ACTIRA scrape target down
+          description: Prometheus cannot scrape ACTIRA /metrics. Check API pods and METRICS_TOKEN.
+
+      - alert: ActiraHighErrorRate
+        # Placeholder — replace with real counter from GET /metrics when wired.
+        expr: increase(http_requests_total{job="actira",status=~"5.."}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Elevated 5xx rate on ACTIRA API
+
+      - alert: ActiraJobQueueBacklog
+        # If you export queue depth gauges, bind them here.
+        expr: actira_jobs_queued > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Job queue backlog high
+          description: Check ACTIRA_JOB_WORKER leader, Mongo, and Ops Health.

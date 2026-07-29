@@ -5,27 +5,14 @@ from typing import List, Dict, Any
 from backend.knowledge_base import kb
 from backend.llm_provider import call_llm, parse_llm_json
 from backend.models import Playbook, PlaybookStep, IoC
+from backend.prompts import PLAYBOOK_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
 # Stable system prefix — identical on every call. Anthropic path marks this for
-# prompt caching (see llm_provider.call_llm use_prompt_cache). Groq has no
-# Anthropic-style cache_control; streaming tokens is skipped because we need full JSON.
-SYSTEM_PROMPT = """You are a senior SOC incident response expert. Generate a step-by-step response playbook grounded in the retrieved knowledge base sources provided by the user.
-
-REQUIREMENTS:
-- Structure the playbook into four phases: containment, eradication, recovery, lessons_learned
-- Each step MUST cite one or more source IDs from the provided knowledge base
-- Cite only IDs that appear in the provided "Sources" section
-- Return VALID JSON only. No prose, no markdown fences.
-
-Return this JSON shape exactly:
-{
-  "steps": [
-    {"order": 1, "phase": "containment", "action": "...", "citation_ids": ["T1110", "PB-BRUTEFORCE"]},
-    ...
-  ]
-}"""
+# prompt caching (see llm_provider.call_llm use_prompt_cache). Source of truth:
+# backend/prompts/playbook.py (Sprint 10 pack).
+SYSTEM_PROMPT = PLAYBOOK_SYSTEM_PROMPT
 
 
 async def generate_playbook(

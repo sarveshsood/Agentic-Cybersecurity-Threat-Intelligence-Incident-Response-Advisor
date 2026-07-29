@@ -20,3 +20,13 @@ When implementing **frontend UI**, tooltips are a **system prerequisite** — no
 - No secrets in logs; HiTL gates stay intact
 - Update OpenAPI when API shapes change
 - Roadmap seeds live in `backend/roadmap_data.py` + `ROADMAP.md`
+
+## Full-system / production readiness reviews
+
+For major-release, pilot go-live, or board-style reviews (not everyday PRs), use:
+
+- `docs/dx/ENTERPRISE_REVIEWER_PERSONA.md`
+- Security go-live: `docs/operations/SECURITY_HARDENING.md`
+- Ops readiness: `docs/operations/README.md`
+
+Day-to-day PRs: `docs/dx/CODE_REVIEW_CHECKLIST.md` + tooltip prerequisite.

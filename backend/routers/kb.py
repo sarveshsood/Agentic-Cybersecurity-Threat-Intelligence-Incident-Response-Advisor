@@ -19,9 +19,10 @@ async def kb_search(
         None,
         description="bm25 | hybrid | dense (default: ACTIRA_RETRIEVAL_MODE or hybrid)",
     ),
+    top_k: int = Query(8, ge=1, le=30, description="Max ranked chunks to return"),
     user=Depends(get_current_user),
 ):
-    return await kb_service.search(q, mode=mode)
+    return await kb_service.search(q, mode=mode, top_k=top_k)
 
 
 @router.get("/kb/retrieval-eval")

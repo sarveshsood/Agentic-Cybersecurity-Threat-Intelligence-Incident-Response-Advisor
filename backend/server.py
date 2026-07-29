@@ -32,11 +32,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend.auth import get_current_user, set_user_loader
 from backend.core.database import client, db
 from backend.core import services as svc
+from backend.logging_setup import configure_logging, identity_from_authorization
+from backend.request_context import reset_context, set_request_id, set_user
 from backend.routers import include_all_routers
 from backend.golden_eval import router as eval_router
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# Console + optional rotating file (LOG_TO_FILE / LOG_DIR). Includes [user=…] fields.
+_log_path = configure_logging()
 logger = logging.getLogger("actira")
+if _log_path:
+    logger.info("File logging enabled → %s", _log_path)
 
 # Re-export for legacy tests / scripts that import from server
 _get_settings = svc.get_settings
@@ -82,7 +87,14 @@ async def lifespan(app: FastAPI):
         logger.info("Startup: initializing authentication…")
         set_user_loader(_load_user_from_db)
         await svc.seed_demo_data()
-        await svc.get_settings()
+        boot_settings = await svc.get_settings()
+        try:
+            from backend.platform_settings import apply_platform_to_environ
+
+            apply_platform_to_environ(boot_settings)
+            logger.info("Startup: platform settings applied to process env")
+        except Exception as pse:
+            logger.warning("platform settings apply skipped: %s", pse)
         logger.info("Startup: settings loaded")
         try:
             from backend.knowledge_base import kb
@@ -146,12 +158,19 @@ async def lifespan(app: FastAPI):
         except Exception as rse:
             logger.warning("roadmap auto-merge skipped: %s", rse)
         try:
-            from backend.otel_setup import setup_otel
+            from backend.otel_setup import instrument_fastapi_app, setup_otel
 
             if setup_otel("actira"):
+                instrument_fastapi_app(app)
                 logger.info("Startup: OpenTelemetry OTLP exporter ready")
         except Exception as ote:
             logger.warning("otel setup skipped: %s", ote)
+        try:
+            from backend.settings_versions import ensure_indexes as ensure_settings_ver_idx
+
+            await ensure_settings_ver_idx(db)
+        except Exception as sve:
+            logger.warning("settings_versions indexes skipped: %s", sve)
         try:
             from backend.job_queue import start_worker
 
@@ -176,13 +195,16 @@ async def lifespan(app: FastAPI):
             n3 = await purge_stale_throttle_docs(db, max_age_days=14)
             settings_snap = await svc.get_settings()
             n4 = await purge_from_settings(db, settings_snap)
-            if n1 or n2 or any(n3.values()) or n4.get("incidents_deleted"):
+            if n1 or n2 or any(n3.values()) or n4.get("incidents_deleted") or (
+                n4.get("log_archival") or {}
+            ).get("copied"):
                 logger.info(
-                    "Startup: retention purge sidecars=%s outbox=%s throttle=%s incidents=%s",
+                    "Startup: retention purge sidecars=%s outbox=%s throttle=%s incidents=%s archive_copied=%s",
                     n1,
                     n2,
                     n3,
-                    n4,
+                    n4.get("incidents_deleted"),
+                    len((n4.get("log_archival") or {}).get("copied") or []),
                 )
         except Exception as pe:
             logger.warning("startup retention purge skipped: %s", pe)
@@ -303,21 +325,51 @@ async def add_correlation_and_logging(request: Request, call_next):
             headers.append((b"authorization", f"Bearer {cookie_token}".encode()))
             request.scope["headers"] = headers
 
+    # Best-effort principal for access logs / audit grepping (no DB hit)
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth_header:
+        cookie_token = request.cookies.get("actira_access_token")
+        if cookie_token:
+            auth_header = f"Bearer {cookie_token}"
+    identity = identity_from_authorization(auth_header)
+    request.state.user_id = identity.get("user_id") or ""
+    request.state.user_email = identity.get("email") or ""
+    request.state.user_role = identity.get("role") or ""
+
+    rid_tok = set_request_id(request_id)
+    user_toks = set_user(
+        email=identity.get("email") or None,
+        user_id=identity.get("user_id") or None,
+        role=identity.get("role") or None,
+    )
+
     start = datetime.now(timezone.utc)
     try:
         response = await call_next(request)
         duration = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+        user_label = identity.get("email") or identity.get("user_id") or "-"
+        status_code = getattr(response, "status_code", None)
         logger.info(
-            "http_request",
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status_code": getattr(response, "status_code", None),
-                "duration_ms": round(duration, 1),
-                "client_ip": getattr(request.client, "host", None) if request.client else None,
-            },
+            "http_request method=%s path=%s status=%s duration_ms=%s client_ip=%s user=%s role=%s",
+            request.method,
+            request.url.path,
+            status_code,
+            round(duration, 1),
+            getattr(request.client, "host", None) if request.client else None,
+            user_label,
+            identity.get("role") or "-",
         )
+        try:
+            from backend.metrics_registry import record_http
+
+            record_http(
+                request.method,
+                request.url.path,
+                int(status_code or 0),
+                float(duration),
+            )
+        except Exception:
+            pass
         response.headers["X-Request-ID"] = request_id
         # Baseline security headers (non-breaking for SPA/API clients)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -342,8 +394,10 @@ async def add_correlation_and_logging(request: Request, call_next):
             )
         return response
     except Exception:
-        logger.exception("request failed", extra={"request_id": request_id})
+        logger.exception("request failed path=%s", request.url.path)
         raise
+    finally:
+        reset_context(request_id_token=rid_tok, user_tokens=user_toks)
 
 
 _AUTH_RATE_LIMIT_PATHS = frozenset({
@@ -441,78 +495,15 @@ async def rate_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-@app.get("/health")
-async def health_root():
-    return await svc.health_check()
+# Operational probes + metrics (root paths for k8s/compose healthchecks)
+from backend.routers import system as system_routes
 
-
-@app.get("/ready")
-async def ready_root():
-    """Readiness probe — 200 only when Mongo is reachable."""
-    body = await svc.health_check()
-    if body.get("mongo") != "up":
-        return JSONResponse(status_code=503, content=body)
-    return body
-
-
-@app.get("/version")
-async def version_root():
-    return {
-        "service": "ACTIRA API",
-        "full_name": "Agentic Cybersecurity Threat Intelligence & Incident Response Advisor",
-        "api": "v1",
-        "package": "backend",
-        "entry": "backend.server:app",
-    }
-
-
-@app.get("/metrics")
-async def metrics(request: Request):
-    """Basic metrics (admin JWT or X-Metrics-Token only)."""
-    import secrets as pysecrets
-
-    from fastapi import HTTPException
-
-    allowed = False
-    scrape = (os.environ.get("METRICS_TOKEN") or "").strip()
-    header_tok = (request.headers.get("x-metrics-token") or "").strip()
-    if scrape and header_tok and pysecrets.compare_digest(scrape, header_tok):
-        allowed = True
-    if not allowed:
-        auth = request.headers.get("authorization") or ""
-        if auth.lower().startswith("bearer "):
-            try:
-                user = await get_current_user(auth.split(" ", 1)[1].strip())
-                if user.get("role") == "admin":
-                    allowed = True
-            except HTTPException:
-                allowed = False
-    if not allowed:
-        raise HTTPException(
-            401,
-            "Metrics require admin Bearer JWT or X-Metrics-Token (METRICS_TOKEN env)",
-        )
-    try:
-        incident_count = await db.incidents.count_documents({})
-        job_count = await db.log_jobs.count_documents({})
-        pending_review = await db.incidents.count_documents({"status": "pending_review"})
-    except Exception:
-        incident_count = job_count = pending_review = -1
-    return {
-        "actira_incidents_total": incident_count,
-        "actira_log_jobs_total": job_count,
-        "actira_pending_review": pending_review,
-        "actira_up": 1,
-        "actira_global_rate_limit_enabled": 1 if _GLOBAL_RL_ENABLED else 0,
-        "actira_global_rate_limit_max": GLOBAL_RATE_LIMIT_MAX if _GLOBAL_RL_ENABLED else 0,
-        "actira_global_rate_limit_window_seconds": GLOBAL_RATE_LIMIT_WINDOW if _GLOBAL_RL_ENABLED else 0,
-    }
-
+app.include_router(system_routes.router)
 
 # Audit Trail: modular router (GET /api/audit/logs, /summary, /integrity) —
 # see backend/routers/audit.py (include_all_routers below).
 
-# Domain routers (/api + /api/v1)
+# Domain routers (/api + /api/v1) — includes system routes under /api + /api/v1
 include_all_routers(app)
 
 # Register Evaluation & Golden Benchmark Router

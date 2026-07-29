@@ -25,6 +25,7 @@ import {
 } from "@phosphor-icons/react";
 import {KpiCard, PageHeader} from "../design-system";
 import {HelpTip} from "../components/HelpTip";
+import {ListState} from "../components/ListState";
 
 const STATUS_META = {
     planned: {
@@ -571,6 +572,8 @@ export default function Roadmap() {
     const canEdit = CAN_EDIT_ROLES.includes(user?.role) || user?.role === "admin";
     const canAdmin = CAN_ADMIN_ROLES.includes(user?.role) || user?.role === "admin";
     const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
     const [statusFilter, setStatusFilter] = useState("all");
     const [priorityFilter, setPriorityFilter] = useState("all");
     const [q, setQ] = useState("");
@@ -588,6 +591,8 @@ export default function Roadmap() {
     });
 
     const load = useCallback(async () => {
+        setLoading(true);
+        setLoadError(null);
         try {
             const params = {
                 _t: Date.now(), // Cache buster to prevent 304 Not Modified responses
@@ -599,7 +604,11 @@ export default function Roadmap() {
             const r = await api.get("/roadmap", {params});
             setData(r.data);
         } catch (e) {
-            toast.error(e?.response?.data?.detail || "Failed to load roadmap");
+            const msg = e?.response?.data?.detail || "Failed to load roadmap";
+            setLoadError(typeof msg === "string" ? msg : "Failed to load roadmap");
+            toast.error(msg);
+        } finally {
+            setLoading(false);
         }
     }, [statusFilter, priorityFilter, q]);
 
@@ -905,6 +914,30 @@ export default function Roadmap() {
                     </div>
                 }
             />
+
+            {loading && (
+                <ListState variant="loading" message="Loading roadmap…" testid="roadmap-loading"/>
+            )}
+            {!loading && loadError && (
+                <div className="space-y-2">
+                    <ListState variant="error" message={loadError} testid="roadmap-error"/>
+                    <button
+                        type="button"
+                        className="soc-btn-ghost !text-xs"
+                        onClick={() => load()}
+                        data-testid="roadmap-retry"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+            {!loading && !loadError && (data?.items || []).length === 0 && (
+                <ListState
+                    variant="empty"
+                    message="No roadmap items match filters — try clearing search or sync seed (admin)."
+                    testid="roadmap-empty"
+                />
+            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {Object.entries(STATUS_META).map(([key, meta]) => {

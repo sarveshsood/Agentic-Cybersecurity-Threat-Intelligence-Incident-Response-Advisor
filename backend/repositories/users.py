@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from backend.database import db
 
@@ -29,6 +29,24 @@ class UserRepository:
 
     async def find_by_id_public(self, user_id: str) -> Optional[Dict[str, Any]]:
         return await self.col.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+
+    async def search_public(self, q: str, *, limit: int = 20) -> List[Dict[str, Any]]:
+        """Authenticated user picker: id, email, name, role only (no secrets)."""
+        lim = max(1, min(50, int(limit or 20)))
+        term = (q or "").strip()
+        proj = {"_id": 0, "id": 1, "email": 1, "name": 1, "role": 1}
+        if not term:
+            cursor = self.col.find({}, proj).sort("email", 1).limit(lim)
+            return await cursor.to_list(lim)
+        rx = re.escape(term)
+        query = {
+            "$or": [
+                {"email": {"$regex": rx, "$options": "i"}},
+                {"name": {"$regex": rx, "$options": "i"}},
+            ]
+        }
+        cursor = self.col.find(query, proj).sort("email", 1).limit(lim)
+        return await cursor.to_list(lim)
 
     async def insert(self, doc: Dict[str, Any]) -> None:
         await self.col.insert_one(doc)

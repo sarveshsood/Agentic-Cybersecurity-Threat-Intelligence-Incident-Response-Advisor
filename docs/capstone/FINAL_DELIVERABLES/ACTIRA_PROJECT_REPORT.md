@@ -72,12 +72,12 @@ References
 
 | ID | Title | File |
 |----|-------|------|
-| A | Test case catalog | [appendices/A_test_case_catalog.md](./appendices/A_test_case_catalog.md) |
-| B | API surface | [appendices/B_api_surface.md](./appendices/B_api_surface.md) |
-| C | Sample outputs | [appendices/C_sample_outputs.md](./appendices/C_sample_outputs.md) |
-| D | Configuration | [appendices/D_configuration.md](./appendices/D_configuration.md) |
-| E | Team members | [appendices/E_team_roles.md](./appendices/E_team_roles.md) |
-| F | Glossary | [appendices/F_glossary.md](./appendices/F_glossary.md) |
+| A | Test case catalog | [appendices/A_test_case_catalog.md](../appendices/A_test_case_catalog.md) |
+| B | API surface | [appendices/B_api_surface.md](../appendices/B_api_surface.md) |
+| C | Sample outputs | [appendices/C_sample_outputs.md](../appendices/C_sample_outputs.md) |
+| D | Configuration | [appendices/D_configuration.md](../appendices/D_configuration.md) |
+| E | Team members | [appendices/E_team_roles.md](../appendices/E_team_roles.md) |
+| F | Glossary | [appendices/F_glossary.md](../appendices/F_glossary.md) |
 
 ---
 
@@ -371,7 +371,7 @@ GitHub Actions run unit/integration tests, golden IR gates, and related checks. 
 | E2E | Playwright smoke / flows |
 | Manual | Demo script, screenshot pack, TI live keys |
 
-Master catalog: [`appendices/A_test_case_catalog.md`](./appendices/A_test_case_catalog.md) (TC-AUTH, TC-ING, TC-TI, TC-ATK, TC-AI, TC-RAG, TC-HITL, TC-WS, TC-DASH, TC-CMP, TC-AUD, TC-RES, …).
+Master catalog: [`appendices/A_test_case_catalog.md`](../appendices/A_test_case_catalog.md) (TC-AUTH, TC-ING, TC-TI, TC-ATK, TC-AI, TC-RAG, TC-HITL, TC-WS, TC-DASH, TC-CMP, TC-AUD, TC-RES, …).
 
 ## 7.2 Golden IR results (2026-07-26)
 
@@ -508,7 +508,7 @@ ACTIRA is **advisory**. High-risk recommendations require human accountability. 
 4. NIST SP 800-61 — Computer Security Incident Handling Guide.  
 5. Vendor documentation: AbuseIPDB, VirusTotal (and configured TI providers).  
 6. Internal product docs and this pack: `docs/capstone/*` (board, appendices, presentation).  
-7. Enterprise board review: [`board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md`](./board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md) (2026-07-26).  
+7. Enterprise board review: [`board/CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md`](./CAPSTONE_BOARD_REVIEW_AND_SUBMISSION.md) (2026-07-26).  
 
 ---
 
@@ -518,14 +518,14 @@ All full appendix bodies live under **`appendices/`** in this pack (not external
 
 | App | File | Contents |
 |-----|------|----------|
-| **A** | [appendices/A_test_case_catalog.md](./appendices/A_test_case_catalog.md) | Master test catalog (TC-IDs, commands, status table) |
-| **B** | [appendices/B_api_surface.md](./appendices/B_api_surface.md) | Dual `/api` + `/api/v1` path surface extract |
-| **C** | [appendices/C_sample_outputs.md](./appendices/C_sample_outputs.md) · [C_sample_g001.json](./appendices/C_sample_g001.json) | Golden case g001 log → IoCs, ATT&CK, playbook |
-| **D** | [appendices/D_configuration.md](./appendices/D_configuration.md) | Sanitized env/config (no secrets) |
-| **E** | [appendices/E_team_roles.md](./appendices/E_team_roles.md) | Team / mentor / declaration (**fill before viva**) |
-| **F** | [appendices/F_glossary.md](./appendices/F_glossary.md) | Glossary of terms |
+| **A** | [appendices/A_test_case_catalog.md](../appendices/A_test_case_catalog.md) | Master test catalog (TC-IDs, commands, status table) |
+| **B** | [appendices/B_api_surface.md](../appendices/B_api_surface.md) | Dual `/api` + `/api/v1` path surface extract |
+| **C** | [appendices/C_sample_outputs.md](../appendices/C_sample_outputs.md) · [C_sample_g001.json](../appendices/C_sample_g001.json) | Golden case g001 log → IoCs, ATT&CK, playbook |
+| **D** | [appendices/D_configuration.md](../appendices/D_configuration.md) | Sanitized env/config (no secrets) |
+| **E** | [appendices/E_team_roles.md](../appendices/E_team_roles.md) | Team / mentor / declaration (**fill before viva**) |
+| **F** | [appendices/F_glossary.md](../appendices/F_glossary.md) | Glossary of terms |
 
-Folder index: [appendices/README.md](./appendices/README.md).
+Folder index: [appendices/README.md](../appendices/README.md).
 
 ### Appendix A — summary
 
@@ -561,8 +561,8 @@ Key terms: ACTIRA, HiTL, IoC, RAG, RRF, CES, Grounding, Alignment score (≠ cer
 
 | Path | Use |
 |------|-----|
-| [assets/screenshots/](./assets/screenshots/) | UI screenshots for report figures |
-| [assets/figures/](./assets/figures/) | Architecture / flow diagrams |
+| [screenshots/](./screenshots/) | UI screenshots for report figures |
+| [architecture/](./architecture/) | Architecture / flow diagrams |
 
 ---
 

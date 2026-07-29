@@ -25,7 +25,7 @@ None.
 
 - Domain **routers** (`backend/routers/*`) + **core** database/services
 - Dual API mounts: **`/api`** and **`/api/v1`** (identical handlers)
-- Slim `server.py` entrypoint (still `uvicorn server:app`)
+- Slim `server.py` entrypoint (`python -m uvicorn backend.server:app` from repo root)
 - Tests: `backend/tests/test_modular_api_v1.py`
 - Docs: `docs/dx/BACKEND_STRUCTURE.md`, `docs/product/E2E_CAPABILITY_MATRIX.md`
 - OpenAPI snapshot regenerated (`docs/openapi.json`)

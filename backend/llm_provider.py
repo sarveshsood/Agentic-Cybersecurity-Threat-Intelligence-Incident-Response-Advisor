@@ -418,21 +418,24 @@ def _fallback_chain(
         return []
 
     preferred = (settings.get("llm_fallback_provider") or "").strip().lower()
+    preferred_model = (settings.get("llm_fallback_model") or "").strip()
     chain: list[tuple[str, str]] = []
     seen = {primary}
 
-    def _add(p: str) -> None:
+    def _add(p: str, model_override: str = "") -> None:
         if not p or p in seen or p not in PROVIDER_MODELS:
             return
         if not (keys.get(p) or "").strip():
             return
         seen.add(p)
-        chain.append((p, default_model_for_provider(p)))
+        mid = (model_override or "").strip() or default_model_for_provider(p)
+        chain.append((p, mid))
 
     if preferred and preferred != "none":
-        _add(preferred)
+        # Preferred provider first — use explicit fallback model when set
+        _add(preferred, preferred_model if preferred else "")
     for p in FALLBACK_PROVIDER_ORDER:
-        _add(p)
+        _add(p, preferred_model if p == preferred else "")
     return chain
 
 
@@ -489,6 +492,7 @@ async def call_llm(
         *,
         use_prompt_cache: bool = True,
         stream: bool = False,
+        route: str = "auto",
 ) -> Tuple[str, str, str]:
     """Send a chat completion. Returns (text, effective_provider, effective_model).
 
@@ -499,8 +503,13 @@ async def call_llm(
     3. Cross-provider fallback chain (keys required; settings-gated)
     4. Callers (playbook/investigator/RCA) still apply template fallbacks
 
-    Prompt caching (Anthropic): system block marked ephemeral when enabled.
-    stream=True is ignored here — use stream_llm() for Investigator SSE.
+    route
+    -----
+    - ``auto`` (default): primary then automatic fallback chain
+    - ``primary``: primary only (no chain)
+    - ``backup``: preferred fallback provider/model only (manual backup path)
+
+    Also honors ``settings.llm_manual_route == "backup"`` when route=auto.
     """
     if stream:
         logger.debug(
@@ -527,6 +536,10 @@ async def call_llm(
     temperature = _resolve_temperature(settings)
     provider = (provider or DEFAULT_PROVIDER).strip().lower()
     model = (model or default_model_for_provider(provider)).strip()
+    settings = settings or {}
+    route_l = (route or "auto").strip().lower()
+    if route_l == "auto" and str(settings.get("llm_manual_route") or "").strip().lower() == "backup":
+        route_l = "backup"
 
     async def _meter(text: str, eff_p: str, eff_m: str) -> Tuple[str, str, str]:
         try:
@@ -548,6 +561,39 @@ async def call_llm(
 
     errors: list[str] = []
 
+    # Manual backup: skip primary, use preferred fallback stack only
+    if route_l == "backup":
+        chain = _fallback_chain(provider, keys, settings)
+        if not chain:
+            # Prefer configured fallback provider even if primary has no chain
+            pref = (settings.get("llm_fallback_provider") or "groq").strip().lower()
+            if pref and pref != "none" and pref in PROVIDER_MODELS and (keys.get(pref) or "").strip():
+                fm = (settings.get("llm_fallback_model") or "").strip() or default_model_for_provider(pref)
+                chain = [(pref, fm)]
+        if not chain:
+            raise LLMConfigError(
+                "Manual backup route requested but no fallback provider key is configured"
+            )
+        last_err: Exception | None = None
+        for fb_provider, fb_model in chain:
+            try:
+                logger.info("LLM manual backup route → %s/%s", fb_provider, fb_model)
+                text, p, m = await _call_with_retries(
+                    fb_provider, fb_model, system, user, keys, json_mode,
+                    use_prompt_cache=use_prompt_cache, temperature=temperature,
+                    max_attempts=2,
+                )
+                return await _meter(text, p, m)
+            except Exception as e:
+                last_err = e
+                errors.append(f"{fb_provider}/{fb_model}: {type(e).__name__}: {e}")
+        raise LLMCallError(
+            "Manual backup route failed: " + "; ".join(errors[:4]),
+            provider=chain[0][0],
+            model=chain[0][1],
+            cause=last_err,
+        ) from last_err
+
     # Primary
     try:
         text, p, m = await _call_with_retries(
@@ -559,7 +605,14 @@ async def call_llm(
         errors.append(f"{provider}/{model}: {type(e).__name__}: {e}")
         logger.warning("LLM primary %s/%s failed: %s", provider, model, e)
 
-    # Cross-provider fallbacks
+    if route_l == "primary":
+        raise LLMCallError(
+            f"Primary-only route failed for {provider}/{model}: {errors[0] if errors else 'unknown'}",
+            provider=provider,
+            model=model,
+        )
+
+    # Cross-provider automatic fallbacks
     for fb_provider, fb_model in _fallback_chain(provider, keys, settings):
         try:
             logger.info(

@@ -7,6 +7,7 @@
 | [../presentation/](../presentation/)                                             | CXO / demos          | Pitch & deep-dive decks               |
 | [../diagrams/](../diagrams/)                                                     | Architects           | Mermaid sources                       |
 | [dx/](dx/)                                                                       | Developers           | Setup, standards, PR, review          |
+| [dx/ENTERPRISE_REVIEWER_PERSONA.md](dx/ENTERPRISE_REVIEWER_PERSONA.md)           | Release / board      | Principal production-readiness review |
 | [dx/TOOLTIP_PREREQUISITE.md](dx/TOOLTIP_PREREQUISITE.md)                         | Frontend / agents    | Mandatory HelpTip/Tip defaults        |
 | [product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md](product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md) | Product / v2 | H-07 collab + H-08 saved filters design |
 | [dx/BACKEND_STRUCTURE.md](dx/BACKEND_STRUCTURE.md)                               | Developers           | v1.1 routers + `/api/v1` layout       |
@@ -15,7 +16,8 @@
 | [product/E2E_CAPABILITY_MATRIX.md](product/E2E_CAPABILITY_MATRIX.md)             | Product / demos      | Required vs optional E2E features     |
 | [product/CAPSTONE_ENHANCEMENT_REVIEW.md](product/CAPSTONE_ENHANCEMENT_REVIEW.md) | Capstone / board     | Final UX polish scorecard             |
 | [product/INVESTIGATION_WORKSPACE_DESIGN.md](product/INVESTIGATION_WORKSPACE_DESIGN.md) | Eng / product  | v1.4 Investigation Workspace design (when published) |
-| [operations/](operations/)                                                       | SRE                  | Backup, DR, scaling, hardening        |
+| [operations/](operations/)                                                       | SRE                  | Backup, DR, scaling, hardening, observability |
+| [operations/SECURITY_HARDENING.md](operations/SECURITY_HARDENING.md)             | Security / platform  | Production security go-live checklist |
 | [ai-governance/](ai-governance/)                                                 | AI risk              | Prompts, eval, responsible AI         |
 | [compliance/](compliance/)                                                       | GRC                  | ISO/NIST/CIS/OWASP/… maps             |
 | [business/](business/)                                                           | Product              | Vision, ROI, SWOT                     |

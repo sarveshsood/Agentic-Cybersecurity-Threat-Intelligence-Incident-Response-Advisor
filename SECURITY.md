@@ -29,12 +29,17 @@ reasonable window before public write-ups.
 
 ## Production hardening checklist
 
-Before processing real SOC data:
+> **Full go-live checklist (authoritative):**  
+> [`docs/operations/SECURITY_HARDENING.md`](docs/operations/SECURITY_HARDENING.md)  
+> Use that document for deployment reviews, sign-off, HiTL integrity, OIDC/cookies, supply chain, and ops cross-links.  
+> Full-system board reviews: [`docs/dx/ENTERPRISE_REVIEWER_PERSONA.md`](docs/dx/ENTERPRISE_REVIEWER_PERSONA.md).
+
+Before processing real SOC data (summary only — complete the full checklist above):
 
 | Control              | Requirement                                             |
 |----------------------|---------------------------------------------------------|
 | `ENV`                | Set to `production` or `staging` (not `dev`)            |
-| `JWT_SECRET`         | Strong random secret, **≥32 characters**, not a default |
+| `JWT_SECRET`         | **Policy ≥32** random chars; runtime refuses weak/default or **&lt;16** outside lab |
 | `SECRETS_MASTER_KEY` | Explicit Fernet/master key for settings encrypt-at-rest |
 | Demo users           | **Never** enable `SEED_DEMO_USERS` outside trusted labs |
 | Mongo                | Network-restricted; auth enabled in real deploys        |
@@ -43,6 +48,7 @@ Before processing real SOC data:
 | Metrics              | `METRICS_TOKEN` for scrapers, or admin JWT only         |
 | HTTPS                | Terminate TLS in front of the API/UI in production      |
 | Cookies              | `SameSite`/`Secure` appropriate for your host topology  |
+| HiTL                 | Review gates intact; no silent auto-apply of high risk  |
 
 ## Known security features (for reviewers)
 

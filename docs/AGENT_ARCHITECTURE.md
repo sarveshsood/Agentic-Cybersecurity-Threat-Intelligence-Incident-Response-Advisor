@@ -152,3 +152,40 @@ classifier; per-tenant budgets.
 3. **P1** Expand golden set with human-approved playbooks.
 4. **P2** Stage-level tracing + cost dashboards in Analytics.
 5. **P3** Optional LangGraph only if multi-tool SOAR actions are productized.
+
+---
+
+## 11. A2A & multi-agent assessment (honest)
+
+**Question:** Should ACTIRA adopt Google A2A (Agent-to-Agent), MCP agent meshes, or LangGraph multi-agent swarms?
+
+| Dimension | Assessment |
+|-----------|------------|
+| Product fit today | **Low.** ACTIRA is a **deterministic IR pipeline** with one LLM authoring step + investigator Q&A. Auditability and HiTL matter more than agent negotiation. |
+| A2A protocol | **Not adopted.** No external agent directory, no agent card exchange, no cross-org task handoff. Adding A2A without SOAR action productization would be marketing surface only. |
+| Multi-agent roster UX | **Shipped as framing** (`AgentRoster`) over existing stages — not unconstrained tool-using agents. |
+| Risk of swarm agents | Hallucinated tool chains, non-reproducible demos, weaker evidence chains, harder compliance export. |
+| When to reconsider | (1) Gated SOAR actions with human approval per tool, (2) multi-tenant case collaboration, (3) external partner agent exchange with signed evidence envelopes. |
+| Near-term alternative | Keep pipeline stages + named roles; strengthen grounding, eval, cost meters, and stage OTel spans. |
+
+**Decision (2026-07):** Remain **pipeline-first**. Document any future A2A experiment under `docs/adr/` with HiTL non-bypass requirements. Do not claim “A2A multi-agent SOC” in README or sales decks.
+
+### Pipeline parallelization (related honesty)
+
+Stages are **mostly sequential for auditability**. Bounded concurrency is limited to:
+
+| Stage | Parallel? | Config |
+|-------|-----------|--------|
+| Multi-file parse | Yes | `parse_concurrency` / `PARSE_CONCURRENCY` (1–16, default 4) |
+| IoC enrich | Yes | `enrich_concurrency` / `ENRICH_CONCURRENCY` (1–32, default 8) |
+| Correlate / RAG / playbook / HiTL | No | — |
+
+Admin → **Settings → Platform** exposes both knobs. See [CONFIGURATION.md](CONFIGURATION.md) and `design_guidelines.json` → `pipeline_parallelization`.
+
+### What “agent” means in UI
+
+- **AgentRoster** on the dashboard names pipeline stages for demos — not live autonomous workers negotiating tasks.
+- **AI Investigator** is scoped Q&A over one incident + optional KB, with citation allow-list hygiene.
+- **Playbook agent** is a single LLM authoring call after retrieval — not a swarm.
+
+**Cross-links:** [PRODUCT_HONESTY.md](product/PRODUCT_HONESTY.md) · [design_guidelines.json](../design_guidelines.json) `agent_architecture_ux` · diagrams `05-ai-workflow.mmd` / `06-agent-workflow.mmd`.

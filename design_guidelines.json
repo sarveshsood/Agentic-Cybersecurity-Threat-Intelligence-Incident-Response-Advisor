@@ -1,7 +1,37 @@
 {
-  "theme": "Enterprise SOC Console (Light + Dark)",
+  "meta": {
+    "name": "ACTIRA Enterprise SOC Console Design Guidelines",
+    "product": "ACTIRA",
+    "version": "2.4.0",
+    "owner": "SOC Playbook AI",
+    "description": "Canonical UI/UX design system and engineering guardrails. Keep in sync with frontend tokens and CSS. Covers theme, typography, color, spacing, components, tooltips, tables, charts, keyboard shortcuts, command palette, search left-pane, pipeline parallelization honesty, dashboard charts, LLM/Groq fallback UX, agent/A2A framing, responsive, z-index, icons, motion, density, shell, testids, and honesty surfaces.",
+    "last_updated": "2026-07-29",
+    "sync_targets": [
+      "frontend/src/index.css",
+      "frontend/src/design-system/tokens.js",
+      "frontend/src/design-system/components.jsx",
+      "frontend/src/lib/theme.jsx",
+      "frontend/src/components/CommandPalette.jsx",
+      "frontend/src/components/Layout.jsx"
+    ]
+  },
+  "theme": {
+    "name": "Enterprise SOC Console (Light + Dark)",
+    "primary_experience": "light",
+    "modes": ["light", "dark", "system"],
+    "storage_key": "soc_theme",
+    "provider": "frontend/src/lib/theme.jsx",
+    "rules": [
+      "Light-first enterprise default (matches index.css and theme.jsx).",
+      "Dark mode must remain visually equivalent, not neon or cyberpunk.",
+      "Single blue brand accent only (#2563EB light / #3B82F6 dark).",
+      "Never introduce purple brand, neon cyan, glow shadows, or AI gradients.",
+      "Severity colors must stay consistent across tables, badges, charts, heatmap, and timelines."
+    ]
+  },
   "typography": {
-    "instructions": "Use Inter (500/600/700) from Google Fonts for UI; IBM Plex Mono for IoCs, IDs, metrics.",
+    "instructions": "Use Inter (500/600/700) for UI; IBM Plex Mono for IoCs, IDs, and metrics.",
+    "google_fonts_import": "frontend/src/index.css",
     "families": {
       "heading": "'Inter', 'Segoe UI', system-ui, sans-serif",
       "body": "'Inter', 'Segoe UI', system-ui, sans-serif",
@@ -19,9 +49,10 @@
     }
   },
   "colors": {
-    "palette": {
+    "light": {
       "primary": "#2563EB",
       "primary_hover": "#1D4ED8",
+      "primary_muted": "#3B82F6",
       "background": "#F8FAFC",
       "surface": "#FFFFFF",
       "sidebar": "#0F172A",
@@ -36,6 +67,20 @@
       "critical": "#991B1B",
       "info": "#2563EB"
     },
+    "dark": {
+      "primary": "#3B82F6",
+      "primary_hover": "#2563EB",
+      "background": "#0F172A",
+      "surface": "#1E293B",
+      "border": "#334155",
+      "text_primary": "#F8FAFC",
+      "text_secondary": "#94A3B8",
+      "muted": "#64748B",
+      "success": "#22C55E",
+      "warning": "#F59E0B",
+      "error": "#F87171",
+      "info": "#60A5FA"
+    },
     "severity": {
       "critical": "#991B1B",
       "high": "#EA580C",
@@ -43,73 +88,869 @@
       "low": "#2563EB",
       "informational": "#64748B"
     },
-    "guidelines": "Single blue accent only. No purple brand, no neon cyan, no glow shadows, no AI gradients. Severity colors must stay consistent across tables, badges, charts, heatmap, and timelines. Prefer CSS variables in index.css and design-system/tokens.js."
+    "severity_dark": {
+      "critical": "#F87171",
+      "high": "#FB923C",
+      "medium": "#FBBF24",
+      "low": "#60A5FA",
+      "informational": "#94A3B8"
+    },
+    "status": {
+      "new": "#64748B",
+      "in_progress": "#2563EB",
+      "pending_review": "#D97706",
+      "approved": "#16A34A",
+      "rejected": "#DC2626",
+      "closed": "#475569",
+      "running": "#2563EB",
+      "failed": "#DC2626",
+      "queued": "#64748B",
+      "success": "#16A34A",
+      "offline": "#94A3B8",
+      "healthy": "#16A34A"
+    },
+    "chart": {
+      "blue": "#2563EB",
+      "green": "#16A34A",
+      "amber": "#D97706",
+      "red": "#DC2626",
+      "gray": "#64748B",
+      "slate": "#475569"
+    },
+    "guidelines": [
+      "Single blue accent only.",
+      "Never introduce neon, cyan, or purple brand colors.",
+      "Use CSS variables (index.css) and design-system/tokens.js only.",
+      "Never hardcode hex in components except via tokens import.",
+      "Prefer CSS variables in index.css and design-system/tokens.js for all UI color."
+    ]
+  },
+  "spacing": {
+    "scale_px": {
+      "1": 4,
+      "2": 8,
+      "3": 12,
+      "4": 16,
+      "5": 24,
+      "6": 32,
+      "7": 40,
+      "8": 48,
+      "9": 64
+    },
+    "grid": "8pt"
+  },
+  "radius": {
+    "sm": 6,
+    "md": 8,
+    "lg": 12,
+    "xl": 12,
+    "full": 9999,
+    "button_input": 8,
+    "card": 12
+  },
+  "elevation": {
+    "sm": "0 1px 2px 0 rgb(15 23 42 / 0.05)",
+    "md": "0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06)",
+    "lg": "0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06)",
+    "rules": [
+      "1px borders with subtle elevation (shadow-sm).",
+      "Never use glowing shadows or neon borders."
+    ]
   },
   "tokens": {
     "css": "frontend/src/index.css",
     "js": "frontend/src/design-system/tokens.js",
     "components": "frontend/src/design-system/components.jsx",
-    "theme_provider": "frontend/src/lib/theme.jsx"
+    "threat_kit": "frontend/src/design-system/threat.jsx",
+    "chart_theme": "frontend/src/design-system/chartTheme.js",
+    "barrel": "frontend/src/design-system/index.js",
+    "theme_provider": "frontend/src/lib/theme.jsx",
+    "branding": "frontend/src/constants/branding.js",
+    "tailwind": "frontend/tailwind.config.js"
+  },
+  "defaults": {
+    "theme": "light",
+    "theme_modes": ["light", "dark", "system"],
+    "density": "comfortable",
+    "table_page_size": 25,
+    "remember_theme": true,
+    "remember_filters": true,
+    "remember_sidebar": true,
+    "status_refresh_ms": 60000,
+    "time_display_timezone": "UTC",
+    "analytics_default_days": 30,
+    "incidents_default_sort": "created_at:desc",
+    "review_default_sort": "threat_score:desc",
+    "review_default_view": "cards",
+    "show_help_tips": true,
+    "compact_tables": false,
+    "chart_range_days": 30,
+    "ui_prefs_module": "frontend/src/lib/uiPrefs.js"
   },
   "visual_enhancers": {
     "surfaces": "1px borders with subtle elevation (shadow-sm). Cards radius 12px; buttons/inputs 8px.",
     "glow_effects": "Never use glowing shadows or neon borders.",
-    "textures": "No scanlines. Optional soft navy radial on login brand panel only."
+    "textures": "No scanlines. Optional soft navy radial on login brand panel only.",
+    "glass": "Semi-transparent shell surfaces with light blur are allowed for sidebar/topbar only; never neon glass."
   },
   "layouts": {
     "dashboard_grid": "KPI row + charts + recent table + ATT&CK heatmap. Dense but readable.",
     "density": "Comfortable default; tables use sticky headers and row hover.",
-    "alignment": "Left-align text, right-align numeric metrics."
+    "alignment": "Left-align text, right-align numeric metrics.",
+    "shell": "Left rail IR workflow order; top bar status; content max-width comfortable for SOC walls."
   },
   "components": {
-    "kpi_cards": "soc-card, subtle border, token severity tones, no hover lift.",
+    "kpi_cards": "soc-card / KpiCard, subtle border, token severity tones, no hover lift.",
     "incident_table": "soc-table sticky header, SeverityBadge + StatusPill.",
     "attack_heatmap": "Severity-scale backgrounds without glow.",
     "citation_chips": "citation-chip / ioc-chip utility classes.",
     "hitl_approval_gate": "warning semantic border and badge; no neon pulse.",
     "ai_surfaces": "Recommendation panels (confidence, evidence, MITRE, SOC actions) — not chat-product chrome.",
-    "tooltips": "PREREQUISITE: every page/panel/KPI/action ships HelpTip or Tip by default via design-system props (tipTitle/tipBody, PaneLabel, DsButton tooltip=). See docs/dx/TOOLTIP_PREREQUISITE.md. Never ship UI with 'tooltips later'."
+    "tooltips": "PREREQUISITE: every page/panel/KPI/action ships HelpTip or Tip by default via design-system props."
   },
   "tooltip_prerequisite": {
+    "mandatory": true,
     "status": "mandatory",
+    "policy": "Every page, tab, sub-tab, KPI, panel, icon, chart, filter, table column, button and badge must provide contextual help.",
     "policy_module": "frontend/src/lib/tooltipPrerequisite.js",
-    "components": "frontend/src/components/HelpTip.jsx",
+    "help_components": "frontend/src/components/HelpTip.jsx",
     "design_system": "frontend/src/design-system/components.jsx",
     "docs": "docs/dx/TOOLTIP_PREREQUISITE.md",
+    "agent_notes": "Agents.md",
+    "components": [
+      "HelpTip",
+      "Tip",
+      "PaneLabel",
+      "SectionLabel",
+      "DsButton",
+      "PageHeader",
+      "Panel",
+      "KpiCard"
+    ],
     "defaults": {
       "PageHeader": "tip= or tipTitle+tipBody (requireTip default true)",
-      "Panel": "tip= or tipTitle+tipBody when titled",
-      "KpiCard": "tip= or tipTitle+tipBody",
-      "PaneLabel": "title+body required by default",
-      "SectionLabel": "tipTitle+tipBody required by default",
-      "DsButton": "tooltip= wraps Tip; requireTooltip for icon-only"
+      "Panel": "tipTitle + tipBody or tip=",
+      "KpiCard": "tipTitle + tipBody or tip=",
+      "DsButton": "tooltip= string",
+      "actions_chips": "wrap with <Tip content=\"…\">"
     },
-    "dev_behavior": "console.warn once per missing surface in DEV"
+    "developer_behavior": "Warn once per key in development: [ACTIRA tooltip prerequisite] …",
+    "language": "Explain business value and how calculated — do not merely repeat the label."
   },
-  "icons": {
-    "library": "@phosphor-icons/react",
-    "sizes": [
-      16,
-      20,
-      24
-    ],
-    "instruction": "Keep Phosphor only; do not mix Lucide/Heroicons. Consistent weight regular/bold."
+  "table_requirements": {
+    "sortable": true,
+    "multi_sort": true,
+    "filterable": true,
+    "searchable": true,
+    "sticky_headers": true,
+    "pagination": true,
+    "column_resize": true,
+    "column_visibility": true,
+    "row_hover": true,
+    "row_selection": true,
+    "csv_export": true,
+    "copy_to_clipboard": true,
+    "loading_skeleton": true,
+    "empty_state": true,
+    "virtualize_after_rows": 500
   },
-  "theme_modes": {
-    "light": "Default enterprise palette",
-    "dark": "Navy shell surfaces via data-theme=dark",
-    "system": "Follows prefers-color-scheme"
+  "chart_requirements": {
+    "interactive": true,
+    "tooltips": true,
+    "legends": true,
+    "drilldown": true,
+    "download_png": true,
+    "download_csv": true,
+    "responsive": true,
+    "accessible_colors": true,
+    "token_source": "SEVERITY_HEX and colors.chart from design-system/tokens.js"
+  },
+  "forms": {
+    "inline_validation": true,
+    "helper_text": true,
+    "tooltips": true,
+    "required_indicator": true,
+    "keyboard_accessible": true
+  },
+  "navigation": {
+    "breadcrumbs": true,
+    "remember_last_tab": true,
+    "consistent_icons": true,
+    "highlight_active": true,
+    "layout_module": "frontend/src/components/Layout.jsx"
+  },
+  "page_requirements": {
+    "loading_state": true,
+    "empty_state": true,
+    "error_state": true,
+    "success_feedback": true,
+    "responsive": true,
+    "audit_aware": true
+  },
+  "ai_surfaces": {
+    "style": "Analyst assistant panels",
+    "never_chatgpt_layout": true,
+    "always_show": [
+      "Confidence",
+      "Evidence",
+      "MITRE ATT&CK",
+      "Reasoning",
+      "Affected Assets",
+      "Recommendations",
+      "References"
+    ]
   },
   "accessibility": {
-    "contrast": "WCAG AA for text on surfaces",
-    "focus": "2px ring using --ring",
-    "motion": "Respect prefers-reduced-motion",
-    "test_ids": "Preserve existing data-testid attributes"
+    "wcag": "AA",
+    "keyboard_navigation": true,
+    "screen_reader": true,
+    "focus_ring": "2px",
+    "reduced_motion": true,
+    "preserve_testids": true,
+    "never_color_only": true
+  },
+  "performance": {
+    "lazy_routes": true,
+    "virtualize_large_tables": true,
+    "avoid_rerenders": true,
+    "reuse_components": true,
+    "avoid_duplicate_logic": true
+  },
+  "quality_gate": {
+    "definition_of_done": [
+      "Design tokens only (index.css + tokens.js)",
+      "No hardcoded colors outside tokens",
+      "No neon styling",
+      "All tooltips implemented (tooltip prerequisite)",
+      "Loading/empty/error states implemented",
+      "Responsive verified",
+      "Dark mode verified",
+      "Light mode verified",
+      "Accessibility verified (WCAG AA)",
+      "Business logic preserved",
+      "APIs preserved",
+      "Existing testids preserved",
+      "Performance not degraded"
+    ]
+  },
+  "where_to_edit": {
+    "brand_color_or_severity": [
+      "design_guidelines.json (this file)",
+      "frontend/src/index.css",
+      "frontend/src/design-system/tokens.js"
+    ],
+    "theme_modes": ["frontend/src/lib/theme.jsx"],
+    "product_name": ["frontend/src/constants/branding.js"],
+    "ui_pref_defaults": ["frontend/src/lib/uiPrefs.js"],
+    "admin_settings_defaults": [
+      "backend/models.py",
+      "frontend/src/constants/settingsMeta.js",
+      "backend/platform_settings.py"
+    ],
+    "mandatory_tooltips": [
+      "docs/dx/TOOLTIP_PREREQUISITE.md",
+      "frontend/src/lib/tooltipPrerequisite.js",
+      "frontend/src/components/HelpTip.jsx"
+    ]
   },
   "instructions_to_main_agent": [
     "Never reintroduce cyan/violet neon brand accents.",
-    "Use design-system tokens for charts (SEVERITY_HEX, colors.chart).",
-    "Preserve all business logic, APIs, workflows, and testids.",
-    "AI Investigator should look like analyst assist panels, not ChatGPT."
+    "Light mode is the primary experience; dark mode must remain visually equivalent.",
+    "Use only design-system tokens for colors, typography, spacing, shadows, borders, radius, charts, icons, and animations.",
+    "Never hardcode colors, spacing, font sizes, or elevations in feature components.",
+    "Use SEVERITY_HEX and colors.chart (or chartTheme) for every chart, graph, heatmap, timeline, and visualization.",
+    "Keep design_guidelines.json, index.css, and tokens.js in sync when changing the palette.",
+    "Maintain a consistent visual hierarchy across every page.",
+    "Maintain pixel-perfect alignment throughout the application.",
+    "Prefer enterprise SOC styling over consumer SaaS aesthetics.",
+    "Avoid glassmorphism excess, multi-color gradients, glowing effects, or decorative animations.",
+    "Every screen must have a clear primary purpose.",
+    "Reduce analyst clicks wherever possible.",
+    "Prefer information density without clutter.",
+    "Optimize for analyst workflows instead of marketing aesthetics.",
+    "Use progressive disclosure instead of hiding critical information.",
+    "Keep frequently used actions visible.",
+    "Never sacrifice functionality for visual simplicity.",
+    "Keep navigation predictable and consistent.",
+    "Use standard enterprise interaction patterns throughout.",
+    "Every icon must have an informative tooltip.",
+    "Every button must have a tooltip unless its purpose is completely obvious.",
+    "Every tab and sub-tab must have a tooltip describing its purpose.",
+    "Every chart must explain what it represents.",
+    "Every KPI card must explain how the metric is calculated.",
+    "Every filter must include helper text or tooltip.",
+    "Every badge, severity indicator, confidence score, ATT&CK tag, IoC tag, entity type, and status chip should explain its meaning.",
+    "Tooltip language should explain business value, not simply repeat the label.",
+    "Tooltips assist first-time users without slowing experienced analysts.",
+    "Provide intelligent defaults for every page.",
+    "Remember user preferences whenever appropriate (uiPrefs / theme storage).",
+    "Persist selected filters between sessions when possible.",
+    "Use sensible default sorting based on analyst priorities.",
+    "Default incident sorting should prioritize recency and severity.",
+    "Default chart ranges should show the most useful operational timeframe.",
+    "Default table page size should optimize readability without excessive scrolling.",
+    "Every data table must support sorting.",
+    "Provide filtering for all meaningful fields.",
+    "Support free-text search wherever useful.",
+    "Support pagination for large datasets.",
+    "Support sticky headers.",
+    "Support CSV export where appropriate.",
+    "Display empty-state guidance when no records exist.",
+    "Display loading skeletons during data retrieval.",
+    "AI Investigator must resemble an enterprise analyst-assistant workspace, never ChatGPT.",
+    "Display reasoning as structured investigation rather than conversational chat.",
+    "Always expose evidence supporting AI conclusions.",
+    "Display confidence, grounding, citations, timestamps, and data sources.",
+    "Separate facts, observations, assumptions, and recommendations.",
+    "Never fabricate evidence.",
+    "Always preserve analyst control over decisions.",
+    "Every chart should include drill-down where supported.",
+    "Every chart should support tooltip inspection.",
+    "Maintain consistent chart styling across the platform.",
+    "Use accessible colors for all visualizations.",
+    "Navigation must remain consistent across all modules.",
+    "Current location should always be visually obvious.",
+    "Highlight active navigation clearly.",
+    "Every page must include loading states.",
+    "Every async action requires progress indication.",
+    "Every API failure must show meaningful recovery guidance.",
+    "Empty states should guide the user toward useful next actions.",
+    "Meet WCAG AA accessibility requirements.",
+    "Support complete keyboard navigation.",
+    "Support screen readers.",
+    "Maintain sufficient color contrast.",
+    "Never rely on color alone to convey information.",
+    "Preserve all business logic, APIs, workflows, RBAC, audit logging, analytics calculations, and data contracts.",
+    "Never rename test IDs, API routes, events, or component contracts unless explicitly requested.",
+    "Maintain backward compatibility.",
+    "Prefer reusable design-system components over duplication.",
+    "Prefer configuration over hardcoded values.",
+    "Avoid unnecessary dependencies.",
+    "Do not introduce performance regressions.",
+    "Minimize unnecessary re-renders.",
+    "Maintain responsiveness across supported resolutions.",
+    "Use analyst terminology consistently.",
+    "Always display severity, confidence, timestamps, source system, and ATT&CK mappings where available.",
+    "Keep investigation context visible throughout analyst workflows.",
+    "Preserve evidence chains.",
+    "Support rapid triage and investigation.",
+    "Design every workflow to reduce MTTD and MTTR.",
+    "Review every page before considering work complete.",
+    "Check visual consistency across the application.",
+    "Avoid introducing UI regressions.",
+    "Do not leave placeholder content.",
+    "Ensure every feature feels production-ready.",
+    "Enterprise consistency always takes precedence over visual experimentation."
+  ],
+  "page_standards": {
+    "required": [
+      "PageHeader",
+      "Breadcrumbs",
+      "PageActions",
+      "GlobalSearch",
+      "HelpTip",
+      "PageSummary",
+      "LoadingState",
+      "EmptyState",
+      "ErrorState",
+      "AuditIndicator"
+    ],
+    "consistency": [
+      "Header layout identical across modules",
+      "Actions always top-right",
+      "Filters always above tables",
+      "KPIs always above detailed data",
+      "Charts before raw tables"
+    ]
+  },
+  "dashboard": {
+    "refresh_interval": 60000,
+    "auto_refresh_toggle": true,
+    "drilldown_every_widget": true,
+    "cross_filtering": true,
+    "export_dashboard": true,
+    "personalized_layout": true,
+    "remember_layout": true
+  },
+  "search": {
+    "global_search": true,
+    "saved_searches": true,
+    "recent_searches": true,
+    "advanced_filters": true,
+    "search_history": true,
+    "query_suggestions": true,
+    "keyboard_shortcut": "/"
+  },
+  "investigation": {
+    "timeline": true,
+    "evidence_panel": true,
+    "ioc_relationship_graph": true,
+    "attack_chain": true,
+    "kill_chain": true,
+    "mitre_matrix": true,
+    "related_incidents": true,
+    "affected_assets": true,
+    "analyst_notes": true,
+    "case_linking": true
+  },
+  "ai": {
+    "grounding_required": true,
+    "confidence_score": true,
+    "citations": true,
+    "hallucination_warning": true,
+    "show_sources": true,
+    "show_reasoning": true,
+    "human_override": true,
+    "approval_gate": true,
+    "audit_all_prompts": true,
+    "audit_all_responses": true,
+    "token_usage": true,
+    "latency": true
+  },
+  "compliance": {
+    "audit_logging": true,
+    "change_history": true,
+    "who_changed_what": true,
+    "retention_policy": true,
+    "export_audit": true,
+    "immutable_logs": true
+  },
+  "notifications": {
+    "toast": true,
+    "activity_center": true,
+    "priority_levels": true,
+    "notification_history": true,
+    "desktop_notifications": false
+  },
+  "settings": {
+    "searchable": true,
+    "categorized": true,
+    "danger_zone": true,
+    "audit_changes": true,
+    "restart_required_banner": true
+  },
+  "keyboard": {
+    "philosophy": "Prefer one discoverable palette (Ctrl+K) over dozens of global chords. Document every shipped key. Never steal keys while typing.",
+    "implemented": {
+      "Ctrl+K / Cmd+K": "Open / toggle command palette (CommandPalette.jsx)",
+      "Esc": "Close command palette, dialogs, drawers, mobile nav",
+      "Enter": "Submit focused form (KB search, hunt, login, palette activate)",
+      "ArrowUp / ArrowDown": "Move selection inside command palette",
+      "Type (in palette)": "Filter Navigate + Recent incidents groups"
+    },
+    "command_palette": {
+      "module": "frontend/src/components/CommandPalette.jsx",
+      "nav_source": "frontend/src/constants/nav.js (shared with Layout left rail)",
+      "trigger_testid": "command-palette-trigger",
+      "groups": ["Operate", "Analyze", "Govern", "Admin", "Recent incidents"],
+      "nav_order": "Must match Layout left rail section order and RBAC roles — never a flat Navigate list"
+    },
+    "chrome_clicks": {
+      "sidebar_toggle": "Click (Layout) — keyboard target: planned Ctrl+B",
+      "theme_toggle": "Click (top bar) — keyboard target: planned Ctrl+Shift+L",
+      "dashboard_refresh": "Click Refresh — bypasses KPI analytics cache"
+    },
+    "g_prefix_chords": {
+      "status": "design targets — use command palette until implemented",
+      "chords": {
+        "g then d": "Dashboard",
+        "g then u": "Ingest Logs",
+        "g then i": "Incidents",
+        "g then r": "Review Queue",
+        "g then h": "Threat Hunt",
+        "g then a": "Analytics",
+        "g then k": "Knowledge Base",
+        "g then t": "Audit Trail",
+        "g then c": "Compliance",
+        "g then m": "Roadmap",
+        "g then s": "Settings (admin)",
+        "g then o": "Ops & Health (admin)",
+        "g then b": "Golden Eval (admin)"
+      }
+    },
+    "planned_global": {
+      "/": "Focus page search input or open palette filter",
+      "?": "Shortcut help modal (list implemented + planned)",
+      "Ctrl+Shift+L": "Toggle light / dark / system theme",
+      "Ctrl+B": "Toggle sidebar collapse",
+      "Ctrl+Shift+R": "Dashboard force refresh KPIs"
+    },
+    "page_local": {
+      "knowledge": {
+        "Enter (query field)": "Run KB search",
+        "left_pane": "Mode / top_k / source / vector status / history — mouse primary",
+        "testid": "kb-search-left-pane"
+      },
+      "dashboard": {
+        "Refresh button": "force_refresh=true on GET /kpis (dash-refresh)",
+        "auto_poll": "Uses cache unless user clicks Refresh"
+      },
+      "settings_llm": {
+        "Active stack": "Shows primary key readiness + Groq backup panel (llm-groq-backup-panel)"
+      },
+      "incidents": {
+        "typeahead": "Client filter on loaded window"
+      },
+      "review": {
+        "typeahead": "Filter queue cards"
+      },
+      "hunt": {
+        "Enter (query)": "Run case hunt over recent incidents"
+      }
+    },
+    "discovery": {
+      "command_palette_footer": "Hint Ctrl+K on trigger button title",
+      "planned_help_modal": "? opens shortcut list (not yet shipped — do not claim in product UI)",
+      "g_prefix": "Design targets only — route via palette until implemented"
+    },
+    "rules": [
+      "Never capture shortcuts inside inputs/textareas/contenteditable except Esc.",
+      "Document every shipped shortcut in HelpTip or title on the chrome that triggers it.",
+      "Prefer Ctrl+K command palette over many one-off hotkeys.",
+      "Keep Layout NAV and CommandPalette NAV_COMMANDS order identical.",
+      "When adding a g-prefix chord, update this file + command palette labels in the same PR.",
+      "Do not claim Vim-style chords in user-facing copy until implemented.",
+      "Ship shortcuts and design_guidelines.keyboard.implemented in the same change."
+    ]
+  },
+  "command_palette": {
+    "enabled": true,
+    "shortcut": "Ctrl+K / Cmd+K",
+    "module": "frontend/src/components/CommandPalette.jsx",
+    "nav_source": "frontend/src/constants/nav.js",
+    "testid": "command-palette-trigger",
+    "groups": ["Operate", "Analyze", "Govern", "Admin", "Recent incidents"],
+    "actions": [
+      "Every left-rail page visible for the user's role (section-grouped)",
+      "Open recent incidents",
+      "Review Queue (senior_reviewer+)",
+      "Audit Trail (senior_reviewer+)",
+      "Golden Eval / Ops / Settings (admin)"
+    ],
+    "rules": [
+      "Use navForRole + groupNav from constants/nav.js — do not maintain a second NAV list.",
+      "Section headings must match the left rail: Operate, Analyze, Govern, Admin.",
+      "Compliance is visible to analyst (same as left rail)."
+    ],
+    "honesty": "Palette navigates the app shell; it is not a SIEM query console or global IoC graph search."
+  },
+  "search_ux": {
+    "knowledge_base": {
+      "route": "/knowledge",
+      "page": "frontend/src/pages/Knowledge.jsx",
+      "api": "GET /kb/search?q=&mode=&top_k=",
+      "left_pane": {
+        "testid": "kb-search-left-pane",
+        "sections": [
+          {
+            "id": "mode",
+            "label": "Retrieval mode",
+            "options": ["hybrid", "bm25", "dense"],
+            "default": "hybrid"
+          },
+          {
+            "id": "top_k",
+            "label": "Result limit",
+            "options": [5, 8, 12, 20],
+            "default": 8,
+            "api_param": "top_k"
+          },
+          {
+            "id": "source",
+            "label": "Source corpus",
+            "options": ["ALL", "MITRE", "NIST", "CISA", "Custom"],
+            "notes": "Client-side filter after search; known corpora always visible"
+          },
+          {
+            "id": "vector_status",
+            "label": "Vector status",
+            "fields": ["health", "embedder", "kb_rows", "incidents", "dim"]
+          },
+          {
+            "id": "history",
+            "label": "Recent (this browser)",
+            "storage": "localStorage actira_kb_search_history_v1",
+            "actions": ["replay query", "clear"]
+          }
+        ]
+      },
+      "modes": {
+        "hybrid": "BM25 + LanceDB dense RRF (default)",
+        "bm25": "Lexical only — always available offline",
+        "dense": "LanceDB ANN only — depends on vector health + embedder"
+      },
+      "rules": [
+        "Show retriever path badges on every hit (bm25/dense/hybrid).",
+        "Never claim SBERT when embedder is hash.",
+        "Latency chip after each query is required.",
+        "Show mode + top_k chip next to the search button.",
+        "Page-level embedder honesty banner remains even when left pane has vector status."
+      ]
+    },
+    "threat_hunt": {
+      "route": "/hunt",
+      "filters": ["severity", "status", "query"],
+      "honesty": "Case hunt over ≤500 newest incidents — not KQL/SPL lake search."
+    },
+    "global": {
+      "command_palette": true,
+      "incident_list_search": true,
+      "review_queue_search": true
+    }
+  },
+  "pipeline_parallelization": {
+    "summary": "Pipeline stages are mostly sequential for auditability; IoC enrichment and multi-file parse use bounded concurrency pools.",
+    "stages": {
+      "expand_zip": {"parallel": false, "notes": "Sequential member extraction with ZIP-bomb guards"},
+      "parse_files": {
+        "parallel": true,
+        "config": "parse_concurrency (Settings → Platform / PARSE_CONCURRENCY)",
+        "default": 4,
+        "range": "1–16",
+        "notes": "CPU-bound detect_and_parse via asyncio.to_thread + semaphore"
+      },
+      "correlate": {"parallel": false, "notes": "Single-process entity graph over combined events"},
+      "ioc_extract": {"parallel": false, "notes": "Regex over combined raw blob"},
+      "enrich": {
+        "parallel": true,
+        "config": "enrich_concurrency (ENRICH_CONCURRENCY)",
+        "default": 8,
+        "range": "1–32",
+        "notes": "asyncio.Semaphore + to_thread(enrich_ioc); cache isolates TI load"
+      },
+      "attack_map": {"parallel": false, "notes": "Heuristic catalog; optional LLM refine serial"},
+      "rag_playbook": {"parallel": false, "notes": "Retrieval then single LLM authoring call"},
+      "hitl_gate": {"parallel": false, "notes": "Pure policy function"}
+    },
+    "ux": [
+      "Upload progress phases must match job status: parsing → extracting → correlating → enriching → …",
+      "Ops Health should surface queue depth and pipeline timings, not fake live graphs.",
+      "Never imply multi-agent swarm when stages are a controlled pipeline."
+    ]
+  },
+  "charts_dashboard": {
+    "analyst_queue": {
+      "testid": "dash-workload",
+      "source": "GET /kpis?force_refresh=true → status_distribution + top-level counters (max of both)",
+      "statuses": ["new", "in_progress", "pending_review", "approved", "rejected", "closed"],
+      "colors": "useChartTheme().status / STATUS_HEX — never purple/neon hardcoded Cell fills",
+      "height_px": 280,
+      "animation": false,
+      "invalidation": [
+        "Pipeline insert invalidates analytics_cache kpis:",
+        "HiTL review invalidates analytics_cache kpis:",
+        "Dashboard Refresh button passes force_refresh=true"
+      ],
+      "rules": [
+        "Never hardcode demo counts into the chart series.",
+        "Never use purple (#8b5cf6) or neon for Pending Review bars.",
+        "Show empty state when all counts are zero (unless demo fallback env is on).",
+        "Disable Recharts animation on KPI charts (isAnimationActive=false).",
+        "Use fixed ResponsiveContainer height (not flex height:100% alone) to avoid static/blank charts.",
+        "Demo fallback only when REACT_APP_DASHBOARD_DEMO_FALLBACK=true.",
+        "Show n= total and optional cache= hit|miss honesty chip when data present."
+      ]
+    },
+    "token_source": "frontend/src/design-system/tokens.js + useChartTheme()"
+  },
+  "llm_provider_ux": {
+    "providers": ["anthropic", "openai", "gemini", "groq"],
+    "settings_page": "frontend/src/pages/Settings.jsx",
+    "fallback": {
+      "setting": "llm_fallback_enabled + llm_fallback_provider",
+      "order": ["anthropic", "openai", "gemini", "groq"],
+      "display": "Settings → LLM Active stack must show primary, preferred fallback, key presence, and last effective via_fallback strip"
+    },
+    "groq": {
+      "role": "Low-latency / free-tier backup for demos",
+      "honesty": "Not prompt-cache friendly; prefer Anthropic for production multi-step playbooks",
+      "key_flag": "has_groq",
+      "key_field": "groq_api_key",
+      "ui_panel": {
+        "testid": "llm-groq-backup-panel",
+        "location": "Settings → LLM → Active stack sidebar",
+        "shows": [
+          "key ready | no key",
+          "fallback chain position (last)",
+          "active primary when provider=groq",
+          "preferred fallback when llm_fallback_provider=groq",
+          "last effective via fallback (llm-groq-via-fallback)"
+        ]
+      }
+    }
+  },
+  "agent_architecture_ux": {
+    "framing": "Pipeline copilot with named stage agents — not unconstrained multi-agent / A2A swarm",
+    "a2a_decision": "Not adopted (2026-07) — see docs/AGENT_ARCHITECTURE.md §11",
+    "surfaces": ["AgentRoster", "AI Investigator panels", "playbook citation chips"],
+    "never": [
+      "ChatGPT-style full-page chat as primary IR UX",
+      "Implied autonomous tool-using agent mesh without HiTL",
+      "Agent-to-agent negotiation UI without product decision",
+      "Marketing copy claiming A2A multi-agent SOC"
+    ],
+    "docs": "docs/AGENT_ARCHITECTURE.md"
+  },
+  "scripts_and_local_dev": {
+    "start_demo": {
+      "windows": "scripts/start-demo.ps1",
+      "unix": "scripts/start-demo.sh",
+      "flags": ["-NoBuild / --no-build", "-ApiOnly / --api-only", "-SkipDocker / --skip-docker"],
+      "local_api_entry": "PYTHONPATH=<repo> uvicorn backend.server:app --host 0.0.0.0 --port 8001 --reload",
+      "never": "cd backend && uvicorn server:app (breaks backend.* absolute imports)"
+    },
+    "diagnose": {
+      "windows": "scripts/diagnose.ps1",
+      "unix": "scripts/diagnose.sh"
+    }
+  },
+  "cases": {
+    "timeline": true,
+    "tasks": true,
+    "owners": true,
+    "evidence": true,
+    "comments": true,
+    "sla": true
+  },
+  "workflow": [
+    "Detect",
+    "Triage",
+    "Investigate",
+    "Contain",
+    "Eradicate",
+    "Recover",
+    "Lessons Learned"
+  ],
+  "performance_budget": {
+    "dashboard_load": "<2s",
+    "page_transition": "<200ms",
+    "table_sort": "<100ms",
+    "chart_render": "<500ms",
+    "api_timeout": "30s"
+  },
+  "responsive": {
+    "breakpoints_px": {
+      "sm": 640,
+      "md": 768,
+      "lg": 1024,
+      "xl": 1280,
+      "2xl": 1536
+    },
+    "rules": [
+      "Primary SOC layouts target lg+ (analyst desktops / wallboards).",
+      "Collapse left rail to icons or drawer below md; keep top-bar status visible.",
+      "KPI grids: 1 col mobile → 2 md → 4 xl.",
+      "Tables may horizontal-scroll on narrow viewports; never clip action columns without access.",
+      "Charts always use ResponsiveContainer with an explicit height (never height:100% alone)."
+    ]
+  },
+  "z_index": {
+    "base": 0,
+    "sticky_header": 10,
+    "sidebar": 30,
+    "topbar": 40,
+    "dropdown": 50,
+    "popover": 60,
+    "modal": 70,
+    "toast": 80,
+    "command_palette": 90,
+    "tooltip": 100
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "default_weight": "regular",
+    "emphasis_weight": "bold",
+    "sizes_px": {"xs": 12, "sm": 14, "md": 16, "lg": 20, "xl": 24},
+    "rules": [
+      "Prefer Phosphor over mixed icon packs.",
+      "Every actionable icon requires a tooltip or accessible name.",
+      "Severity and status use badges/pills, not icon-color alone."
+    ]
+  },
+  "motion": {
+    "default_duration_ms": 150,
+    "easing": "ease-out",
+    "respect_prefers_reduced_motion": true,
+    "never": [
+      "Infinite neon pulses",
+      "Decorative parallax",
+      "Chart animations that hide data changes (use isAnimationActive=false on KPI charts)"
+    ]
+  },
+  "density": {
+    "modes": ["comfortable", "compact"],
+    "default": "comfortable",
+    "comfortable": "Default SOC readability — 16px body, table rows ~40px",
+    "compact": "Optional dense tables for senior analysts; never default for demos"
+  },
+  "shell": {
+    "sidebar_width_px": 240,
+    "sidebar_collapsed_px": 64,
+    "topbar_height_px": 56,
+    "content_max_width": "comfortable (full for tables)",
+    "nav_order": "operate → analyze → govern → admin (Layout.jsx + CommandPalette)",
+    "topbar": {
+      "module": "frontend/src/components/Layout.jsx",
+      "testid": "app-topbar",
+      "zones": {
+        "left": "Mobile nav + session clock",
+        "center": "Ops chips (Jump/Ctrl+K, LLM, Groq backup, API health, RAG, Intel) — horizontal scroll, no wrap under user",
+        "right": "Theme toggle + identity (name + role label) + Sign out"
+      },
+      "rules": [
+        "Three fixed zones; never flex-wrap status chips under the user block.",
+        "LLM chip shortens model ids (strip provider/ path; cap length) e.g. openai/gpt-oss-120b → oss-120b.",
+        "API ONLINE uses GET /api/health — not /settings success (settings can lag or be partial).",
+        "Do not label API reachability as PIPELINE ONLINE (misleading).",
+        "Role display is humanized (admin → Admin, senior_reviewer → Senior reviewer).",
+        "Command palette kbd is Ctrl+K on Windows/Linux and ⌘K on Mac.",
+        "Every status chip has a Tip/title explaining honesty (mock intel, local RAG, fallback)."
+      ]
+    }
+  },
+  "testid_conventions": {
+    "prefix_examples": [
+      "dash-* (dashboard)",
+      "kb-* (knowledge)",
+      "llm-* (settings LLM)",
+      "settings-*",
+      "tip-* (help tips)"
+    ],
+    "rules": [
+      "Preserve existing data-testid values unless a breaking rename is explicitly requested.",
+      "New interactive controls must ship with a stable testid for Playwright/e2e."
+    ]
+  },
+  "honesty_surfaces": {
+    "summary": "Never over-claim product capabilities in UI copy or README.",
+    "required": [
+      "Embedder honesty on Knowledge (hash vs sbert/lora)",
+      "Groq backup readiness on Settings Active stack",
+      "Analyst queue chart: live Mongo KPIs, not hardcoded demo series (unless REACT_APP_DASHBOARD_DEMO_FALLBACK)",
+      "Pipeline stages framed as controlled pipeline, not A2A swarm",
+      "Threat hunt scoped to in-app incident pool, not SIEM lake query language"
+    ],
+    "docs": [
+      "docs/product/PRODUCT_HONESTY.md",
+      "docs/AGENT_ARCHITECTURE.md",
+      "design_guidelines.json agent_architecture_ux / charts_dashboard / llm_provider_ux"
+    ]
+  },
+  "review_checklist": [
+    "UI Expert",
+    "UX Expert",
+    "SOC Analyst",
+    "Threat Hunter",
+    "Incident Responder",
+    "Security Architect",
+    "Backend Architect",
+    "Frontend Architect",
+    "Performance Engineer",
+    "Accessibility Expert",
+    "QA Engineer",
+    "Product Owner",
+    "Compliance Officer",
+    "CISO Review",
+    "Executive Dashboard Review"
   ]
 }

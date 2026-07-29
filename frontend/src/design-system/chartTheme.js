@@ -42,6 +42,7 @@ export function getChartPalette(resolvedTheme = "dark") {
         axis: c.muted,
         tick: {fill: c.muted, fontSize: 11},
         pieStroke: c.surface,
+        cursorFill: isDark ? "rgba(148, 163, 184, 0.12)" : "#f8fafc",
         areaCritical: sev.critical,
         areaHigh: sev.high,
         primary: c.primary,

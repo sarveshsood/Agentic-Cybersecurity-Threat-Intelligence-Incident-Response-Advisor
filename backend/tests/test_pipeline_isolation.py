@@ -151,9 +151,22 @@ class TestPerFileParseIsolation:
                 assert mjf.await_count == 0
                 # Hashed chain path (unified with reviews/settings)
                 assert audit_ins.await_count >= 1
-                audit_kwargs = audit_ins.await_args.kwargs
-                assert audit_kwargs.get("action") == "incident.created"
-                assert audit_kwargs.get("target_type") == "incident"
+                actions = [
+                    (c.kwargs.get("action") if c.kwargs else None)
+                    or (c.args[1] if len(c.args) > 1 else None)
+                    for c in audit_ins.await_args_list
+                ]
+                # pipeline also emits pipeline.completed after incident.created
+                assert "incident.created" in actions
+                created = next(
+                    c for c in audit_ins.await_args_list
+                    if (c.kwargs or {}).get("action") == "incident.created"
+                    or (len(c.args) > 1 and c.args[1] == "incident.created")
+                )
+                ck = created.kwargs or {}
+                assert ck.get("target_type") == "incident" or (
+                    len(created.args) > 2 and created.args[2] == "incident"
+                )
 
         import asyncio
 

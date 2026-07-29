@@ -6,6 +6,10 @@ Data/Software/Platform Engineers, UX/QA/Docs, OSS Maintainer, Fortune 100 Eng Di
 **Scope:** Full repository review (backend, frontend, docs, CI, security, AI) + enterprise packaging pack  
 **Classification:** Internal assessment for **Enterprise Demonstration Ready (v1.0)**
 
+> **Methodology (living standard):** Future board and production-readiness reviews should follow
+> [dx/ENTERPRISE_REVIEWER_PERSONA.md](dx/ENTERPRISE_REVIEWER_PERSONA.md).
+> Security go-live checklist: [operations/SECURITY_HARDENING.md](operations/SECURITY_HARDENING.md).
+
 ---
 
 ## Executive summary

@@ -8,6 +8,7 @@ import {HelpTip, Tip} from "../components/HelpTip";
 import {SortableTh} from "../components/SortableTh";
 import {IncidentPreview} from "../components/IncidentPreview";
 import {useSortableData} from "../hooks/useSortableData";
+import {useOpsRealtime} from "../hooks/useOpsRealtime";
 import {formatDateTime, loadUiPrefs} from "../lib/uiPrefs";
 import {HoverCard, HoverCardContent, HoverCardTrigger,} from "../components/ui/hover-card";
 import {
@@ -26,6 +27,8 @@ import {
     YAxis,
 } from "recharts";
 import {
+    ArrowsClockwise,
+    CheckCircle,
     Database,
     Fingerprint,
     FolderSimpleLock,
@@ -36,6 +39,7 @@ import {
     ShieldCheck,
     ShieldWarning,
     Target,
+    Timer,
     TrendUp,
     UploadSimple,
     Users,
@@ -218,6 +222,41 @@ const DASH_TIPS = {
     trend: {title: "Incident creation trend", body: "Daily volume from the recent incident sample on this page (not all-time)."},
     status_mix: {title: "Lifecycle status mix", body: "Where cases sit in the IR lifecycle."},
     top_tech: {title: "Top ATT&CK techniques", body: "Most frequent MITRE technique IDs mapped by the pipeline. Click a row to filter incidents."},
+    q_assigned: {
+        title: "Assigned",
+        body: "Incidents with a primary or secondary assignee (collaboration flags).",
+        how: "COUNT where assignee_id or secondary_assignee_id is set. GET /kpis/queue.",
+    },
+    q_open: {
+        title: "Open",
+        body: "Active analyst workload: new + in_progress.",
+        how: "new + in_progress from KPI status counts.",
+    },
+    q_waiting: {
+        title: "Waiting review",
+        body: "Cases in the HiTL reviewer queue.",
+        how: "COUNT status=pending_review.",
+    },
+    q_escalated: {
+        title: "Escalated",
+        body: "High/critical severity, HiTL-required, or pending review.",
+        how: "Union of hitl_required, severity high/critical, status pending_review.",
+    },
+    q_done_today: {
+        title: "Completed today",
+        body: "Approved or closed cases in the UTC day window.",
+        how: "COUNT status in approved|closed with reviewed_at or created_at ≥ day start (UTC).",
+    },
+    q_sla: {
+        title: "SLA risk",
+        body: "Non-terminal cases with due_at within 24h or already past due.",
+        how: "COUNT due_at ≤ now+24h and status not approved/rejected/closed.",
+    },
+    q_trend: {
+        title: "Queue trend (7d)",
+        body: "Opened vs completed per UTC day from GET /kpis/queue. Updates live over WebSocket / SSE without full page refresh.",
+        how: "Daily COUNT created_at / approved|closed windows. Pushed on kpi.queue_snapshot.",
+    },
 };
 
 function kpiTip(tip) {
@@ -248,6 +287,7 @@ export default function Dashboard() {
     const highThreat = Number(prefs.high_threat_score_threshold) || 70;
 
     const [rawKpis, setRawKpis] = useState(null);
+    const [queueKpis, setQueueKpis] = useState(null);
     const [incidents, setIncidents] = useState([]);
     const [ready, setReady] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -320,13 +360,27 @@ export default function Dashboard() {
 
     const load = useCallback(async (opts = {}) => {
         const silent = Boolean(opts.silent);
+        // Interactive Refresh / first paint: bypass analytics cache so the queue chart is never stuck.
+        // Silent auto-poll uses cache (TTL ~30s) unless forceRefresh is explicitly true.
+        const forceRefresh = opts.forceRefresh === true || (!silent && opts.forceRefresh !== false);
         if (silent) setRefreshing(true);
         else setLoadError(null);
 
         try {
-            // Atomic dual fetch — avoid staggered KPI vs table paints
-            const [kpiRes, incRes] = await Promise.all([
-                api.get("/kpis", {params: {_t: Date.now()}}).catch((e) => ({__err: e, data: null})),
+            // Atomic fetch — KPIs + rich queue + incidents
+            const [kpiRes, queueRes, incRes] = await Promise.all([
+                api.get("/kpis", {
+                    params: {
+                        _t: Date.now(),
+                        ...(forceRefresh ? {force_refresh: true} : {}),
+                    },
+                }).catch((e) => ({__err: e, data: null})),
+                api.get("/kpis/queue", {
+                    params: {
+                        _t: Date.now(),
+                        ...(forceRefresh ? {force_refresh: true} : {}),
+                    },
+                }).catch((e) => ({__err: e, data: null})),
                 api.get("/incidents", {params: {limit, skip: 0, _t: Date.now()}}).catch((e) => ({__err: e, data: null})),
             ]);
 
@@ -336,6 +390,9 @@ export default function Dashboard() {
                 if (!silent) setRawKpis(null);
             } else {
                 setRawKpis(kpiRes?.data && typeof kpiRes.data === "object" ? kpiRes.data : {});
+            }
+            if (!queueRes?.__err && queueRes?.data) {
+                setQueueKpis(queueRes.data);
             }
 
             if (incRes?.__err) {
@@ -358,15 +415,39 @@ export default function Dashboard() {
         }
     }, [limit]);
 
+    // Push path (WebSocket → SSE): updates queue cards + full KPI charts without setInterval.
+    // Backend interval-pulls with force_refresh so analytics cache does not freeze wallboards.
+    const onQueueRealtime = useCallback((q) => {
+        if (q && typeof q === "object") setQueueKpis(q);
+    }, []);
+    const onKpisRealtime = useCallback((k) => {
+        if (k && typeof k === "object") setRawKpis(k);
+    }, []);
+
+    const realtime = useOpsRealtime({
+        onQueue: onQueueRealtime,
+        onKpis: onKpisRealtime,
+        intervalSec: 10,
+        enabled: true,
+    });
+
     useEffect(() => {
         load({silent: false});
-        // Cap auto-refresh so “recommended” 60s does not thrash under load
+        // When WS/SSE is live: KPIs/charts come from the push channel; HTTP poll only
+        // refreshes the recent-incidents table (slow). When poll-only: silent load uses
+        // force_refresh so we are not stuck on analytics cache TTL (~30s).
         const rawMs = Number(prefs.dashboard_refresh_ms) || 0;
-        const ms = rawMs > 0 ? Math.max(30_000, rawMs) : 0;
+        const live = realtime.channel === "ws" || realtime.channel === "sse";
+        const base = rawMs > 0 ? Math.max(30_000, rawMs) : 0;
+        // Live: floor 60s for incidents table. Poll-only: honor prefs (0 = no interval).
+        const ms = live ? Math.max(base || 60_000, 60_000) : base;
         if (ms <= 0) return undefined;
-        const id = setInterval(() => load({silent: true}), ms);
+        const id = setInterval(
+            () => load({silent: true, forceRefresh: !live}),
+            ms,
+        );
         return () => clearInterval(id);
-    }, [load, prefs.dashboard_refresh_ms]);
+    }, [load, prefs.dashboard_refresh_ms, realtime.channel]);
 
     const severityPie = useMemo(() => {
         if (kpis?.severity_distribution?.length) {
@@ -404,24 +485,73 @@ export default function Dashboard() {
         return Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
     }, [activeIncidents]);
 
+    /** Full IR lifecycle from live KPIs — never hardcode demo series into this chart. */
+    const WORKLOAD_STATUS_ORDER = useMemo(() => ([
+        {rawKey: "new", label: "New"},
+        {rawKey: "in_progress", label: "In Progress"},
+        {rawKey: "pending_review", label: "Pending Review"},
+        {rawKey: "approved", label: "Approved"},
+        {rawKey: "rejected", label: "Rejected"},
+        {rawKey: "closed", label: "Closed"},
+    ]), []);
+
     const workloadBars = useMemo(() => {
-        const rawDist = kpis?.status_distribution;
+        // Prefer live queue snapshot (WS/SSE) status counts when present, else full KPI facet
+        const rawDist = queueKpis?.status_distribution?.length
+            ? queueKpis.status_distribution
+            : kpis?.status_distribution;
         const map = {};
         if (Array.isArray(rawDist)) {
-            rawDist.forEach((item) => {
-                map[item.status] = item.count;
-            });
-        }
-        return [
-            {status: "New", count: map["new"] ?? 0, rawKey: "new"},
-            {status: "In Progress", count: map["in_progress"] ?? 0, rawKey: "in_progress"},
-            {
-                status: "Pending Review",
-                count: map["pending_review"] ?? kpis?.pending_review ?? 0,
-                rawKey: "pending_review"
+            for (const item of rawDist) {
+                const key = String(item?.status || "").toLowerCase().replace(/\s+/g, "_");
+                if (!key) continue;
+                map[key] = Number(item.count) || 0;
             }
-        ];
-    }, [kpis]);
+        }
+        // Top-level counters — queue live fields win when pushed over realtime
+        const counters = {
+            new: Number(queueKpis?.new ?? kpis?.new) || 0,
+            in_progress: Number(queueKpis?.in_progress ?? kpis?.in_progress) || 0,
+            pending_review: Number(queueKpis?.pending_review ?? kpis?.pending_review) || 0,
+            approved: Number(queueKpis?.approved ?? kpis?.approved) || 0,
+            rejected: Number(queueKpis?.rejected ?? kpis?.rejected) || 0,
+            closed: Number(queueKpis?.closed ?? kpis?.closed) || 0,
+        };
+        return WORKLOAD_STATUS_ORDER.map(({rawKey, label}) => {
+            const fromDist = map[rawKey];
+            const fromCounter = counters[rawKey];
+            const count = Math.max(
+                fromDist != null && !Number.isNaN(fromDist) ? fromDist : 0,
+                fromCounter || 0,
+            );
+            return {
+                status: label,
+                count,
+                rawKey,
+                fill: (chart.status && chart.status[rawKey]) || chart.chart?.gray || "#64748B",
+            };
+        });
+    }, [kpis, queueKpis, chart, WORKLOAD_STATUS_ORDER]);
+
+    /** Live 7-day open/complete series from /kpis/queue (realtime-capable). */
+    const queueTrendSeries = useMemo(() => {
+        const rows = queueKpis?.trend_7d;
+        if (!Array.isArray(rows) || !rows.length) return [];
+        return rows.map((r) => ({
+            date: r.date || "",
+            opened: Number(r.opened) || 0,
+            completed: Number(r.completed) || 0,
+        }));
+    }, [queueKpis]);
+
+    const workloadHasData = useMemo(
+        () => workloadBars.some((b) => Number(b.count) > 0),
+        [workloadBars],
+    );
+    const workloadTotal = useMemo(
+        () => workloadBars.reduce((s, b) => s + (Number(b.count) || 0), 0),
+        [workloadBars],
+    );
 
     const topTechMini = useMemo(() => {
         if (kpis?.top_techniques?.length) {
@@ -434,11 +564,11 @@ export default function Dashboard() {
         return [];
     }, [kpis]);
 
-    const pendingCount = kpis?.pending_review ?? 0;
+    const pendingCount = queueKpis?.waiting_review ?? kpis?.pending_review ?? 0;
 
     /** Stable chart shell — avoids Recharts layout thrash on empty data */
     const ChartEmpty = ({label = "No data yet"}) => (
-        <div className="h-[160px] flex items-center justify-center text-xs text-slate-500 px-3 text-center">
+        <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground px-3 text-center">
             {label}
         </div>
     );
@@ -456,15 +586,63 @@ export default function Dashboard() {
                     </>
                 }
                 actions={
-                    <Tip content="Upload logs to create new incidents">
-                        <Link
-                            to="/upload"
-                            data-testid="dash-ingest-cta"
-                            className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors shrink-0"
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Tip
+                            content={
+                                realtime.channel === "ws"
+                                    ? "Live WebSocket /api/ws/ops — fresh KPI + queue every ~10s (cache bypassed). Interval pull, not job-event push."
+                                    : realtime.channel === "sse"
+                                      ? "Live SSE /api/sse/ops fallback — fresh KPI + queue stream (cache bypassed)."
+                                      : realtime.channel === "poll"
+                                        ? "HTTP poll GET /kpis + /kpis/queue with force_refresh (WS/SSE unavailable)."
+                                        : realtime.channel === "connecting"
+                                          ? "Connecting realtime ops channel (WebSocket → SSE → poll)…"
+                                          : "Realtime off (FEATURE_REALTIME_OPS / REACT_APP_REALTIME_OPS)."
+                            }
                         >
-                            <UploadSimple size={14} weight="bold"/> Ingest new log
-                        </Link>
-                    </Tip>
+                            <span
+                                data-testid="dash-realtime-channel"
+                                className="text-[10px] font-mono font-bold uppercase tracking-wide theme-chip border theme-border px-2 py-1.5 rounded-md text-muted-foreground"
+                            >
+                                {realtime.channel === "ws" && "LIVE · WS"}
+                                {realtime.channel === "sse" && "LIVE · SSE"}
+                                {realtime.channel === "poll" && "POLL"}
+                                {realtime.channel === "connecting" && "…"}
+                                {realtime.channel === "off" && "RT OFF"}
+                                {realtime.channel === "error" && "RT ERR"}
+                            </span>
+                        </Tip>
+                        {realtime.lastTs && (realtime.channel === "ws" || realtime.channel === "sse") && (
+                            <span
+                                data-testid="dash-realtime-last"
+                                className="text-[9px] font-mono text-muted-foreground hidden sm:inline"
+                                title={`Last push ${realtime.lastTs}`}
+                            >
+                                ↑ {new Date(realtime.lastTs).toLocaleTimeString()}
+                            </span>
+                        )}
+                        <Tip content="Reload KPIs and recent incidents (bypasses analytics cache)">
+                            <button
+                                type="button"
+                                data-testid="dash-refresh"
+                                disabled={loading || refreshing}
+                                onClick={() => load({silent: true, forceRefresh: true})}
+                                className="text-xs font-semibold text-muted-foreground hover:text-primary theme-chip border theme-border px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                            >
+                                <ArrowsClockwise size={14} weight="bold" className={refreshing ? "animate-spin" : ""}/>
+                                {refreshing ? "Refreshing…" : "Refresh"}
+                            </button>
+                        </Tip>
+                        <Tip content="Upload logs to create new incidents">
+                            <Link
+                                to="/upload"
+                                data-testid="dash-ingest-cta"
+                                className="text-xs font-semibold text-primary hover:text-primary bg-primary/10 hover:bg-primary/15 border border-primary/30 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-colors"
+                            >
+                                <UploadSimple size={14} weight="bold"/> Ingest new log
+                            </Link>
+                        </Tip>
+                    </div>
                 }
             />
 
@@ -520,7 +698,7 @@ export default function Dashboard() {
             >
                 <Link
                     to="/incidents"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border theme-border theme-chip text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary transition-colors shadow-sm"
                     data-testid="quick-action-incidents"
                 >
                     <ShieldWarning size={14} weight="bold"/> Browse incidents
@@ -537,12 +715,128 @@ export default function Dashboard() {
                 )}
                 <Link
                     to="/knowledge"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border theme-border theme-chip text-xs font-semibold text-foreground hover:border-primary/40 hover:text-primary transition-colors shadow-sm"
                     data-testid="quick-action-kb"
                 >
                     <MagnifyingGlass size={14} weight="bold"/> Search knowledge
                 </Link>
             </div>
+
+            {/* Layer 1b — rich analyst queue metrics (GET /kpis/queue + live WS/SSE) */}
+            {queueKpis && (
+                <>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 mb-4" data-testid="dashboard-queue-kpis">
+                    <KpiCard loading={kpiLoading} testid="q-assigned" tip={kpiTip(DASH_TIPS.q_assigned)}
+                             label="Assigned" value={queueKpis.assigned} sub="has owner" icon={Users}
+                             tone="primary" to="/incidents"/>
+                    <KpiCard loading={kpiLoading} testid="q-open" tip={kpiTip(DASH_TIPS.q_open)}
+                             label="Open" value={queueKpis.open} sub="new + in progress" icon={ShieldCheck}
+                             tone="primary" to="/incidents?status=in_progress"/>
+                    <KpiCard loading={kpiLoading} testid="q-waiting" tip={kpiTip(DASH_TIPS.q_waiting)}
+                             label="Waiting review" value={queueKpis.waiting_review} sub="HiTL queue"
+                             icon={HandTap} tone="warning" to="/review"/>
+                    <KpiCard loading={kpiLoading} testid="q-escalated" tip={kpiTip(DASH_TIPS.q_escalated)}
+                             label="Escalated" value={queueKpis.escalated} sub="high/crit/HiTL"
+                             icon={ShieldWarning} tone="critical"/>
+                    <KpiCard loading={kpiLoading} testid="q-done-today" tip={kpiTip(DASH_TIPS.q_done_today)}
+                             label="Completed today" value={queueKpis.completed_today} sub="approved/closed"
+                             icon={CheckCircle} tone="ok"/>
+                    <KpiCard loading={kpiLoading} testid="q-sla" tip={kpiTip(DASH_TIPS.q_sla)}
+                             label="SLA risk" value={queueKpis.sla_risk} sub="due ≤24h" icon={TrendUp}
+                             tone="warning"/>
+                    <KpiCard loading={kpiLoading} testid="q-mttr"
+                             tip={kpiTip({
+                                 title: "Avg resolution",
+                                 body: "Mean time-to-resolution (hours) from MTTR sample on closed/approved cases. Null when sample size is 0.",
+                                 how: "queue_kpis.avg_resolution_hours ← kpis.mean_mttr_hours",
+                             })}
+                             label="Avg resolution"
+                             value={
+                                 queueKpis.avg_resolution_hours != null
+                                     ? Number(queueKpis.avg_resolution_hours).toFixed(1)
+                                     : "—"
+                             }
+                             sub={
+                                 queueKpis.mttr_sample_size
+                                     ? `n=${queueKpis.mttr_sample_size} · hours`
+                                     : "no sample yet"
+                             }
+                             icon={Timer}
+                             tone="primary"/>
+                </div>
+                {/* Live queue trend — moves with WS/SSE without full refresh */}
+                <div
+                    className="soc-card p-4 mb-6 min-h-[200px]"
+                    data-testid="dashboard-queue-trend"
+                >
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <TrendUp size={14} className="text-primary"/> Queue trend · 7d
+                        </div>
+                        <HelpTip title={DASH_TIPS.q_trend.title} body={DASH_TIPS.q_trend.body} how={DASH_TIPS.q_trend.how}/>
+                        {(realtime.channel === "ws" || realtime.channel === "sse") && (
+                            <span className="text-[9px] font-mono font-bold uppercase text-success border border-success/30 px-1.5 py-0.5 rounded">
+                                live · {realtime.channel}
+                            </span>
+                        )}
+                    </div>
+                    {queueTrendSeries.length === 0 ? (
+                        <ChartEmpty label="No queue trend yet — open or close cases to populate."/>
+                    ) : (
+                        <ResponsiveContainer
+                            key={`qtrend-${realtime.updateSeq || 0}`}
+                            width="100%"
+                            height={140}
+                            debounce={50}
+                        >
+                            <AreaChart data={queueTrendSeries} margin={{top: 4, right: 8, left: -20, bottom: 0}}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid || "#f1f5f9"}/>
+                                <XAxis
+                                    dataKey="date"
+                                    tick={{fill: chart.tick?.fill || "#64748b", fontSize: 10}}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tickFormatter={(v) => String(v).slice(5)}
+                                />
+                                <YAxis
+                                    tick={{fill: chart.tick?.fill || "#94a3b8", fontSize: 10}}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    allowDecimals={false}
+                                />
+                                <ReTooltip
+                                    contentStyle={chart.contentStyle || {
+                                        borderRadius: 8,
+                                        border: "1px solid #e2e8f0",
+                                    }}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="opened"
+                                    name="Opened"
+                                    stroke={chart.series?.[0] || "#3b82f6"}
+                                    fill={chart.series?.[0] || "#3b82f6"}
+                                    fillOpacity={0.15}
+                                    strokeWidth={2}
+                                    isAnimationActive={false}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="completed"
+                                    name="Completed"
+                                    stroke={chart.series?.[2] || "#22c55e"}
+                                    fill={chart.series?.[2] || "#22c55e"}
+                                    fillOpacity={0.12}
+                                    strokeWidth={2}
+                                    isAnimationActive={false}
+                                />
+                                <Legend wrapperStyle={{fontSize: 11}} iconType="circle"/>
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+                </>
+            )}
 
             {/* Layer 2 — ops volume only (no overlap with executive strip) */}
             <div className="mb-2 flex items-center gap-1.5">
@@ -577,13 +871,13 @@ export default function Dashboard() {
                     {/* Layer 3 — distributions (severity + IoC only; lifecycle lives in workload) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
+                            className="soc-card p-5 flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-sev-mix">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
                                     <div
-                                        className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                                        <TrendUp size={14} className="text-blue-600"/> Severity mix
+                                        className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                        <TrendUp size={14} className="text-primary"/> Severity mix
                                     </div>
                                     <HelpTip title={DASH_TIPS.sev_mix.title} body={DASH_TIPS.sev_mix.body}/>
                                 </div>
@@ -595,18 +889,19 @@ export default function Dashboard() {
                                 <ResponsiveContainer width="100%" height={160} debounce={50}>
                                     <PieChart>
                                         <Pie data={severityPie} dataKey="count" nameKey="severity" cx="50%" cy="50%"
-                                             innerRadius={40} outerRadius={65} stroke="#ffffff" strokeWidth={2}
+                                             innerRadius={40} outerRadius={65}
+                                             stroke={chart.pieStroke || chart.colors?.surface || "#ffffff"}
+                                             strokeWidth={2}
                                              isAnimationActive={false}>
                                             {severityPie.map((e) => (
-                                                <Cell key={e.severity} fill={SEV_COLOR[e.severity] || '#94a3b8'}/>
+                                                <Cell key={e.severity} fill={SEV_COLOR[e.severity] || chart.series?.[3] || '#94a3b8'}/>
                                             ))}
                                         </Pie>
-                                        <ReTooltip contentStyle={{
+                                        <ReTooltip contentStyle={chart.contentStyle || {
                                             borderRadius: '8px',
                                             border: '1px solid #e2e8f0',
-                                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
                                         }}/>
-                                        <Legend wrapperStyle={{fontSize: 11, fontWeight: 500, color: '#64748b'}}
+                                        <Legend wrapperStyle={{fontSize: 11, fontWeight: 500, color: chart.axis || '#64748b'}}
                                                 iconType="circle"/>
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -615,13 +910,13 @@ export default function Dashboard() {
                         </div>
 
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between min-h-[240px]"
+                            className="soc-card p-5 flex flex-col justify-between min-h-[240px]"
                             data-testid="dash-ioc-types">
                             <div>
                                 <div className="flex items-center gap-1.5 mb-3">
                                     <div
-                                        className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                                        <Fingerprint size={14} className="text-blue-600"/> Top IoC types
+                                        className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                        <Fingerprint size={14} className="text-primary"/> Top IoC types
                                     </div>
                                     <HelpTip title={DASH_TIPS.ioc_mix.title} body={DASH_TIPS.ioc_mix.body}/>
                                 </div>
@@ -632,14 +927,14 @@ export default function Dashboard() {
                                 ) : (
                                 <ResponsiveContainer width="100%" height={160} debounce={50}>
                                     <BarChart data={iocTypeBars} margin={{left: -25, right: 0, top: 0, bottom: 0}}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                        <XAxis dataKey="type" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid || "#f1f5f9"}/>
+                                        <XAxis dataKey="type" tick={{fill: chart.tick?.fill || '#64748b', fontSize: 10}} axisLine={false}
                                                tickLine={false}/>
-                                        <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
+                                        <YAxis tick={{fill: chart.tick?.fill || '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
                                                allowDecimals={false}/>
-                                        <ReTooltip cursor={{fill: '#f8fafc'}}
-                                                   contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
-                                        <Bar dataKey="count" fill="#64748b" radius={[4, 4, 0, 0]} maxBarSize={35} isAnimationActive={false}/>
+                                        <ReTooltip cursor={{fill: chart.cursorFill || '#f8fafc'}}
+                                                   contentStyle={chart.contentStyle || {borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
+                                        <Bar dataKey="count" fill={chart.series?.[2] || "#64748b"} radius={[4, 4, 0, 0]} maxBarSize={35} isAnimationActive={false}/>
                                     </BarChart>
                                 </ResponsiveContainer>
                                 )}
@@ -649,83 +944,128 @@ export default function Dashboard() {
 
                     {/* Layer 3b — queue lifecycle + ATT&CK (single status chart) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 items-stretch">
-                        {/* Analyst Workload — sole lifecycle status view */}
+                        {/* Analyst Workload — sole lifecycle status view (live KPIs; theme tokens) */}
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm h-[380px] flex flex-col overflow-hidden"
+                            className="soc-card p-5 h-[380px] flex flex-col overflow-hidden"
                             data-testid="dash-workload"
                         >
-                            <div className="flex items-center gap-2 mb-4">
-                                <Users size={16} className="text-blue-600"/>
-                                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Users size={16} className="text-primary"/>
+                                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                     Analyst queue (by status)
                                 </div>
                                 <HelpTip
                                     title="Analyst queue"
-                                    body="Open backlog by IR lifecycle stage. This is the only status breakdown on the dashboard (status mix chart was removed as duplicate)."
-                                    how="Uses the same status distribution as KPI status_distribution."
+                                    body="Live IR lifecycle counts from Mongo KPIs (new → closed). Not demo static data unless REACT_APP_DASHBOARD_DEMO_FALLBACK is enabled on an empty tenant."
+                                    how="GET /kpis?force_refresh=true → status_distribution + top-level counters. Colors = design-system status tokens. Refresh bypasses analytics cache."
+                                    testid="tip-dash-workload"
                                 />
+                                {workloadHasData && (
+                                    <span
+                                        className="ml-auto text-[10px] font-mono text-muted-foreground"
+                                        data-testid="dash-workload-total"
+                                        title="Sum of lifecycle bars"
+                                    >
+                                        n={workloadTotal}
+                                        {kpis?.cache ? ` · cache=${kpis.cache}` : ""}
+                                    </span>
+                                )}
                             </div>
 
-                            <div className="flex-1 w-full overflow-hidden">
-                                <ResponsiveContainer width="100%" height="100%">
+                            <p className="text-[10px] text-muted-foreground mb-2 leading-relaxed" data-testid="dash-workload-hint">
+                                Pipeline usually lands cases in <span className="font-mono">pending_review</span> or{" "}
+                                <span className="font-mono">approved</span>. <span className="font-mono">new</span> stays
+                                empty for HiTL-gated demos; opening a <span className="font-mono">new</span> case moves it
+                                to <span className="font-mono">in_progress</span>. Click a bar to filter Incidents.
+                            </p>
+                            <div className="flex flex-wrap gap-1.5 mb-2" data-testid="dash-workload-status-links">
+                                {workloadBars.map((b) => (
+                                    <Link
+                                        key={b.rawKey}
+                                        to={`/incidents?status=${encodeURIComponent(b.rawKey)}`}
+                                        className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border theme-border theme-chip hover:border-primary/40 hover:text-primary transition-colors"
+                                        title={`Open incidents with status=${b.rawKey}`}
+                                    >
+                                        <span
+                                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                                            style={{background: b.fill}}
+                                            aria-hidden
+                                        />
+                                        {b.status}
+                                        <span className="opacity-70">{b.count}</span>
+                                    </Link>
+                                ))}
+                            </div>
+                            <div className="flex-1 w-full overflow-hidden min-h-[260px]" data-testid="dash-workload-chart">
+                                {!workloadHasData ? (
+                                    <ChartEmpty label="No incidents in the lifecycle yet — ingest logs or open cases to populate."/>
+                                ) : (
+                                <ResponsiveContainer width="100%" height={280} debounce={50}>
                                     <BarChart
                                         data={workloadBars}
                                         margin={{
                                             top: 10,
                                             right: 15,
                                             left: -15,
-                                            bottom: 5,
+                                            bottom: 40,
                                         }}
                                     >
                                         <CartesianGrid
                                             strokeDasharray="3 3"
                                             vertical={false}
-                                            stroke="#f1f5f9"
+                                            stroke={chart.grid || "#f1f5f9"}
                                         />
                                         <XAxis
                                             dataKey="status"
-                                            tick={{fill: "#64748b", fontSize: 11}}
+                                            tick={{fill: chart.tick?.fill || "#64748b", fontSize: 10}}
                                             axisLine={false}
                                             tickLine={false}
+                                            interval={0}
+                                            angle={-25}
+                                            textAnchor="end"
+                                            height={50}
                                         />
                                         <YAxis
-                                            tick={{fill: "#94a3b8", fontSize: 11}}
+                                            tick={{fill: chart.tick?.fill || "#94a3b8", fontSize: 11}}
                                             axisLine={false}
                                             tickLine={false}
                                             allowDecimals={false}
                                         />
                                         <ReTooltip
-                                            cursor={{fill: "#f8fafc"}}
-                                            contentStyle={{
+                                            cursor={{fill: chart.cursorFill || "#f8fafc"}}
+                                            contentStyle={chart.contentStyle || {
                                                 borderRadius: 8,
                                                 border: "1px solid #e2e8f0",
                                             }}
                                         />
                                         <Bar
                                             dataKey="count"
-                                            fill="#d97706"
                                             radius={[6, 6, 0, 0]}
-                                            maxBarSize={45}
+                                            maxBarSize={40}
+                                            isAnimationActive={false}
                                         >
-                                            {workloadBars.map((entry, index) => (
-                                                <Cell key={`cell-${index}`}
-                                                      fill={entry.status === 'New' ? '#3b82f6' : entry.status === 'In Progress' ? '#f59e0b' : '#8b5cf6'}/>
+                                            {workloadBars.map((entry) => (
+                                                <Cell
+                                                    key={entry.rawKey}
+                                                    fill={entry.fill}
+                                                />
                                             ))}
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
 
                         {/* Top ATT&CK Techniques */}
                         <div
-                            className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm h-[380px] flex flex-col overflow-hidden"
+                            className="soc-card p-5 h-[380px] flex flex-col overflow-hidden"
                             data-testid="dash-top-tech"
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <div
-                                    className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-                                    <ShieldWarning size={16} className="text-blue-600"/>
+                                    className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    <ShieldWarning size={16} className="text-primary"/>
                                     Top ATT&CK Techniques
                                     <HelpTip
                                         title={DASH_TIPS.top_tech.title}
@@ -736,7 +1076,7 @@ export default function Dashboard() {
                                 <button
                                     type="button"
                                     onClick={() => setShowTechLabels((prev) => !prev)}
-                                    className="text-[10px] uppercase font-bold tracking-wider text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 px-2.5 py-1 rounded transition-colors"
+                                    className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground hover:text-primary theme-chip border theme-border hover:border-primary/40 px-2.5 py-1 rounded transition-colors"
                                 >
                                     {showTechLabels ? "Hide Labels" : "Show Labels"}
                                 </button>
@@ -744,7 +1084,7 @@ export default function Dashboard() {
 
                             <div className="flex-1 flex flex-col justify-evenly overflow-hidden">
                                 {!topTechMini.length && (
-                                    <p className="text-xs text-slate-500 px-2 py-4 text-center">
+                                    <p className="text-xs text-muted-foreground px-2 py-4 text-center">
                                         No ATT&CK techniques mapped yet. Ingest logs with detections to populate this list.
                                     </p>
                                 )}
@@ -752,23 +1092,23 @@ export default function Dashboard() {
                                     <Link
                                         key={t.id}
                                         to={`/incidents?technique=${encodeURIComponent(t.id)}`}
-                                        className="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200"
+                                        className="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-[var(--shell-chip)] transition-all border border-transparent hover:border-[var(--shell-border)]"
                                     >
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-semibold text-blue-600">
+                        <span className="font-mono text-xs font-semibold text-primary">
                           {t.id}
                         </span>
                                                 {showTechLabels && (
                                                     <span
-                                                        className="text-[10px] uppercase tracking-wide truncate text-slate-500">
+                                                        className="text-[10px] uppercase tracking-wide truncate text-muted-foreground">
                             {t.name}
                           </span>
                                                 )}
                                             </div>
-                                            <div className="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                                            <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden">
                                                 <div
-                                                    className="h-full rounded-full bg-blue-500"
+                                                    className="h-full rounded-full bg-primary"
                                                     style={{
                                                         width: `${Math.min(
                                                             (t.count / Math.max(topTechMini[0]?.count || 1, 1)) * 100,
@@ -778,7 +1118,7 @@ export default function Dashboard() {
                                                 />
                                             </div>
                                         </div>
-                                        <span className="w-8 text-right font-mono text-xs font-semibold text-slate-600">
+                                        <span className="w-8 text-right font-mono text-xs font-semibold text-muted-foreground">
                       {t.count}
                     </span>
                                     </Link>
@@ -787,12 +1127,12 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6 min-h-[280px]"
+                    <div className="soc-card p-5 mb-6 min-h-[280px]"
                          data-testid="dash-trend">
                         <div className="flex items-center gap-1.5 mb-4">
                             <div
-                                className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                                <TrendUp size={14} className="text-blue-600"/> Incident Timeline
+                                className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <TrendUp size={14} className="text-primary"/> Incident Timeline
                             </div>
                             <HelpTip title={DASH_TIPS.trend.title} body={DASH_TIPS.trend.body}/>
                         </div>
@@ -801,15 +1141,18 @@ export default function Dashboard() {
                         ) : (
                         <ResponsiveContainer width="100%" height={220} debounce={50}>
                             <AreaChart data={trendSeries} margin={{left: -20, right: 10, top: 10, bottom: 0}}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                <XAxis dataKey="date" tick={{fill: '#64748b', fontSize: 10}} axisLine={false}
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid || "#f1f5f9"}/>
+                                <XAxis dataKey="date" tick={{fill: chart.tick?.fill || '#64748b', fontSize: 10}} axisLine={false}
                                        tickLine={false}/>
-                                <YAxis tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
+                                <YAxis tick={{fill: chart.tick?.fill || '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false}
                                        allowDecimals={false}/>
-                                <ReTooltip contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
-                                <Area type="monotone" dataKey="total" stroke="#3b82f6" fill="rgba(59, 130, 246, 0.1)"
+                                <ReTooltip contentStyle={chart.contentStyle || {borderRadius: '8px', border: '1px solid #e2e8f0'}}/>
+                                <Area type="monotone" dataKey="total"
+                                      stroke={chart.primary || chart.series?.[0] || "#3b82f6"}
+                                      fill={chart.isDark ? "rgba(56, 189, 248, 0.12)" : "rgba(59, 130, 246, 0.1)"}
                                       strokeWidth={3} name="Total Volume" isAnimationActive={false}/>
-                                <Area type="monotone" dataKey="critical" stroke="#ef4444" fill="transparent"
+                                <Area type="monotone" dataKey="critical"
+                                      stroke={chart.areaCritical || "#ef4444"} fill="transparent"
                                       strokeWidth={2} name="Critical" isAnimationActive={false}/>
                             </AreaChart>
                         </ResponsiveContainer>
@@ -819,7 +1162,7 @@ export default function Dashboard() {
             )}
 
             <Panel
-                className="bg-white shadow-sm border-slate-200 mb-6"
+                className="mb-6"
                 noPadding
                 title="Recent Incidents"
                 testid="dash-recent-panel"
@@ -833,12 +1176,12 @@ export default function Dashboard() {
                 actions={
                     <div className="flex items-center gap-3">
                         <span
-                            className="text-[10px] text-slate-400 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                            className="text-[10px] text-muted-foreground font-mono theme-chip px-2 py-0.5 rounded border theme-border">
                             Limit: {limit}
                         </span>
                         <Tip content="Browse all incidents with filters and full-column sort">
                             <Link to="/incidents"
-                                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                                  className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
                                 View all →
                             </Link>
                         </Tip>
@@ -846,7 +1189,7 @@ export default function Dashboard() {
                 }
             >
                 <DataTable aria-label="Recent incidents" testid="dash-recent-table">
-                    <thead className="bg-slate-50/50">
+                    <thead className="bg-muted/40">
                     <tr>
                         <SortableTh label="Title" sortKey="title" sort={sort} onSort={toggleSort}/>
                         <SortableTh label="Severity" sortKey="severity" sort={sort} onSort={toggleSort}/>
@@ -862,10 +1205,10 @@ export default function Dashboard() {
                                     align="right"/>
                     </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-border">
                     {sorted.length === 0 && !loading && (
                         <tr>
-                            <td colSpan={8} className="text-center text-slate-500 text-sm py-12" data-testid="dash-recent-empty">
+                            <td colSpan={8} className="text-center text-muted-foreground text-sm py-12" data-testid="dash-recent-empty">
                                 No incidents yet.{" "}
                                 <Link to="/upload" className="text-primary font-semibold underline-offset-2 hover:underline">
                                     Ingest sample or production logs
@@ -879,14 +1222,14 @@ export default function Dashboard() {
                             <Link
                                 to={`/incidents/${inc.id}`}
                                 data-testid={`incident-link-${inc.id}`}
-                                className="text-[13px] font-semibold text-slate-800 hover:text-blue-600 transition-colors"
+                                className="text-[13px] font-semibold text-foreground hover:text-primary transition-colors"
                                 title={inc.summary || inc.title}
                             >
                                 {inc.title}
                             </Link>
                         );
                         return (
-                            <tr key={inc.id} className="hover:bg-slate-50 transition-colors">
+                            <tr key={inc.id} className="hover:bg-muted/40 transition-colors">
                                 <td className="px-4 py-3">
                                     {showPreviews ? (
                                         <HoverCard openDelay={180}>
@@ -894,7 +1237,7 @@ export default function Dashboard() {
                                             <HoverCardContent
                                                 side="right"
                                                 collisionPadding={16}
-                                                className="w-80 max-w-[min(20rem,calc(100vw-1.5rem))] bg-white border border-slate-200 shadow-xl p-4 z-[200] rounded-xl"
+                                                className="w-80 max-w-[min(20rem,calc(100vw-1.5rem))] bg-popover border theme-border text-popover-foreground shadow-xl p-4 z-[200] rounded-xl"
                                             >
                                                 <IncidentPreview inc={inc}/>
                                             </HoverCardContent>
@@ -902,18 +1245,18 @@ export default function Dashboard() {
                                     ) : (
                                         titleLink
                                     )}
-                                    <div className="font-mono text-[10px] text-slate-400 mt-1 uppercase"
+                                    <div className="font-mono text-[10px] text-muted-foreground mt-1 uppercase"
                                          title={inc.id}>{inc.id?.slice(0, 8)}</div>
                                 </td>
                                 <td className="px-4 py-3"><SeverityBadge severity={inc.severity}/></td>
                                 <td className="px-4 py-3"><StatusPill status={inc.status}/></td>
-                                <td className="px-4 py-3 text-right font-mono text-[12px] font-semibold text-blue-600">{inc.techniques?.length ?? 0}</td>
-                                <td className="px-4 py-3 text-right font-mono text-[12px] font-medium text-slate-600">{inc.iocs?.length ?? 0}</td>
-                                <td className={`px-4 py-3 text-right font-mono text-[12px] font-bold ${Number(inc.threat_score) >= highThreat ? "text-red-600" : "text-blue-600"}`}>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-semibold text-primary">{inc.techniques?.length ?? 0}</td>
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-medium text-muted-foreground">{inc.iocs?.length ?? 0}</td>
+                                <td className={`px-4 py-3 text-right font-mono text-[12px] font-bold ${Number(inc.threat_score) >= highThreat ? "text-destructive" : "text-primary"}`}>
                                     {inc.threat_score}
                                 </td>
-                                <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-emerald-600">{inc.playbook?.grounding_score ?? "—"}</td>
-                                <td className="px-4 py-3 text-right text-[11px] text-slate-500 font-mono">
+                                <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-emerald-600 dark:text-emerald-400">{inc.playbook?.grounding_score ?? "—"}</td>
+                                <td className="px-4 py-3 text-right text-[11px] text-muted-foreground font-mono">
                                     {formatDateTime(inc.created_at, {showStandard: false})}
                                 </td>
                             </tr>
@@ -925,7 +1268,7 @@ export default function Dashboard() {
 
             {/* Full-width ATT&CK panel so coverage matrix has room to fit */}
             <Panel
-                className="bg-white shadow-sm border-slate-200 mb-6"
+                className="mb-6"
                 title="MITRE ATT&CK Coverage"
                 subtitle="Technique frequency by tactic — use Coverage matrix for the full catalog grid"
                 testid="dash-heatmap-panel"

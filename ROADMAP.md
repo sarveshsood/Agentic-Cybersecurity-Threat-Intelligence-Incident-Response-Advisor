@@ -230,8 +230,8 @@ In-app seeds: `rm-arch-p0-p3-layers-analytics`, `rm-enterprise-board-2026-07-26`
 | H-04 | SOAR actions (separate human approval)          | Close-loop IR                            | P2       | 📋     |
 | H-05 | Multi-incident fan-out (1 upload → N incidents) | Optional product; **not** current design — see **N-05** | P3 | ❌ Non-goal v1.x / optional v2 |
 | H-06 | Native SIEM stream connectors                   | Ingest breadth                           | P3       | 📋     |
-| H-07 | In-app notification center / comments / assign  | Collaboration                            | P2       | 🔄 **~12%** (design ✅ · PR-1 ✅) |
-| H-08 | Saved filters / workspaces / pins               | Analyst productivity                     | P2       | 🔄 **~5%** (design ✅ · flags via PR-1) |
+| H-07 | In-app notification center / comments / assign  | Collaboration                            | P2       | ✅ **MVP** (flags on → APIs + UI) |
+| H-08 | Saved filters / workspaces / pins               | Analyst productivity                     | P2       | ✅ **MVP** (saved filters + pins) |
 
 **Design (both):** [`docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md`](docs/product/COLLABORATION_AND_SAVED_FILTERS_DESIGN.md)  
 **In-app seed:** `rm-v2-h07-h08-collab`  
@@ -312,6 +312,33 @@ In-app seeds: `rm-next-trust-qa`, `rm-next-platform-hardening`, `rm-v1-7-agent-r
 
 ---
 
+## H2. Enterprise platform track (2026-07-28)
+
+Highest-priority enterprise hardening (in-app seed `rm-enterprise-platform-track`).
+
+| Pri | Initiative | Status | Notes |
+|-----|------------|--------|-------|
+| P0 | TI API connectivity (keys, SSL, proxy, timeouts) | ✅ | `ti_http.py` + vault keys; `TI_HTTP_*` env |
+| P0 | Parallel IoC enrichment + worker pool | ✅ | `ENRICH_CONCURRENCY` (default 8, max 32) |
+| P0 | Structured JSON logging + correlation IDs | ✅ | `LOG_FORMAT=json`; rid/user contextvars |
+| P0 | Comprehensive audit trail | ✅ partial→expanded | `auth.login`, `pipeline.completed`, settings versions |
+| P1 | Enrichment caching | ✅ prior | Mongo + memory TTL |
+| P1 | Retries / backoff / circuit breakers | ✅ | TI circuits + LLM retries |
+| P1 | Prometheus / Grafana metrics | ✅ | `GET /metrics?format=prometheus` |
+| P1 | Per-job artifacts | ✅ opt-in | `JOB_ARTIFACTS_ENABLED=1` |
+| P2 | OpenTelemetry depth | ✅ soft | Optional requests/httpx/FastAPI instrument |
+| P2 | RabbitMQ/Kafka workers | ❌ non-goal v1.x | Mongo durable queue remains |
+| P2 | Append-only config versioning | ✅ | `settings_versions` + `GET /settings/versions` |
+| P2 | Investigation timeline + replay | ✅ | Timeline + `/replay` + `/replay-enrich` + artifacts |
+| P3 | LLM $ cost analytics | ✅ | `estimated_usd` + `by_provider` + price table |
+| P3 | Long-term log archival | ✅ | `LOG_ARCHIVE_*` dated copies + retain purge |
+| P3 | Ops anomaly detection | ✅ | Median/MAD + queue/TI/HTTP alerts on Ops Health |
+| P2 | AMQP broker workers | ✅ soft | `JOB_BROKER_URL` + pika; Mongo still claims |
+| P0/P1 | Audit WORM + SIEM export | ✅ | JSONL append + webhook + export API |
+| UX | Replay SPA | ✅ | Upload Replay/Artifacts; Incident Replay enrich |
+
+---
+
 ## I. Explicit non-goals (v1.x)
 
 | ID   | Non-goal                                                                            |
@@ -321,6 +348,7 @@ In-app seeds: `rm-next-trust-qa`, `rm-next-platform-hardening`, `rm-v1-7-agent-r
 | N-03 | Unconstrained multi-agent swarms without HiTL                                       |
 | N-04 | Expand documentation for its own sake                                               |
 | N-05 | Claim multi-incident fan-out while pipeline is single-incident                      |
+| N-06 | Full Kafka/Celery replacement of Mongo job state (optional AMQP wake-up is enough for v1.x) |
 
 ---
 

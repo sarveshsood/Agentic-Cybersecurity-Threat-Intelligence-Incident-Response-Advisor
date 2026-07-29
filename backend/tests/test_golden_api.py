@@ -42,6 +42,12 @@ def test_append_golden_dataset():
                 "expected": {
                     "iocs": [{"type": "ip", "value": "192.168.1.50"}],
                     "technique_ids": ["T1110"],
+                    "playbook_phases": [
+                        "containment",
+                        "eradication",
+                        "recovery",
+                        "lessons_learned",
+                    ],
                 },
             }
         ]

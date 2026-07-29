@@ -16,13 +16,46 @@ import {
 } from "@phosphor-icons/react";
 import {Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,} from "recharts";
 import {HelpTip} from "../components/HelpTip";
+import {ListState} from "../components/ListState";
 import {loadUiPrefs} from "../lib/uiPrefs";
 import {PageHeader, useChartTheme} from "../design-system";
 
 const MODES = [
-    {id: "hybrid", label: "Hybrid (BM25+LanceDB)"},
-    {id: "bm25", label: "BM25 only"},
-    {id: "dense", label: "LanceDB dense"},
+    {
+        id: "hybrid",
+        label: "Hybrid",
+        detail: "BM25 + LanceDB (RRF)",
+        body: "Default production path. Fuses lexical BM25 with dense ANN via reciprocal rank fusion. Best overall recall. Re-rank (Cohere/lexical) runs when enabled in Settings.",
+    },
+    {
+        id: "bm25",
+        label: "BM25 only",
+        detail: "Lexical / offline-safe",
+        body: "Always available. Keyword matching without vectors — use when LanceDB is down or for exact CVE/technique IDs.",
+    },
+    {
+        id: "dense",
+        label: "Dense only",
+        detail: "LanceDB ANN",
+        body: "Semantic nearest-neighbour only. Quality tracks embedder (hash offline vs sbert/lora). Fails soft to empty if vectors unhealthy.",
+    },
+];
+
+/** Always-visible corpus chips in the left pane (filter applies after a search). */
+const KNOWN_SOURCES = ["ALL", "MITRE", "NIST", "CISA", "Custom"];
+
+const TOP_K_OPTIONS = [5, 8, 12, 20];
+
+const MIN_SCORE_OPTIONS = [
+    {id: "any", label: "Any score", min: 0},
+    {id: "moderate", label: "≥ moderate", min: 0.35},
+    {id: "high", label: "≥ high", min: 0.65},
+];
+
+const SORT_OPTIONS = [
+    {id: "score", label: "Score (default)"},
+    {id: "source", label: "Source A–Z"},
+    {id: "title", label: "Title A–Z"},
 ];
 
 function RetrieverBadge({retriever}) {
@@ -85,6 +118,10 @@ export default function Knowledge() {
     ];
     const [q, setQ] = useState("");
     const [mode, setMode] = useState(prefs.kb_default_mode || "hybrid");
+    const [topK, setTopK] = useState(() => {
+        const n = Number(prefs.kb_default_top_k);
+        return TOP_K_OPTIONS.includes(n) ? n : 8;
+    });
     const [results, setResults] = useState([]);
     const [status, setStatus] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -96,6 +133,8 @@ export default function Knowledge() {
     const [ingestId, setIngestId] = useState("");
     const [ingestBusy, setIngestBusy] = useState(false);
     const [selectedSourceFilter, setSelectedSourceFilter] = useState("ALL");
+    const [minScoreTier, setMinScoreTier] = useState("any");
+    const [sortBy, setSortBy] = useState("score");
     const [copiedId, setCopiedId] = useState(null);
     const [customDocs, setCustomDocs] = useState([]);
     const [customBusy, setCustomBusy] = useState(false);
@@ -166,7 +205,7 @@ export default function Knowledge() {
         abortControllerRef.current = new AbortController();
         try {
             const r = await api.get(
-                `/kb/search?q=${encodeURIComponent(q)}&mode=${encodeURIComponent(mode)}`,
+                `/kb/search?q=${encodeURIComponent(q)}&mode=${encodeURIComponent(mode)}&top_k=${topK}`,
                 {signal: abortControllerRef.current.signal}
             );
             const elapsed = Math.round(performance.now() - startTime);
@@ -175,8 +214,8 @@ export default function Knowledge() {
             setResults(hits);
             setSelectedSourceFilter("ALL");
             setSearchHistory((h) => [
-                {q, mode, n: hits.length, at: Date.now(), latencyMs: elapsed},
-                ...h.filter((x) => x.q !== q || x.mode !== mode),
+                {q, mode, topK, n: hits.length, at: Date.now(), latencyMs: elapsed},
+                ...h.filter((x) => x.q !== q || x.mode !== mode || x.topK !== topK),
             ].slice(0, 12));
         } catch (e) {
             if (e?.name !== "CanceledError" && e?.code !== "ERR_CANCELED") {
@@ -295,14 +334,38 @@ export default function Knowledge() {
     }, [results]);
 
     const availableSources = useMemo(() => {
-        const sources = new Set(results.map((r) => r.source || "Unknown"));
-        return ["ALL", ...Array.from(sources)];
+        const fromHits = new Set(results.map((r) => r.source || "Unknown"));
+        const known = KNOWN_SOURCES.filter((s) => s === "ALL" || fromHits.has(s) || results.length === 0);
+        const extra = Array.from(fromHits).filter((s) => !KNOWN_SOURCES.includes(s));
+        return [...known, ...extra];
     }, [results]);
 
     const filteredResults = useMemo(() => {
-        if (selectedSourceFilter === "ALL") return results;
-        return results.filter((r) => (r.source || "Unknown") === selectedSourceFilter);
-    }, [results, selectedSourceFilter]);
+        const tier = MIN_SCORE_OPTIONS.find((t) => t.id === minScoreTier) || MIN_SCORE_OPTIONS[0];
+        const minScore = tier.min || 0;
+        let list = results.filter((r) => {
+            if (selectedSourceFilter !== "ALL" && (r.source || "Unknown") !== selectedSourceFilter) {
+                return false;
+            }
+            if (minScore <= 0) return true;
+            let sc = Number(r.score);
+            if (Number.isNaN(sc)) sc = 0;
+            if (sc < 0.1 && (r.rerank_score > 0.5 || r.dense_score > 0.4 || r.bm25_score > 3.0)) {
+                sc = r.rerank_score || r.dense_score || Math.min(1.0, (r.bm25_score || 0) / 10);
+            }
+            return sc >= minScore;
+        });
+        if (sortBy === "source") {
+            list = [...list].sort((a, b) =>
+                String(a.source || "").localeCompare(String(b.source || "")),
+            );
+        } else if (sortBy === "title") {
+            list = [...list].sort((a, b) =>
+                String(a.title || a.id || "").localeCompare(String(b.title || b.id || "")),
+            );
+        }
+        return list;
+    }, [results, selectedSourceFilter, minScoreTier, sortBy]);
 
     const retrieverPie = useMemo(() => {
         const counts = {};
@@ -840,152 +903,387 @@ export default function Knowledge() {
                 </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-                <input
-                    data-testid="kb-query"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && search()}
-                    placeholder="Search techniques, tactics, CVEs, playbook steps…"
-                    title="Natural language or keyword query"
-                    className="flex-1 min-w-[200px] bg-background border border-border rounded px-3 py-2 text-sm"
-                />
-                <select
-                    data-testid="kb-mode"
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value)}
-                    title="Retrieval mode"
-                    className="bg-background border border-border rounded px-2 py-2 text-xs"
+            {/* Search workspace: left options pane + results */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4" data-testid="kb-search-workspace">
+                <aside
+                    className="lg:col-span-3 space-y-4"
+                    data-testid="kb-search-left-pane"
+                    aria-label="Knowledge search options"
                 >
-                    {MODES.map((m) => (
-                        <option key={m.id} value={m.id}>
-                            {m.label}
-                        </option>
-                    ))}
-                </select>
-                <button
-                    data-testid="kb-search"
-                    onClick={search}
-                    disabled={busy}
-                    title="Run hybrid / BM25 / dense search"
-                    className="inline-flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-5 py-2 rounded transition-colors disabled:opacity-60"
-                >
-                    <MagnifyingGlass size={14} weight="bold"/>
-                    {busy ? "Searching…" : "Search"}
-                </button>
-                {queryLatencyMs != null && (
-                    <span
-                        className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted/50 px-2.5 py-2 rounded border border-border"
-                        title="Query execution time">
-            <Timer size={13}/> {queryLatencyMs}ms
-          </span>
-                )}
-            </div>
-
-            {searchHistory.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-4" data-testid="kb-search-history">
-                    <span className="text-[10px] text-muted-foreground/80 self-center mr-1">Recent:</span>
-                    {searchHistory.map((h) => (
-                        <button
-                            key={`${h.q}-${h.mode}-${h.at}`}
-                            type="button"
-                            title={`${h.n} hits · ${h.mode}${h.latencyMs ? ` · ${h.latencyMs}ms` : ""}`}
-                            className="text-[10px] px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/40"
-                            onClick={() => {
-                                setQ(h.q);
-                                setMode(h.mode);
-                            }}
-                        >
-                            {h.q.slice(0, 28)}{h.q.length > 28 ? "…" : ""} · {h.n}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {/* Source Corpus Filter Chips */}
-            {results.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 mb-3" data-testid="kb-source-filters">
-                    <span className="text-[10px] text-muted-foreground/80 self-center mr-1">Filter Source:</span>
-                    {availableSources.map((src) => {
-                        const active = selectedSourceFilter === src;
-                        return (
-                            <button
-                                key={src}
-                                type="button"
-                                onClick={() => setSelectedSourceFilter(src)}
-                                className={`text-[10px] px-2.5 py-1 rounded border transition-colors font-mono ${
-                                    active
-                                        ? "bg-primary text-primary-foreground border-primary"
-                                        : "bg-background text-muted-foreground border-border hover:border-primary/40"
-                                }`}
-                            >
-                                {src} {src === "ALL" ? `(${results.length})` : `(${results.filter(r => (r.source || "Unknown") === src).length})`}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-
-            <div className="space-y-3">
-                {filteredResults.map((r) => (
-                    <div key={r.id} className="soc-card p-4 relative group" data-testid={`kb-hit-${r.id}`}>
-                        <div className="flex items-center justify-between mb-1 gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                <span
-                    className="inline-flex items-center gap-1.5 citation-chip px-2 py-0.5 rounded border border-border bg-muted/30 text-xs font-mono"
-                    title="Document id">
-                  {r.id}
-                    <button
-                        type="button"
-                        onClick={() => copyCitation(r)}
-                        className="text-muted-foreground hover:text-foreground transition-colors p-0.5 inline-flex items-center justify-center"
-                        title="Copy citation snippet"
-                    >
-                    {copiedId === r.id ? <Check size={12} className="text-success"/> : <Copy size={12}/>}
-                  </button>
-                </span>
-                                <span className="soc-label" title="Source corpus">{r.source}</span>
-                                <RetrieverBadge retriever={r.retriever}/>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                {r.bm25_score != null && (
-                                    <span className="font-mono text-[9px] text-muted-foreground" title="BM25 score">
-                    bm25 {Number(r.bm25_score).toFixed(2)}
-                  </span>
-                                )}
-                                {r.dense_score != null && (
-                                    <span className="font-mono text-[9px] text-muted-foreground"
-                                          title="Dense similarity">
-                    dense {Number(r.dense_score).toFixed(2)}
-                  </span>
-                                )}
-                                {r.rerank_score != null && (
-                                    <span className="font-mono text-[9px] text-primary/80" title="Re-rank score">
-                    rerank {Number(r.rerank_score).toFixed(2)}
-                  </span>
-                                )}
-                                <ConfidenceBadge
-                                    score={typeof r.score === "number" ? r.score : parseFloat(r.score)}
-                                    bm25Score={r.bm25_score}
-                                    denseScore={r.dense_score}
-                                    rerankScore={r.rerank_score}
-                                />
-                            </div>
+                    <div className="soc-card p-4 space-y-3">
+                        <div className="soc-label flex items-center gap-1.5">
+                            Retrieval mode
+                            <HelpTip
+                                title="Retrieval mode"
+                                body="Choose how ACTIRA ranks KB chunks. Hybrid is default; BM25 is always offline-safe; dense depends on LanceDB + embedder quality."
+                                testid="tip-kb-mode-pane"
+                            />
                         </div>
-                        <div className="font-semibold text-[15px]">{r.title}</div>
-                        <div className="text-[12px] text-muted-foreground mt-1.5 leading-relaxed">{r.text}</div>
+                        <div className="space-y-1.5" role="radiogroup" aria-label="Retrieval mode" data-testid="kb-mode">
+                            {MODES.map((m) => {
+                                const active = mode === m.id;
+                                return (
+                                    <button
+                                        key={m.id}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={active}
+                                        data-testid={`kb-mode-${m.id}`}
+                                        title={m.body}
+                                        onClick={() => setMode(m.id)}
+                                        className={`w-full text-left rounded-lg border px-3 py-2.5 transition-colors ${
+                                            active
+                                                ? "border-primary bg-primary/10 text-foreground shadow-sm"
+                                                : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                                        }`}
+                                    >
+                                        <div className="text-[13px] font-semibold">{m.label}</div>
+                                        <div className="text-[10px] font-mono mt-0.5 opacity-80">{m.detail}</div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            {MODES.find((m) => m.id === mode)?.body}
+                        </p>
                     </div>
-                ))}
-                {filteredResults.length === 0 && results.length > 0 && (
-                    <div className="text-xs text-muted-foreground py-4 text-center">
-                        No results match the selected source filter ({selectedSourceFilter}).
+
+                    <div className="soc-card p-4 space-y-2">
+                        <div className="soc-label flex items-center gap-1.5">
+                            Result limit (top_k)
+                            <HelpTip
+                                title="Top-K results"
+                                body="How many ranked chunks to return. Higher values improve recall for broad queries; lower values speed demos."
+                                testid="tip-kb-topk-pane"
+                            />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Top K" data-testid="kb-topk">
+                            {TOP_K_OPTIONS.map((k) => {
+                                const active = topK === k;
+                                return (
+                                    <button
+                                        key={k}
+                                        type="button"
+                                        data-testid={`kb-topk-${k}`}
+                                        onClick={() => setTopK(k)}
+                                        className={`min-w-[2.5rem] text-center text-[11px] font-mono px-2 py-1.5 rounded border transition-colors ${
+                                            active
+                                                ? "bg-primary text-primary-foreground border-primary"
+                                                : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                                        }`}
+                                    >
+                                        {k}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
-                )}
-                {results.length === 0 && (
-                    <div className="text-xs text-muted-foreground">
-                        Enter a query and search — hybrid uses LanceDB when the vector store is healthy.
+
+                    <div className="soc-card p-4 space-y-2">
+                        <div className="soc-label flex items-center gap-1.5">
+                            Source corpus
+                            <HelpTip
+                                title="Source filters"
+                                body="Narrow hits after search by corpus (MITRE, NIST, CISA, Custom). ALL shows every hit from the last query. Known corpora stay visible before search."
+                                testid="tip-kb-source-pane"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1" data-testid="kb-source-filters">
+                            {availableSources.map((src) => {
+                                const active = selectedSourceFilter === src;
+                                const count = src === "ALL"
+                                    ? results.length
+                                    : results.filter((r) => (r.source || "Unknown") === src).length;
+                                return (
+                                    <button
+                                        key={src}
+                                        type="button"
+                                        onClick={() => setSelectedSourceFilter(src)}
+                                        disabled={results.length === 0 && src !== "ALL"}
+                                        className={`text-left text-[11px] px-2.5 py-1.5 rounded border font-mono transition-colors ${
+                                            active
+                                                ? "bg-primary text-primary-foreground border-primary"
+                                                : "bg-background text-muted-foreground border-border hover:border-primary/40 disabled:opacity-50"
+                                        }`}
+                                    >
+                                        {src}{results.length > 0 ? ` (${count})` : ""}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
-                )}
+
+                    <div className="soc-card p-4 space-y-2" data-testid="kb-min-score-pane">
+                        <div className="soc-label flex items-center gap-1.5">
+                            Min confidence
+                            <HelpTip
+                                title="Minimum score filter"
+                                body="Client-side filter on the last result set. Uses fused score (or normalized BM25/dense/rerank when fused scores are tiny). Does not re-query the API."
+                                testid="tip-kb-minscore-pane"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1" role="group" aria-label="Minimum confidence">
+                            {MIN_SCORE_OPTIONS.map((opt) => {
+                                const active = minScoreTier === opt.id;
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        data-testid={`kb-minscore-${opt.id}`}
+                                        onClick={() => setMinScoreTier(opt.id)}
+                                        className={`text-left text-[11px] px-2.5 py-1.5 rounded border transition-colors ${
+                                            active
+                                                ? "bg-primary text-primary-foreground border-primary"
+                                                : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="soc-card p-4 space-y-2" data-testid="kb-sort-pane">
+                        <div className="soc-label flex items-center gap-1.5">
+                            Sort results
+                            <HelpTip
+                                title="Result sort"
+                                body="Reorder the current hits without a new search. Score keeps API rank; Source/Title sort alphabetically."
+                                testid="tip-kb-sort-pane"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1" role="group" aria-label="Sort results">
+                            {SORT_OPTIONS.map((opt) => {
+                                const active = sortBy === opt.id;
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        data-testid={`kb-sort-${opt.id}`}
+                                        onClick={() => setSortBy(opt.id)}
+                                        className={`text-left text-[11px] px-2.5 py-1.5 rounded border transition-colors ${
+                                            active
+                                                ? "bg-primary text-primary-foreground border-primary"
+                                                : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {results.length > 0 && filteredResults.length !== results.length && (
+                            <p className="text-[10px] text-muted-foreground m-0">
+                                Showing {filteredResults.length} of {results.length} hits
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="soc-card p-4 space-y-2" data-testid="kb-vector-left">
+                        <div className="soc-label flex items-center gap-1.5">
+                            <Database size={11}/> Vector status
+                            <HelpTip
+                                title="Vector store"
+                                body="LanceDB health, embedder honesty, and row counts. Dense mode quality tracks the embedder (hash vs sbert/lora)."
+                                testid="tip-kb-vector-pane"
+                            />
+                        </div>
+                        {status ? (
+                            <dl className="space-y-1.5 text-[11px] font-mono">
+                                <div className="flex justify-between gap-2">
+                                    <dt className="text-muted-foreground">health</dt>
+                                    <dd className={status.ok ? "text-success font-semibold" : "text-error font-semibold"}>
+                                        {status.ok ? "ok" : "degraded"}
+                                    </dd>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                    <dt className="text-muted-foreground">embedder</dt>
+                                    <dd className="text-right break-all max-w-[60%]">{status.embedder ?? "—"}</dd>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                    <dt className="text-muted-foreground">kb_rows</dt>
+                                    <dd>{status.kb_rows ?? "—"}</dd>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                    <dt className="text-muted-foreground">incidents</dt>
+                                    <dd>{status.incident_rows ?? "—"}</dd>
+                                </div>
+                                {status.dim != null && (
+                                    <div className="flex justify-between gap-2">
+                                        <dt className="text-muted-foreground">dim</dt>
+                                        <dd>{status.dim}</dd>
+                                    </div>
+                                )}
+                            </dl>
+                        ) : (
+                            <p className="text-[11px] text-muted-foreground m-0">Status unavailable</p>
+                        )}
+                        <button
+                            type="button"
+                            className="text-[10px] text-primary hover:underline font-medium"
+                            onClick={loadStatus}
+                            data-testid="kb-vector-refresh"
+                        >
+                            Refresh status
+                        </button>
+                    </div>
+
+                    <div className="soc-card p-4 space-y-2" data-testid="kb-search-history">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="soc-label">Recent (this browser)</div>
+                            {searchHistory.length > 0 && (
+                                <button
+                                    type="button"
+                                    className="text-[10px] text-muted-foreground hover:text-error"
+                                    data-testid="kb-history-clear"
+                                    onClick={() => setSearchHistory([])}
+                                    title="Clear session search history"
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        {searchHistory.length === 0 ? (
+                            <div className="text-[10px] text-muted-foreground py-2">No queries yet this session.</div>
+                        ) : (
+                            <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                                {searchHistory.map((h) => (
+                                    <button
+                                        key={`${h.q}-${h.mode}-${h.topK || 8}-${h.at}`}
+                                        type="button"
+                                        title={`${h.n} hits · ${h.mode}${h.topK ? ` · k=${h.topK}` : ""}${h.latencyMs ? ` · ${h.latencyMs}ms` : ""}`}
+                                        className="text-left text-[10px] px-2 py-1.5 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/40"
+                                        onClick={() => {
+                                            setQ(h.q);
+                                            setMode(h.mode || "hybrid");
+                                            if (h.topK && TOP_K_OPTIONS.includes(h.topK)) setTopK(h.topK);
+                                        }}
+                                    >
+                                        <span className="line-clamp-2">{h.q}</span>
+                                        <span className="font-mono opacity-70">
+                                            {" "}· {h.n} · {h.mode}{h.topK ? ` · k=${h.topK}` : ""}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </aside>
+
+                <div className="lg:col-span-9 space-y-4 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <input
+                            data-testid="kb-query"
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && search()}
+                            placeholder="Search techniques, tactics, CVEs, playbook steps…"
+                            title="Natural language or keyword query"
+                            className="flex-1 min-w-[200px] bg-background border border-border rounded px-3 py-2 text-sm"
+                        />
+                        {/* Hidden select keeps form/test parity for mode */}
+                        <select
+                            className="sr-only"
+                            tabIndex={-1}
+                            aria-hidden
+                            value={mode}
+                            onChange={(e) => setMode(e.target.value)}
+                        >
+                            {MODES.map((m) => (
+                                <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                        </select>
+                        <button
+                            data-testid="kb-search"
+                            onClick={search}
+                            disabled={busy}
+                            title="Run hybrid / BM25 / dense search"
+                            className="inline-flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-5 py-2 rounded transition-colors disabled:opacity-60"
+                        >
+                            <MagnifyingGlass size={14} weight="bold"/>
+                            {busy ? "Searching…" : "Search"}
+                        </button>
+                        {queryLatencyMs != null && (
+                            <span
+                                className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground bg-muted/50 px-2.5 py-2 rounded border border-border"
+                                title="Query execution time"
+                            >
+                                <Timer size={13}/> {queryLatencyMs}ms
+                            </span>
+                        )}
+                        <span className="text-[10px] font-mono text-muted-foreground border border-border rounded px-2 py-1.5">
+                            mode={mode} · k={topK}
+                        </span>
+                    </div>
+
+                    <div className="space-y-3">
+                        {filteredResults.map((r) => (
+                            <div key={r.id} className="soc-card p-4 relative group" data-testid={`kb-hit-${r.id}`}>
+                                <div className="flex items-center justify-between mb-1 gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span
+                                            className="inline-flex items-center gap-1.5 citation-chip px-2 py-0.5 rounded border border-border bg-muted/30 text-xs font-mono"
+                                            title="Document id"
+                                        >
+                                            {r.id}
+                                            <button
+                                                type="button"
+                                                onClick={() => copyCitation(r)}
+                                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 inline-flex items-center justify-center"
+                                                title="Copy citation snippet"
+                                            >
+                                                {copiedId === r.id ? <Check size={12} className="text-success"/> : <Copy size={12}/>}
+                                            </button>
+                                        </span>
+                                        <span className="soc-label" title="Source corpus">{r.source}</span>
+                                        <RetrieverBadge retriever={r.retriever}/>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {r.bm25_score != null && (
+                                            <span className="font-mono text-[9px] text-muted-foreground" title="BM25 score">
+                                                bm25 {Number(r.bm25_score).toFixed(2)}
+                                            </span>
+                                        )}
+                                        {r.dense_score != null && (
+                                            <span className="font-mono text-[9px] text-muted-foreground" title="Dense similarity">
+                                                dense {Number(r.dense_score).toFixed(2)}
+                                            </span>
+                                        )}
+                                        {r.rerank_score != null && (
+                                            <span className="font-mono text-[9px] text-primary/80" title="Re-rank score">
+                                                rerank {Number(r.rerank_score).toFixed(2)}
+                                            </span>
+                                        )}
+                                        <ConfidenceBadge
+                                            score={typeof r.score === "number" ? r.score : parseFloat(r.score)}
+                                            bm25Score={r.bm25_score}
+                                            denseScore={r.dense_score}
+                                            rerankScore={r.rerank_score}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="font-semibold text-[15px]">{r.title}</div>
+                                <div className="text-[12px] text-muted-foreground mt-1.5 leading-relaxed">{r.text}</div>
+                            </div>
+                        ))}
+                        {busy && (
+                            <ListState variant="loading" message="Searching knowledge base…" testid="kb-search-loading"/>
+                        )}
+                        {filteredResults.length === 0 && results.length > 0 && !busy && (
+                            <div className="text-xs text-muted-foreground py-4 text-center" role="status">
+                                No results match the selected source filter ({selectedSourceFilter}).
+                            </div>
+                        )}
+                        {results.length === 0 && !busy && (
+                            <ListState
+                                variant="empty"
+                                message="Enter a query and search — hybrid uses LanceDB when the vector store is healthy. Pick BM25-only or dense-only in the left pane if needed."
+                                testid="kb-search-empty"
+                            />
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );

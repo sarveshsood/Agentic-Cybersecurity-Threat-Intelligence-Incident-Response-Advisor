@@ -25,7 +25,7 @@
 | `MONGO_URL` | `mongodb://localhost:27017` | Compose: `mongodb://mongodb:27017` |
 | `DB_NAME` | `soc_console` | Lab may use test DB names |
 | `CORS_ORIGINS` | `http://localhost:3000` | Exact browser origins |
-| `JWT_SECRET` | ≥32 random chars | Weak refused when `ENV` not lab |
+| `JWT_SECRET` | Policy ≥32 random chars | Runtime refuses weak/default or &lt;16 outside lab |
 | `ENV` | `dev` / `test` / `production` | Affects seed, JWT checks |
 
 ---
